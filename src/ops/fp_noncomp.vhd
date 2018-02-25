@@ -1,0 +1,438 @@
+-------------------------------------------------------------------------------
+-- Title      : Floating-Point Non-Computational Operations Unit
+-- Project    :
+-------------------------------------------------------------------------------
+-- File       : fp_noncomp.vhd
+-- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
+-- Company    : Integrated Systems Laboratory, ETH Zurich
+-- Created    : 2018-02-14
+-- Last update: 2018-04-07
+-- Platform   : ModelSim (simulation), Synopsys (synthesis)
+-- Standard   : VHDL'08
+-------------------------------------------------------------------------------
+-- Description: Parametric floating-point comparison unit.
+--              Supported operations from fpnew_pkg.fpOp_t:
+--              - SGNJ
+--              - MINMAX
+--              - CMP
+--              - CLASS
+-------------------------------------------------------------------------------
+-- Copyright (C) 2018 ETH Zurich, University of Bologna
+-- All rights reserved.
+--
+-- This code is under development and not yet released to the public.
+-- Until it is released, the code is under the copyright of ETH Zurich and
+-- the University of Bologna, and may contain confidential and/or unpublished
+-- work. Any reuse/redistribution is strictly forbidden without written
+-- permission from ETH Zurich.
+--
+-- Bug fixes and contributions will eventually be released under the
+-- SolderPad open hardware license in the context of the PULP platform
+-- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
+-- University of Bologna.
+-------------------------------------------------------------------------------
+
+library IEEE, work;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+use work.fpnew_pkg.all;
+use work.fpnew_comps_pkg.all;
+
+
+entity fp_noncomp is
+
+  generic (
+    EXP_BITS  : natural := 5;
+    MAN_BITS  : natural := 10;
+    LATENCY   : natural := 0;
+    TAG_WIDTH : natural := 0);
+
+  port (
+    Clk_CI         : in  std_logic;
+    Reset_RBI      : in  std_logic;
+    ---------------------------------------------------------------------------
+    A_DI, B_DI     : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    RoundMode_SI   : in  rvRoundingMode_t;
+    Op_SI          : in  fpOp_t;
+    OpMod_SI       : in  std_logic;
+    VectorialOp_SI : in  std_logic;
+    Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI     : in  std_logic;
+    InReady_SO     : out std_logic;
+    ---------------------------------------------------------------------------
+    Z_DO           : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    Status_DO      : out rvStatus_t;
+    Tag_DO         : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    UnpackClass_SO : out std_logic;
+    Zext_SO        : out std_logic;
+    OutValid_SO    : out std_logic;
+    OutReady_SI    : in  std_logic);
+
+end entity fp_noncomp;
+
+
+
+architecture rtl of fp_noncomp is
+
+  -----------------------------------------------------------------------------
+  -- Constants
+  -----------------------------------------------------------------------------
+  constant MAXEXP : natural := MAXEXP(EXP_BITS);
+
+  -- The quiet bit index is the topmost bit of the mantissa of a NaN value
+  constant QUIETBIT : natural := MAN_BITS-1;
+
+  -- Bit-Patterns of special values, only read from these!
+  signal INFEXP  : std_logic_vector(EXP_BITS-1 downto 0);
+  signal INFMANT : std_logic_vector(MAN_BITS-1 downto 0);
+
+  -----------------------------------------------------------------------------
+  -- Type Definitions
+  -----------------------------------------------------------------------------
+
+  --! @brief Non-computational operation groups
+  --! @details Enumerators for indexing arrays that hold values depending on
+  --! the operation group currently executed.
+  type nonCompOpGroup_t is (SGNJ, MINMAX, CMP, CLASS);
+
+  --! @brief Array of output words indexed by operation
+  --! @details An output word for each operation in this unit. Addressable by
+  --! enumerators from nonCompOpGroup_t corresponding to the operation classes.
+  type resultArray_t is array (nonCompOpGroup_t) of std_logic_vector(Z_DO'range);
+  --! @brief Array of status flags indexed by operation
+  --! @details An fflags word for each operation in this unit. Addressable by
+  --! enumerators from nonCompOpGroup_t corresponding to the operation classes.
+  type statusArray_t is array (nonCompOpGroup_t) of rvStatus_t;
+
+  -----------------------------------------------------------------------------
+  -- Signal Declarations
+  -----------------------------------------------------------------------------
+
+  -- Provide aliased signal names for parts of input FP numbers
+  alias SignA_DI : std_logic is A_DI(A_DI'high);
+  alias SignB_DI : std_logic is B_DI(B_DI'high);
+
+  alias AbsA_DI : std_logic_vector(EXP_BITS+MAN_BITS-1 downto 0)
+    is A_DI(EXP_BITS+MAN_BITS-1 downto 0);
+  alias AbsB_DI : std_logic_vector(EXP_BITS+MAN_BITS-1 downto 0)
+    is B_DI(EXP_BITS+MAN_BITS-1 downto 0);
+
+  alias ExpA_DI : std_logic_vector(EXP_BITS-1 downto 0)
+    is A_DI(EXP_BITS+MAN_BITS-1 downto MAN_BITS);
+  alias ExpB_DI : std_logic_vector(EXP_BITS-1 downto 0)
+    is B_DI(EXP_BITS+MAN_BITS-1 downto MAN_BITS);
+
+  alias MantA_DI : std_logic_vector(MAN_BITS-1 downto 0)
+    is A_DI(MAN_BITS-1 downto 0);
+  alias MantB_DI : std_logic_vector(MAN_BITS-1 downto 0)
+    is B_DI(MAN_BITS-1 downto 0);
+
+  -- FP classification signals
+  signal IsNormalA_S, IsNormalB_S : boolean;
+  signal IsInfA_S, IsInfB_S       : boolean;
+  signal IsNaNA_S, IsNaNB_S       : boolean;
+  signal IsZeroA_S, IsZeroB_S     : boolean;
+
+  signal SignalingNaN_S, SignalingNaNA_S : boolean;
+  signal InputInf_S, InputNaN_S          : boolean;
+
+  -- Classification
+  signal ClassResult_D   : rvClassBit_t;
+  signal VecClassBlock_D : vecClassBlock_t;
+  signal ScalarClassRes_D, VecClassRes_D : std_logic_vector(Z_DO'range);
+
+
+  -- Comparator Outputs
+  signal OperandsEqual_S, OperandASmaller_S : boolean;
+
+  -- Operation Select
+  signal OpGroup_S : nonCompOpGroup_t;
+
+  -- Results of operations
+  signal ResArray_D : resultArray_t;
+
+  -- RISC-V FP FLAGS
+  signal StatArray_D : statusArray_t;
+
+  -- Final result (pre-pipelining)
+  signal Result_D : std_logic_vector(Z_DO'range);
+  signal Status_D : rvStatus_t;
+
+  -- Control information about the output
+  signal UnpackClass_S           : std_logic;
+  signal Zext_S                  : std_logic;
+  signal TagInt_D, TagIntPiped_D : std_logic_vector(TAG_WIDTH+1 downto 0);
+
+begin  -- architecture rtl
+
+  -----------------------------------------------------------------------------
+  -- Special Value Constant Signals
+  -----------------------------------------------------------------------------
+
+  -- Infinity and NaN constants
+  INFEXP  <= (others => '1');
+  INFMANT <= (others => '0');
+
+  -----------------------------------------------------------------------------
+  -- Input Classification
+  -----------------------------------------------------------------------------
+
+  -- Normal if non-zero exponents
+  IsNormalA_S <= unsigned(ExpA_DI) /= 0;
+  IsNormalB_S <= unsigned(ExpB_DI) /= 0;
+
+  -- Infinities have all-ones exponents and zero mantissa
+  IsInfA_S <= ExpA_DI = INFEXP and MantA_DI = INFMANT;
+  IsInfB_S <= ExpB_DI = INFEXP and MantB_DI = INFMANT;
+
+  -- Nans have all-ones exponents and non-zero mantissa
+  IsNaNA_S <= unsigned(ExpA_DI) = MAXEXP and unsigned(MantA_DI) /= 0;
+  IsNaNB_S <= unsigned(ExpB_DI) = MAXEXP and unsigned(MantB_DI) /= 0;
+
+  -- Zeroes are encoded by all-zero eponent and mantissa
+  IsZeroA_S <= unsigned(std_logic_vector'(ExpA_DI & MantA_DI)) = 0;
+  IsZeroB_S <= unsigned(std_logic_vector'(ExpB_DI & MantB_DI)) = 0;
+
+  -- An input is Inf
+  InputInf_S <= IsInfA_S or IsInfB_S;
+
+  -- An input is NaN
+  InputNaN_S <= IsNaNA_S or IsNaNB_S;
+
+  -- Detect a signaling NaN at the inputs
+  SignalingNaNA_S <= (IsNaNA_S and MantA_DI(QUIETBIT) = '0');
+  SignalingNaN_S  <= (IsNaNA_S and MantA_DI(QUIETBIT) = '0')
+                    or (IsNaNB_S and MantB_DI(QUIETBIT) = '0');
+
+  -- Assign current operation group for later output selection
+  with Op_SI select
+    OpGroup_S <=
+    CLASS  when CLASS,
+    CMP    when CMP,
+    MINMAX when MINMAX,
+    SGNJ   when SGNJ,
+    SGNJ   when others;
+
+  -----------------------------------------------------------------------------
+  -- Classification
+  -----------------------------------------------------------------------------
+
+  --! @brief Classification of input A
+  --! @details Generate the RISC-V classification block as well as the
+  --! vectorial classification block from input operand A
+  p_class : process (all) is begin  -- process p_class
+
+    -- Sign into Vectorial Class Block
+    VecClassBlock_D.Sign <= SignA_DI;
+
+    -- NaN cases
+    if IsNaNA_S then
+      if SignalingNaNA_S then
+        ClassResult_D         <= SNAN;
+        VecClassBlock_D.Class <= SNAN;
+      else
+        ClassResult_D         <= QNAN;
+        VecClassBlock_D.Class <= QNAN;
+      end if;
+
+    -- negative cases
+    elsif SignA_DI = '1' then
+      if IsInfA_S then
+        ClassResult_D         <= NEGINF;
+        VecClassBlock_D.Class <= INF;
+      elsif IsZeroA_S then
+        ClassResult_D         <= NEGZERO;
+        VecClassBlock_D.Class <= ZERO;
+      elsif IsNormalA_S then
+        ClassResult_D         <= NEGNORM;
+        VecClassBlock_D.Class <= NORM;
+      else
+        ClassResult_D         <= NEGSUBNORM;
+        VecClassBlock_D.Class <= SUBNORM;
+      end if;
+
+    -- positive cases
+    else
+      if IsInfA_S then
+        ClassResult_D         <= POSINF;
+        VecClassBlock_D.Class <= INF;
+      elsif IsZeroA_S then
+        ClassResult_D         <= POSZERO;
+        VecClassBlock_D.Class <= ZERO;
+      elsif IsNormalA_S then
+        ClassResult_D         <= POSNORM;
+        VecClassBlock_D.Class <= NORM;
+      else
+        ClassResult_D         <= POSSUBNORM;
+        VecClassBlock_D.Class <= SUBNORM;
+      end if;
+
+    end if;
+
+    ScalarClassRes_D              <= (others  => '0');
+    ScalarClassRes_D(3 downto 0)  <= to_slv(ClassResult_D);  -- packed slv
+
+    VecClassRes_D             <= (others  => '0');
+    VecClassRes_D(7 downto 0) <= to_slv(VecClassBlock_D);
+
+  end process p_class;
+
+  -- Scalar class result is sent out packed into the enumerated representation,
+  -- Vectorial class result is unpacked right here
+  ResArray_D(CLASS) <= VecClassRes_D when VectorialOp_SI = '1' else
+                       ScalarClassRes_D;
+
+
+  -- Classification never raises exceptions
+  StatArray_D(CLASS) <= (others => '0');
+
+  -----------------------------------------------------------------------------
+  -- Sign Injection - operation is encoded in RoundMode_SI:
+  -- RNE = SGNJ, RTZ = SGNJN, RDN = SGNJX
+  -----------------------------------------------------------------------------
+  ResArray_D(SGNJ) <= SignB_DI & AbsA_DI when RoundMode_SI = RNE else
+                      (not SignB_DI) & AbsA_DI          when RoundMode_SI = RTZ else
+                      (SignA_DI xor SignB_DI) & AbsA_DI when RoundMode_SI = RDN else
+                      (others => '-');
+
+  -- Sign Injection never raises exceptions
+  StatArray_D(SGNJ) <= (others => '0');
+
+  -----------------------------------------------------------------------------
+  -- Comparators
+  -----------------------------------------------------------------------------
+
+  -- All other ops need the comparator outputs for their result
+  -- TODO check if writing a subtraction is different in area/time - unlikely
+  OperandsEqual_S   <= signed(A_DI) = signed(B_DI);
+  OperandASmaller_S <= signed(A_DI) < signed(B_DI);
+
+  -----------------------------------------------------------------------------
+  -- Minimum/Maximum - operation is encoded in RoundMode_SI:
+  -- RNE = MIN, RTZ = MAX
+  -----------------------------------------------------------------------------
+
+  --! @brief Handle MIN/MAX operations and their special cases
+  p_minMax : process (all) is
+  begin  -- process p_minMax
+
+    -- Default assignment: clear exception flags
+    StatArray_D(MINMAX) <= (others => '0');
+
+    -- Min/Max use quiet comparisons - only SNAN or both NaN are invalid
+    if SignalingNaN_S or (IsNaNA_S and IsNaNB_S) then
+      ResArray_D(MINMAX)      <= NAN(EXP_BITS, MAN_BITS);  -- return canonical qnan
+      StatArray_D(MINMAX)(NV) <= '1';   -- raise invalid exception
+
+    -- If one operand is QNaN, the non-NaN operand is returned
+    elsif IsNaNA_S then
+      ResArray_D(MINMAX) <= B_DI;
+    elsif IsNaNB_S then
+      ResArray_D(MINMAX) <= A_DI;
+
+    -- A is the desired output when smaller and min or larger and max
+    elsif ((OperandASmaller_S and RoundMode_SI = RNE)
+           or (not OperandASmaller_S and RoundMode_SI = RTZ)) then
+      ResArray_D(MINMAX) <= A_DI;
+
+    -- B is the desired output when smaller and min or larger and max
+    elsif ((not OperandASmaller_S and RoundMode_SI = RNE)
+           or (OperandASmaller_S and RoundMode_SI = RTZ)) then
+      ResArray_D(MINMAX) <= B_DI;
+
+    -- otherwise no valid op and optimize away
+    else
+      ResArray_D(MINMAX) <= (others => '-');
+
+    end if;
+  end process p_minMax;
+
+
+  -----------------------------------------------------------------------------
+  -- Comparisons - operation is encoded in RoundMode_SI:
+  -- RNE = LE, RTZ = LT, RDN = EQ
+  -- OpMod_SI inverts boolean outputs
+  -----------------------------------------------------------------------------
+
+  --! @brief Handle Comparisons and their special cases
+  p_cmp : process (all) is
+  begin  -- process p_comp
+
+    -- Default assignment: FALSE and clear exception flags
+    ResArray_D(CMP)  <= (others => '0');
+    StatArray_D(CMP) <= (others => '0');
+
+    -- Signaling NaNs are always illegal
+    if SignalingNaN_S then
+      -- result is 0 (false), already set
+      StatArray_D(CMP)(NV) <= '1';      -- raise invalid exception
+
+    -- LE and LT perform signalling comparisons: any NaN input is invalid
+    elsif (RoundMode_SI = RNE or RoundMode_SI = RTZ) and InputNaN_S then
+      -- result is 0 (false), already set
+      StatArray_D(CMP)(NV) <= '1';      -- raise invalid exception
+
+    -- Less or Equal
+    elsif RoundMode_SI = RNE then
+      ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S or OperandsEqual_S) xor OpMod_SI;
+
+    -- Less Than
+    elsif RoundMode_SI = RTZ then
+      ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S) xor OpMod_SI;
+
+    -- Equals
+    elsif RoundMode_SI = RDN then
+      ResArray_D(CMP)(0) <= to_sl(OperandsEqual_S) xor OpMod_SI;
+
+    -- otherwise no valid op and optimize away
+    else
+      ResArray_D(CMP) <= (others => '-');
+
+    end if;
+  end process p_cmp;
+
+
+  -----------------------------------------------------------------------------
+  -- Pipeline registers at the outputs of the unit
+  -----------------------------------------------------------------------------
+
+  -- We're outputting the enumerated classification for later unpacking since
+  -- the scalar classification block is 10 bits wide which breaks FP8 here
+  UnpackClass_S <= '1' when OpGroup_S = CLASS and VectorialOp_SI = '0' else
+                   '0';
+
+  -- Output should be zero-extended downstream if it doesn't contain FP values
+  Zext_S <= '1' when OpGroup_S = CMP or OpGroup_S = CLASS else '0';
+
+  -- Select output according to operation group and feed into pipeline
+  Result_D <= ResArray_D(OpGroup_S);
+  Status_D <= StatArray_D(OpGroup_S);
+
+  -- Pipe through the classification block indicator as well
+  TagInt_D <= UnpackClass_S & Zext_S & Tag_DI;
+
+  i_fp_pipe : fp_pipe
+    generic map (
+      WIDTH     => EXP_BITS+MAN_BITS+1,
+      LATENCY   => LATENCY,
+      TAG_WIDTH => TAG_WIDTH+2)
+    port map (
+      Clk_CI         => Clk_CI,
+      Reset_RBI      => Reset_RBI,
+      Result_DI      => Result_D,
+      Status_DI      => Status_D,
+      Tag_DI         => TagInt_D,
+      InValid_SI     => InValid_SI,
+      InReady_SO     => InReady_SO,
+      ResultPiped_DO => Z_DO,
+      StatusPiped_DO => Status_DO,
+      TagPiped_DO    => TagIntPiped_D,
+      OutValid_SO    => OutValid_SO,
+      OutReady_SI    => OutReady_SI);
+
+  UnpackClass_SO <= TagIntPiped_D(TagIntPiped_D'high);
+  Zext_SO        <= TagIntPiped_D(TagIntPiped_D'high-1);
+  Tag_DO         <= TagIntPiped_D(Tag_DO'range);
+
+end architecture rtl;
+
