@@ -396,8 +396,12 @@ begin  -- architecture rtl
       ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S and not OperandsEqual_S) xor OpMod_SI;
 
     -- Equals
-    elsif RoundMode_SI = RDN then
+    elsif RoundMode_SI = RDN and not InputNaN_S then
       ResArray_D(CMP)(0) <= to_sl(OperandsEqual_S) xor OpMod_SI;
+
+    -- Equals with NaNs compares to false -> not equals on ANY NaN is actually TRUE!
+    elsif InputNaN_S then
+      ResArray_D(CMP)(0) <= OpMod_SI;
 
     -- otherwise no valid op and optimize away
     else
