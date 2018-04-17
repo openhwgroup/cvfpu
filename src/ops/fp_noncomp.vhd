@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-02-14
--- Last update: 2018-04-07
+-- Last update: 2018-04-17
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -103,6 +103,10 @@ architecture rtl of fp_noncomp is
   --! @details An fflags word for each operation in this unit. Addressable by
   --! enumerators from nonCompOpGroup_t corresponding to the operation classes.
   type statusArray_t is array (nonCompOpGroup_t) of rvStatus_t;
+  --! @brief Array of std_logic indexed by operation
+  --! @details A bit for each operation in this unit. Addressable by
+  --! enumerators from nonCompOpGroup_t corresponding to the operation classes.
+  type logicArray_t is array (nonCompOpGroup_t) of std_logic;
 
   -----------------------------------------------------------------------------
   -- Signal Declarations
@@ -137,8 +141,8 @@ architecture rtl of fp_noncomp is
   signal InputInf_S, InputNaN_S          : boolean;
 
   -- Classification
-  signal ClassResult_D   : rvClassBit_t;
-  signal VecClassBlock_D : vecClassBlock_t;
+  signal ClassResult_D                   : rvClassBit_t;
+  signal VecClassBlock_D                 : vecClassBlock_t;
   signal ScalarClassRes_D, VecClassRes_D : std_logic_vector(Z_DO'range);
 
 
@@ -149,7 +153,8 @@ architecture rtl of fp_noncomp is
   signal OpGroup_S : nonCompOpGroup_t;
 
   -- Results of operations
-  signal ResArray_D : resultArray_t;
+  signal ResArray_D  : resultArray_t;
+  signal ZextArray_S : logicArray_t;
 
   -- RISC-V FP FLAGS
   signal StatArray_D : statusArray_t;
@@ -220,7 +225,8 @@ begin  -- architecture rtl
   --! @brief Classification of input A
   --! @details Generate the RISC-V classification block as well as the
   --! vectorial classification block from input operand A
-  p_class : process (all) is begin  -- process p_class
+  p_class : process (all) is
+  begin  -- process p_class
 
     -- Sign into Vectorial Class Block
     VecClassBlock_D.Sign <= SignA_DI;
@@ -269,10 +275,10 @@ begin  -- architecture rtl
 
     end if;
 
-    ScalarClassRes_D              <= (others  => '0');
-    ScalarClassRes_D(3 downto 0)  <= to_slv(ClassResult_D);  -- packed slv
+    ScalarClassRes_D             <= (others => '0');
+    ScalarClassRes_D(3 downto 0) <= to_slv(ClassResult_D);  -- packed slv
 
-    VecClassRes_D             <= (others  => '0');
+    VecClassRes_D             <= (others => '0');
     VecClassRes_D(7 downto 0) <= to_slv(VecClassBlock_D);
 
   end process p_class;
@@ -282,13 +288,17 @@ begin  -- architecture rtl
   ResArray_D(CLASS) <= VecClassRes_D when VectorialOp_SI = '1' else
                        ScalarClassRes_D;
 
-
   -- Classification never raises exceptions
   StatArray_D(CLASS) <= (others => '0');
+  
+  -- Output is integer reg, zero extend
+  ZextArray_S(CLASS) <= '1';
+  
 
   -----------------------------------------------------------------------------
   -- Sign Injection - operation is encoded in RoundMode_SI:
   -- RNE = SGNJ, RTZ = SGNJN, RDN = SGNJX
+  -- OpMod_SI enables sign-extension of result (for storing to integer regfile)
   -----------------------------------------------------------------------------
   ResArray_D(SGNJ) <= SignB_DI & AbsA_DI when RoundMode_SI = RNE else
                       (not SignB_DI) & AbsA_DI          when RoundMode_SI = RTZ else
@@ -297,6 +307,9 @@ begin  -- architecture rtl
 
   -- Sign Injection never raises exceptions
   StatArray_D(SGNJ) <= (others => '0');
+
+  -- Sign extend if selected by OpMod_SI
+  ZextArray_S(SGNJ) <= OpMod_SI and (not ResArray_D(SGNJ)(Z_DO'high));
 
   -----------------------------------------------------------------------------
   -- Comparators
@@ -347,6 +360,9 @@ begin  -- architecture rtl
     end if;
   end process p_minMax;
 
+  -- Result is floating-point number, always NaN-box
+  ZextArray_S(MINMAX) <= '0';
+
 
   -----------------------------------------------------------------------------
   -- Comparisons - operation is encoded in RoundMode_SI:
@@ -391,7 +407,10 @@ begin  -- architecture rtl
     end if;
   end process p_cmp;
 
+  -- Result is boolean in integer register, always zero-extend
+  ZextArray_S(CMP) <= '1';
 
+  
   -----------------------------------------------------------------------------
   -- Pipeline registers at the outputs of the unit
   -----------------------------------------------------------------------------
@@ -402,7 +421,7 @@ begin  -- architecture rtl
                    '0';
 
   -- Output should be zero-extended downstream if it doesn't contain FP values
-  Zext_S <= '1' when OpGroup_S = CMP or OpGroup_S = CLASS else '0';
+  Zext_S <= ZextArray_S(OpGroup_S);
 
   -- Select output according to operation group and feed into pipeline
   Result_D <= ResArray_D(OpGroup_S);
