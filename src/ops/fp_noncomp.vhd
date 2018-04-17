@@ -290,10 +290,10 @@ begin  -- architecture rtl
 
   -- Classification never raises exceptions
   StatArray_D(CLASS) <= (others => '0');
-  
+
   -- Output is integer reg, zero extend
   ZextArray_S(CLASS) <= '1';
-  
+
 
   -----------------------------------------------------------------------------
   -- Sign Injection - operation is encoded in RoundMode_SI:
@@ -316,9 +316,8 @@ begin  -- architecture rtl
   -----------------------------------------------------------------------------
 
   -- All other ops need the comparator outputs for their result
-  -- TODO check if writing a subtraction is different in area/time - unlikely
-  OperandsEqual_S   <= signed(A_DI) = signed(B_DI);
-  OperandASmaller_S <= signed(A_DI) < signed(B_DI);
+  OperandsEqual_S   <= (signed(A_DI) = signed(B_DI)) or (IsZeroA_S and IsZeroB_S);
+  OperandASmaller_S <= (signed(A_DI) < signed(B_DI)) xor (SignA_DI and SignB_DI)='1';
 
   -----------------------------------------------------------------------------
   -- Minimum/Maximum - operation is encoded in RoundMode_SI:
@@ -392,9 +391,9 @@ begin  -- architecture rtl
     elsif RoundMode_SI = RNE then
       ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S or OperandsEqual_S) xor OpMod_SI;
 
-    -- Less Than
+    -- Less Than -> make sure -0 does not compare less than +0
     elsif RoundMode_SI = RTZ then
-      ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S) xor OpMod_SI;
+      ResArray_D(CMP)(0) <= to_sl(OperandASmaller_S and not OperandsEqual_S) xor OpMod_SI;
 
     -- Equals
     elsif RoundMode_SI = RDN then
@@ -410,7 +409,7 @@ begin  -- architecture rtl
   -- Result is boolean in integer register, always zero-extend
   ZextArray_S(CMP) <= '1';
 
-  
+
   -----------------------------------------------------------------------------
   -- Pipeline registers at the outputs of the unit
   -----------------------------------------------------------------------------
