@@ -299,13 +299,42 @@ begin  -- architecture rtl
 
   -----------------------------------------------------------------------------
   -- Sign Injection - operation is encoded in RoundMode_SI:
-  -- RNE = SGNJ, RTZ = SGNJN, RDN = SGNJX
+  -- RNE = SGNJ, RTZ = SGNJN, RDN = SGNJX, RUP = Passthrough (no NaN-box check)
   -- OpMod_SI enables sign-extension of result (for storing to integer regfile)
   -----------------------------------------------------------------------------
-  ResArray_D(SGNJ) <= SignB_DI & AbsA_DI when RoundMode_SI = RNE else
-                      (not SignB_DI) & AbsA_DI          when RoundMode_SI = RTZ else
-                      (SignA_DI xor SignB_DI) & AbsA_DI when RoundMode_SI = RDN else
-                      (others => '-');
+
+  p_signInjections : process (all) is
+
+    variable SgnjResult_D : std_logic_vector(A_DI'range);
+    variable SignA_D, SignB_D : std_logic;
+
+  begin
+
+    -- Assign A or the canonical NaN to the Reuslt first
+    if RoundMode_SI = RUP then
+      SgnjResult_D := A_DI;
+    elsif ABox_SI = '0' then
+      SgnjResult_D := NAN(EXP_BITS, MAN_BITS);
+    else
+      SgnjResult_D := A_DI;
+    end if;
+
+    -- In case of improper boxing on input operands, they get can. NaN sign (0)
+    SignA_D := SignA_DI and ABox_SI;
+    SignB_D := SignB_DI and BBox_SI;
+
+    -- Do the actual sign injection
+    if RoundMode_SI = RNE then
+      SgnjResult_D(SgnjResult_D'high) := SignB_D;
+    elsif RoundMode_SI = RTZ then
+      SgnjResult_D(SgnjResult_D'high) := not SignB_D;
+    elsif RoundMode_SI = RDN then
+      SgnjResult_D(SgnjResult_D'high) := SignA_D xor SignB_D;
+    end if;
+
+    ResArray_D(SGNJ) <= SgnjResult_D;
+
+  end process p_signInjections;
 
   -- Sign Injection never raises exceptions
   StatArray_D(SGNJ) <= (others => '0');
