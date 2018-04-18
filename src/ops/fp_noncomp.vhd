@@ -331,10 +331,12 @@ begin  -- architecture rtl
     -- Default assignment: clear exception flags
     StatArray_D(MINMAX) <= (others => '0');
 
-    -- Min/Max use quiet comparisons - only SNAN or both NaN are invalid
-    if SignalingNaN_S or (IsNaNA_S and IsNaNB_S) then
+    -- Min/Max use quiet comparisons - only SNAN are invalid
+    StatArray_D(MINMAX)(NV) <= to_sl(SignalingNaN_S);
+
+    -- Both NaN inputs cause a NaN output
+    if (IsNaNA_S and IsNaNB_S) then
       ResArray_D(MINMAX)      <= NAN(EXP_BITS, MAN_BITS);  -- return canonical qnan
-      StatArray_D(MINMAX)(NV) <= '1';   -- raise invalid exception
 
     -- If one operand is QNaN, the non-NaN operand is returned
     elsif IsNaNA_S then
