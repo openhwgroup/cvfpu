@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-02-14
--- Last update: 2018-04-05
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -60,22 +60,23 @@ entity fp_fma is
     TAG_WIDTH : natural := 0);
 
   port (
-    Clk_CI           : in  std_logic;
-    Reset_RBI        : in  std_logic;
+    Clk_CI                    : in  std_logic;
+    Reset_RBI                 : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI, C_DI : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-    RoundMode_SI     : in  rvRoundingMode_t;
-    Op_SI            : in  fpOp_t;
-    OpMod_SI         : in  std_logic;
-    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-    InValid_SI         : in  std_logic;
-    InReady_SO         : out std_logic;
+    A_DI, B_DI, C_DI          : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+    RoundMode_SI              : in  rvRoundingMode_t;
+    Op_SI                     : in  fpOp_t;
+    OpMod_SI                  : in  std_logic;
+    Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI                : in  std_logic;
+    InReady_SO                : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-    Status_DO        : out rvStatus_t;
-    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    OutValid_SO         : out std_logic;
-    OutReady_SI         : in  std_logic);
+    Z_DO                      : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    Status_DO                 : out rvStatus_t;
+    Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    OutValid_SO               : out std_logic;
+    OutReady_SI               : in  std_logic);
 
 end entity fp_fma;
 
@@ -294,9 +295,10 @@ begin  -- architecture rtl
   IsInfC_S <= ExpC_D = INFEXP and MantC_D = INFMANT;
 
   -- Nans have all-ones exponents and non-zero mantissa
-  IsNaNA_S <= unsigned(ExpA_D) = MAXEXP and unsigned(MantA_D) /= 0;
-  IsNaNB_S <= unsigned(ExpB_D) = MAXEXP and unsigned(MantB_D) /= 0;
-  IsNaNC_S <= unsigned(ExpC_D) = MAXEXP and unsigned(MantC_D) /= 0;
+  -- Improperly boxed operands are treated as canonical NaNs
+  IsNaNA_S <= (unsigned(ExpA_D) = MAXEXP and unsigned(MantA_D) /= 0) or ABox_SI = '0';
+  IsNaNB_S <= (unsigned(ExpB_D) = MAXEXP and unsigned(MantB_D) /= 0) or BBox_SI = '0';
+  IsNaNC_S <= (unsigned(ExpC_D) = MAXEXP and unsigned(MantC_D) /= 0) or CBox_SI = '0';
 
   -- Zeroes are encoded by all-zero eponent and mantissa
   IsZeroA_S <= unsigned(ExpA_D & MantA_D) = 0;
@@ -310,9 +312,10 @@ begin  -- architecture rtl
   InputNaN_S <= IsNaNA_S or IsNaNB_S or IsNaNC_S;
 
   -- Detect a signaling NaN at the inputs (one is enough to trigger condition)
-  SignalingNaN_S <= (IsNaNA_S and MantA_D(QUIETBIT) = '0')
-                    or (IsNaNB_S and MantB_D(QUIETBIT) = '0')
-                    or (IsNaNC_S and MantC_D(QUIETBIT) = '0');
+  -- Improperly boxed operands are treated as canonical NaNs
+  SignalingNaN_S <= (IsNaNA_S and ABox_SI = '1' and MantA_D(QUIETBIT) = '0')
+                    or (IsNaNB_S and BBox_SI = '1' and MantB_D(QUIETBIT) = '0')
+                    or (IsNaNC_S and CBox_SI = '1' and MantC_D(QUIETBIT) = '0');
 
   -- Effective subtraction in FMA occurs when product and addend signs differ
   EffSub_S <= (SignA_D xor SignB_D) /= SignC_D;  -- 3-way xor to boolean
@@ -499,13 +502,13 @@ begin  -- architecture rtl
       Result_DI      => Result_D,
       Status_DI      => Status_D,
       Tag_DI         => Tag_DI,
-      InValid_SI       => InValid_SI,
-      InReady_SO       => InReady_SO,
+      InValid_SI     => InValid_SI,
+      InReady_SO     => InReady_SO,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => Tag_DO,
-      OutValid_SO       => OutValid_SO,
-      OutReady_SI       => OutReady_SI);
+      OutValid_SO    => OutValid_SO,
+      OutReady_SI    => OutReady_SI);
 
 end architecture rtl;
 

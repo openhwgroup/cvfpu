@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-06
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -57,23 +57,24 @@ entity addmul_fmt_slice is
     TAG_WIDTH   : natural := 0);
 
   port (
-    Clk_CI           : in  std_logic;
-    Reset_RBI        : in  std_logic;
+    Clk_CI                    : in  std_logic;
+    Reset_RBI                 : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-    RoundMode_SI     : in  rvRoundingMode_t;
-    Op_SI            : in  fpOp_t;
-    OpMod_SI         : in  std_logic;
-    VectorialOp_SI   : in  std_logic;
-    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-    InValid_SI       : in  std_logic;
-    InReady_SO       : out std_logic;
+    A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+    ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+    RoundMode_SI              : in  rvRoundingMode_t;
+    Op_SI                     : in  fpOp_t;
+    OpMod_SI                  : in  std_logic;
+    VectorialOp_SI            : in  std_logic;
+    Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI                : in  std_logic;
+    InReady_SO                : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-    Status_DO        : out rvStatus_t;
-    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    OutValid_SO      : out std_logic;
-    OutReady_SI      : in  std_logic);
+    Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+    Status_DO                 : out rvStatus_t;
+    Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    OutValid_SO               : out std_logic;
+    OutReady_SI               : in  std_logic);
 
 end entity addmul_fmt_slice;
 
@@ -119,7 +120,7 @@ architecture rtl of addmul_fmt_slice is
 
 begin  -- architecture rtl
 
-   -- Upstream Ready is signalled if first lane can accept instructions
+  -- Upstream Ready is signalled if first lane can accept instructions
   InReady_SO <= LaneInReady_S(0);
 
   -- Mask vectorial enable if we don't have vector support
@@ -135,9 +136,12 @@ begin  -- architecture rtl
   -- Generate Lanes
   g_fmtOpLane : for i in 0 to NUMLANES-1 generate
 
+    -- Input Operand NaN-boxed checks (only for scalars)
+    signal ABox_S, BBox_S, CBox_S : std_logic;
+
     -- Enable signal differs across lanes for scalar ops
     signal InValid_S  : std_logic;
-    signal OutValid_S    : std_logic;
+    signal OutValid_S : std_logic;
     signal OutReady_S : std_logic;
 
     -- Lane-local results
@@ -148,6 +152,11 @@ begin  -- architecture rtl
 
     -- Generate instances in lane only if needed (one lane at least)
     g_laneInst : if (i = 0 or GENVECTORS) generate
+
+      -- Boxing check is overriden for vectorial ops
+      ABox_S <= ABox_SI or VectorialOp_S or to_sl(i /= 0);
+      BBox_S <= BBox_SI or VectorialOp_S or to_sl(i /= 0);
+      CBox_S <= CBox_SI or VectorialOp_S or to_sl(i /= 0);
 
       -- Generate input valid logic for this lane based on input valid:
       -- first lane always on, others only for vectorial ops
@@ -165,6 +174,9 @@ begin  -- architecture rtl
           A_DI         => A_DI((i+1)*FMT_WIDTH-1 downto i*FMT_WIDTH),
           B_DI         => B_DI((i+1)*FMT_WIDTH-1 downto i*FMT_WIDTH),
           C_DI         => C_DI((i+1)*FMT_WIDTH-1 downto i*FMT_WIDTH),
+          ABox_SI      => ABox_S,
+          BBox_SI      => BBox_S,
+          CBox_SI      => CBox_S,
           RoundMode_SI => RoundMode_SI,
           Op_SI        => Op_SI,
           OpMod_SI     => OpMod_SI,

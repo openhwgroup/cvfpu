@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-09
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -49,37 +49,40 @@ use work.fpnew_comps_pkg.all;
 entity conv_multifmt_slice is
 
   generic (
-    FORMATS     : activeFormats_t    := (Active   => (FP32 to FP16ALT => true, others => false),
-                                         Encoding => DEFAULTENCODING);
-    INTFORMATS  : activeIntFormats_t := (Active => (others => true),
-                                        Length  => INTFMTLENGTHS);
-    LATENCIES   : fmtNaturals_t      := (others => 0);
-    SLICE_WIDTH : natural            := 64;
-    GENVECTORS  : boolean            := false;
-    TAG_WIDTH   : natural            := 0);
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
+    INTFORMATS : activeIntFormats_t := (Active => (others => true),
+                                        Length => INTFMTLENGTHS);
+
+    LATENCIES   : fmtNaturals_t := (others => 0);
+    SLICE_WIDTH : natural       := 64;
+    GENVECTORS  : boolean       := false;
+    TAG_WIDTH   : natural       := 0);
 
   port (
-    Clk_CI           : in  std_logic;
-    Reset_RBI        : in  std_logic;
+    Clk_CI                    : in  std_logic;
+    Reset_RBI                 : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-    RoundMode_SI     : in  rvRoundingMode_t;
-    Op_SI            : in  fpOp_t;
-    OpMod_SI         : in  std_logic;
-    FpFmt_SI         : in  fpFmt_t;
-    FpFmt2_SI        : in  fpFmt_t;
-    IntFmt_SI        : in  intFmt_t;
-    VectorialOp_SI   : in  std_logic;
-    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-    InValid_SI       : in  std_logic;
-    InReady_SO       : out std_logic;
+    A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+    ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+    RoundMode_SI              : in  rvRoundingMode_t;
+    Op_SI                     : in  fpOp_t;
+    OpMod_SI                  : in  std_logic;
+    FpFmt_SI                  : in  fpFmt_t;
+    FpFmt2_SI                 : in  fpFmt_t;
+    IntFmt_SI                 : in  intFmt_t;
+    VectorialOp_SI            : in  std_logic;
+    Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI                : in  std_logic;
+    InReady_SO                : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-    Status_DO        : out rvStatus_t;
-    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    Zext_SO          : out std_logic;
-    OutValid_SO      : out std_logic;
-    OutReady_SI      : in  std_logic);
+    Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+    Status_DO                 : out rvStatus_t;
+    Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    Zext_SO                   : out std_logic;
+    OutValid_SO               : out std_logic;
+    OutReady_SI               : in  std_logic);
 
 end entity conv_multifmt_slice;
 
@@ -101,9 +104,9 @@ architecture parallel_paths of conv_multifmt_slice is
   -- The number of parallel lanes the slice can hold - given by narrowest format
   constant NUMLANES : natural := SLICE_WIDTH/MIN_WIDTH;
 
-  constant FMTBITS : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
-  constant IFMTBITS : natural := clog2(intFmt_t'pos(intFmt_t'high));
-  constant FMTSLVBITS : natural := maximum(FMTBITS, IFMTBITS);
+  constant FMTBITS      : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
+  constant IFMTBITS     : natural := clog2(intFmt_t'pos(intFmt_t'high));
+  constant FMTSLVBITS   : natural := maximum(FMTBITS, IFMTBITS);
   constant TAGINT_WIDTH : natural := TAG_WIDTH+1+FMTSLVBITS+1;
   ---------------------------------------------------------------------------
   -- Type Definitions
@@ -158,13 +161,13 @@ begin
   -----------------------------------------------------------------------------
 
   -- Figure out the source and destination format width (depends on op)
-  SrcFmtWidth_S <= WIDTH(FpFmt_SI, FORMATS)     when Op_SI = F2I else
+  SrcFmtWidth_S <= WIDTH(FpFmt_SI, FORMATS) when Op_SI = F2I else
                    WIDTH(FpFmt2_SI, FORMATS)    when Op_SI = F2F else
                    INTFORMATS.Length(IntFmt_SI) when Op_SI = I2F else
                    0;
-  DstFmtSlv_S <= std_logic_vector(resize(unsigned(to_slv(IntFmt_SI)),DstFmtSlv_S'length)) when Op_SI = F2I else
-                 std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)),DstFmtSlv_S'length)) when Op_SI = F2F else
-                 std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)),DstFmtSlv_S'length)) when Op_SI = I2F else
+  DstFmtSlv_S <= std_logic_vector(resize(unsigned(to_slv(IntFmt_SI)), DstFmtSlv_S'length)) when Op_SI = F2I else
+                 std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)), DstFmtSlv_S'length)) when Op_SI = F2F else
+                 std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)), DstFmtSlv_S'length)) when Op_SI = I2F else
                  (others => '-');       -- don't care
   IsDstFmtInt_S <= '1' when Op_SI = F2I else '0';
 
@@ -194,6 +197,9 @@ begin
     signal InputShifted_D : std_logic_vector(A_DI'range);
     signal A_D            : std_logic_vector(LANE_WIDTH-1 downto 0);
 
+    -- Input Operand NaN-boxed checks (only for scalars)
+    signal ABox_S, BBox_S, CBox_S : fmtLogic_t;
+
     -- Enable signal for lanes
     signal InValid_S  : std_logic;
     signal OutValid_S : std_logic;
@@ -212,11 +218,21 @@ begin
       InputShifted_D <= std_logic_vector(unsigned(A_DI) srl i*SrcFmtWidth_S);
       A_D            <= InputShifted_D(LANE_WIDTH-1 downto 0);
 
+      p_inNanBoxing : process (all) is
+      begin  -- process p_inNanBoxing
+
+        for fmt in fpFmt_t loop
+          -- Boxing check is overriden for vectorial ops
+          ABox_S(fmt) <= ABox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+          BBox_S(fmt) <= BBox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+          CBox_S(fmt) <= CBox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+        end loop;  -- fmt
+
+      end process p_inNanBoxing;
 
       -- Generate input valid logic for this lane based on input valid:
       -- first lane always on, others only for vectorial ops
       InValid_S <= InValid_SI and (to_sl(i = 0) or VectorialOp_S);
-
 
       i_fp_conv_multi : fp_conv_multi
         generic map (
@@ -228,7 +244,7 @@ begin
           Clk_CI       => Clk_CI,
           Reset_RBI    => Reset_RBI,
           A_DI         => A_D,
-          B_DI         => (others => '-'),
+          ABox_SI      => ABox_S,
           RoundMode_SI => RoundMode_SI,
           Op_SI        => Op_SI,
           OpMod_SI     => OpMod_SI,
@@ -275,7 +291,7 @@ begin
     end generate g_laneBypass;
 
     -- Add lane result into global lanes result, shifted for vectors
- --   LaneResults_D(i)(LANE_WIDTH-1 downto 0) <= Result_D;
+    --   LaneResults_D(i)(LANE_WIDTH-1 downto 0) <= Result_D;
 
     g_fmtResults : for fmt in fpFmt_t generate
       g_activeFmts : if LANEFORMATS.Active(fmt) generate

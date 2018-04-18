@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-12
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -38,17 +38,21 @@ use work.fpnew_comps_pkg.all;
 entity fpnew is
 
   generic (
-    FORMATS    : activeFormats_t       := (Active   => (FP32 to FP16ALT => true, others => false),
-                                           Encoding => DEFAULTENCODING);
-    INTFORMATS : activeIntFormats_t    := (Active => (others => true),
-                                           Length => INTFMTLENGTHS);
-    UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL => (others => PARALLEL),
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
+    INTFORMATS : activeIntFormats_t := (Active => (others => true),
+                                        Length => INTFMTLENGTHS);
+
+    UNITTYPES : opGroupFmtUnitTypes_t := (ADDMUL  => (others => PARALLEL),
                                           DIVSQRT => (others => MERGED),
                                           NONCOMP => (others => PARALLEL),
                                           CONV    => (others => MERGED));
-    LATENCIES  : opGroupFmtNaturals_t  := (others => (others => 0));
-    GENVECTORS : boolean               := true;
-    TAG_WIDTH  : natural               := 0);
+
+    LATENCIES  : opGroupFmtNaturals_t := (others => (others => 0));
+    GENVECTORS : boolean              := true;
+    TAG_WIDTH  : natural              := 0;
+    IN_NANBOX  : boolean              := true);
 
   port (
     Clk_CI           : in  std_logic;
@@ -84,7 +88,7 @@ architecture rtl of fpnew is
   -----------------------------------------------------------------------------
 
   -- Width of the FPnew (maximum width of both fp and int formats)
-  constant WIDTH : natural := MAXWIDTH(FORMATS, INTFORMATS);
+  constant DATA_WIDTH : natural := MAXWIDTH(FORMATS, INTFORMATS);
 
   -- Width of the widest active FP format (for fp-fp or noncomp ops)
   constant FLEN : natural := MAXWIDTH(FORMATS);
@@ -114,10 +118,13 @@ architecture rtl of fpnew is
   signal OpGrpInValid_S : opGroupLogic_t;
   signal OpGrpInReady_S : opGroupLogic_t;
 
+  -- Input NaN-Boxing detection
+  signal ABox_S, BBox_S, CBox_S : fmtLogic_t;
+
   -- OpGroup-specific output side (fp ops could be narrower than unit)
   signal AddMulResult_D, DivSqrtResult_D : std_logic_vector(FLEN-1 downto 0);
   signal NonCompResult_D                 : std_logic_vector(FLEN-1 downto 0);
-  signal ConvResult_D                    : std_logic_vector(WIDTH-1 downto 0);
+  signal ConvResult_D                    : std_logic_vector(DATA_WIDTH-1 downto 0);
 
   -- Output side
   signal OpGrpOutResults_D  : opGroupSlResults_t;
@@ -150,16 +157,31 @@ begin  -- architecture rtl
   InReady_SO <= InValid_SI and OpGrpInReady_S(getFpOpGroup(Op_SI));
 
   -----------------------------------------------------------------------------
-  -- Input side signals for each operation group subunit
+  -- Input side signals for each operation group subunit and format
   -----------------------------------------------------------------------------
 
-  g_opGrpInputSide : for opgrp in fpOpGroup_t generate
+  p_inputSideSignals : process (all) is
+  begin  -- process p_inputNanBoxing
 
     -- Subunit is activated if requested operation matches its opgroup
-    OpGrpInValid_S(opgrp) <= InValid_SI and to_sl(getFpOpGroup(Op_SI) = opgrp);
+    for opgrp in fpOpGroup_t loop
+      OpGrpInValid_S(opgrp) <= InValid_SI and to_sl(getFpOpGroup(Op_SI) = opgrp);
+    end loop;  -- opgrp in fpOpGroup_t generate
 
-  end generate g_opGrpInputSide;
+    -- Input NaN-boxing is detected for each FP format
+    for fmt in fpFmt_t loop
+      if IN_NANBOX and WIDTH(fmt, FORMATS) < FLEN then
+        ABox_S(fmt) <= to_sl(unsigned(not A_DI(A_DI'high downto WIDTH(fmt, FORMATS))) = 0);
+        BBox_S(fmt) <= to_sl(unsigned(not B_DI(B_DI'high downto WIDTH(fmt, FORMATS))) = 0);
+        CBox_S(fmt) <= to_sl(unsigned(not C_DI(C_DI'high downto WIDTH(fmt, FORMATS))) = 0);
+      else
+        ABox_S(fmt) <= '1';
+        BBox_S(fmt) <= '1';
+        CBox_S(fmt) <= '1';
+      end if;
+    end loop;  -- fmt
 
+  end process p_inputSideSignals;
 
   -----------------------------------------------------------------------------
   -- Operation Group Subunits
@@ -179,6 +201,9 @@ begin  -- architecture rtl
       A_DI           => A_DI(FLEN-1 downto 0),
       B_DI           => B_DI(FLEN-1 downto 0),
       C_DI           => C_DI(FLEN-1 downto 0),
+      ABox_SI        => ABox_S,
+      BBox_SI        => BBox_S,
+      CBox_SI        => CBox_S,
       RoundMode_SI   => RoundMode_SI,
       Op_SI          => Op_SI,
       OpMod_SI       => OpMod_SI,
@@ -215,6 +240,9 @@ begin  -- architecture rtl
       A_DI           => A_DI(FLEN-1 downto 0),
       B_DI           => B_DI(FLEN-1 downto 0),
       C_DI           => (others => '-'),
+      ABox_SI        => ABox_S,
+      BBox_SI        => BBox_S,
+      CBox_SI        => CBox_S,
       RoundMode_SI   => RoundMode_SI,
       Op_SI          => Op_SI,
       OpMod_SI       => OpMod_SI,
@@ -234,9 +262,9 @@ begin  -- architecture rtl
   OpGrpOutResults_D(DIVSQRT)(DivSqrtResult_D'range) <= DivSqrtResult_D;
   OpGrpOutResults_D(DIVSQRT)(Z_DO'high downto DivSqrtResult_D'high+1)
     <= (others => '0') when OpGrpOutZext_S(DIVSQRT) = '1' else
-       (others => '1');
+    (others    => '1');
 
-  
+
   -- NONCOMP
   i_noncomp_block : noncomp_block
     generic map (
@@ -251,6 +279,9 @@ begin  -- architecture rtl
       A_DI           => A_DI(FLEN-1 downto 0),
       B_DI           => B_DI(FLEN-1 downto 0),
       C_DI           => (others => '-'),
+      ABox_SI        => ABox_S,
+      BBox_SI        => BBox_S,
+      CBox_SI        => CBox_S,
       RoundMode_SI   => RoundMode_SI,
       Op_SI          => Op_SI,
       OpMod_SI       => OpMod_SI,
@@ -288,6 +319,9 @@ begin  -- architecture rtl
       A_DI           => A_DI,
       B_DI           => (others => '-'),
       C_DI           => (others => '-'),
+      ABox_SI        => ABox_S,
+      BBox_SI        => BBox_S,
+      CBox_SI        => CBox_S,
       RoundMode_SI   => RoundMode_SI,
       Op_SI          => Op_SI,
       OpMod_SI       => OpMod_SI,
@@ -338,7 +372,7 @@ begin  -- architecture rtl
   -- The arbiter
   i_fp_arbiter : fp_arbiter
     generic map (
-      DATA_WIDTH => WIDTH,
+      DATA_WIDTH => DATA_WIDTH,
       NUM_INPUTS => NUM_OPGROUPS,
       TAG_WIDTH  => TAG_WIDTH)
     port map (

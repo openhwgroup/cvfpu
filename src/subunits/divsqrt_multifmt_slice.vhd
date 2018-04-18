@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-11
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -49,33 +49,35 @@ use work.fpnew_comps_pkg.all;
 entity divsqrt_multifmt_slice is
 
   generic (
-    FORMATS     : activeFormats_t    := (Active   => (FP32 to FP16ALT => true, others => false),
-                                         Encoding => DEFAULTENCODING);
-    LATENCIES   : fmtNaturals_t      := (others => 0);
-    SLICE_WIDTH : natural            := 64;
-    GENVECTORS  : boolean            := false;
-    TAG_WIDTH   : natural            := 0);
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
+    LATENCIES   : fmtNaturals_t := (others => 0);
+    SLICE_WIDTH : natural       := 64;
+    GENVECTORS  : boolean       := false;
+    TAG_WIDTH   : natural       := 0);
 
   port (
-    Clk_CI           : in  std_logic;
-    Reset_RBI        : in  std_logic;
+    Clk_CI                    : in  std_logic;
+    Reset_RBI                 : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-    RoundMode_SI     : in  rvRoundingMode_t;
-    Op_SI            : in  fpOp_t;
-    OpMod_SI         : in  std_logic;
-    FpFmt_SI         : in  fpFmt_t;
-    VectorialOp_SI   : in  std_logic;
-    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-    InValid_SI       : in  std_logic;
-    InReady_SO       : out std_logic;
+    A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+    RoundMode_SI              : in  rvRoundingMode_t;
+    ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+    Op_SI                     : in  fpOp_t;
+    OpMod_SI                  : in  std_logic;
+    FpFmt_SI                  : in  fpFmt_t;
+    VectorialOp_SI            : in  std_logic;
+    Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI                : in  std_logic;
+    InReady_SO                : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-    Status_DO        : out rvStatus_t;
-    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    Zext_SO          : out std_logic;
-    OutValid_SO      : out std_logic;
-    OutReady_SI      : in  std_logic);
+    Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+    Status_DO                 : out rvStatus_t;
+    Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    Zext_SO                   : out std_logic;
+    OutValid_SO               : out std_logic;
+    OutReady_SI               : in  std_logic);
 
 end entity divsqrt_multifmt_slice;
 
@@ -94,7 +96,7 @@ architecture parallel_paths of divsqrt_multifmt_slice is
   -- The number of parallel lanes the slice can hold - given by narrowest format
   constant NUMLANES : natural := SLICE_WIDTH/MIN_WIDTH;
 
-  constant FMTBITS : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
+  constant FMTBITS      : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
   constant TAGINT_WIDTH : natural := TAG_WIDTH+1+FMTBITS;
   ---------------------------------------------------------------------------
   -- Type Definitions
@@ -122,11 +124,11 @@ architecture parallel_paths of divsqrt_multifmt_slice is
   signal VectorialOp_S : std_logic;
 
   -- Output data for each format
-  signal FmtOpResults_S    : fmtResults_t;
+  signal FmtOpResults_S : fmtResults_t;
 
   signal LaneResults_D     : laneResults_t;
   signal ResultVectorial_S : std_logic;
-  signal ResultFmt_S     : fpFmt_t;
+  signal ResultFmt_S       : fpFmt_t;
 
   -- Valid, Status and Tag outputs from all lanes
   signal LaneStatus_D   : statusArray_t(0 to NUMLANES-1);
@@ -146,7 +148,7 @@ begin  -- architecture parallel_paths
   -- Figure out the source and destination format width (depends on op)
   SrcFmtWidth_S <= WIDTH(FpFmt_SI, FORMATS);
 
-  DstFmtSlv_S <= std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)),DstFmtSlv_S'length));
+  DstFmtSlv_S <= std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)), DstFmtSlv_S'length));
 
   -- Mask vectorial enable if we don't have vector support
   VectorialOp_S <= VectorialOp_SI and to_sl(GENVECTORS);
@@ -166,14 +168,17 @@ begin  -- architecture parallel_paths
   g_sliceLanes : for i in 0 to NUMLANES-1 generate
 
     -- dimensions of lanes differ for formats and position, set active formats
-    constant LANEFORMATS    : activeFormats_t    := getMultiLaneFormats(FORMATS, SLICE_WIDTH, i);
-    constant LANE_WIDTH     : natural            := MAXWIDTH(LANEFORMATS);
+    constant LANEFORMATS : activeFormats_t := getMultiLaneFormats(FORMATS, SLICE_WIDTH, i);
+    constant LANE_WIDTH  : natural         := MAXWIDTH(LANEFORMATS);
 
     -- Lane's input data. Upper input bits of narrow formats are ingnored
     signal AShifted_D : std_logic_vector(A_DI'range);
     signal A_D        : std_logic_vector(LANE_WIDTH-1 downto 0);
     signal BShifted_D : std_logic_vector(B_DI'range);
     signal B_D        : std_logic_vector(LANE_WIDTH-1 downto 0);
+
+    -- Input Operand NaN-boxed checks (only for scalars)
+    signal ABox_S, BBox_S, CBox_S : fmtLogic_t;
 
     -- Enable signal for lanes
     signal InValid_S  : std_logic;
@@ -195,21 +200,34 @@ begin  -- architecture parallel_paths
       BShifted_D <= std_logic_vector(unsigned(B_DI) srl i*SrcFmtWidth_S);
       B_D        <= BShifted_D(LANE_WIDTH-1 downto 0);
 
+      p_inNanBoxing : process (all) is
+      begin  -- process p_inNanBoxing
+
+        for fmt in fpFmt_t loop
+          -- Boxing check is overriden for vectorial ops
+          ABox_S(fmt) <= ABox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+          BBox_S(fmt) <= BBox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+          CBox_S(fmt) <= CBox_SI(fmt) or VectorialOp_S or to_sl(i /= 0);
+        end loop;  -- fmt
+
+      end process p_inNanBoxing;
+
       -- Generate input valid logic for this lane based on input valid:
       -- first lane always on, others only for vectorial ops
       InValid_S <= InValid_SI and (to_sl(i = 0) or VectorialOp_S);
 
-
       i_fp_divsqrt_multi : fp_divsqrt_multi
         generic map (
-          FORMATS    => LANEFORMATS,
-          LATENCY    => LATENCY,
-          TAG_WIDTH  => TAGINT_WIDTH)
+          FORMATS   => LANEFORMATS,
+          LATENCY   => LATENCY,
+          TAG_WIDTH => TAGINT_WIDTH)
         port map (
           Clk_CI       => Clk_CI,
           Reset_RBI    => Reset_RBI,
           A_DI         => A_D,
+          ABox_SI      => ABox_S,
           B_DI         => B_D,
+          BBox_SI      => BBox_S,
           RoundMode_SI => RoundMode_SI,
           Op_SI        => Op_SI,
           OpMod_SI     => OpMod_SI,
@@ -254,7 +272,7 @@ begin  -- architecture parallel_paths
     end generate g_laneBypass;
 
     -- Add lane result into global lanes result, shifted for vectors
- --   LaneResults_D(i)(LANE_WIDTH-1 downto 0) <= Result_D;
+    --   LaneResults_D(i)(LANE_WIDTH-1 downto 0) <= Result_D;
 
     g_fmtResults : for fmt in fpFmt_t generate
       g_activeFmts : if LANEFORMATS.Active(fmt) generate
@@ -269,7 +287,7 @@ begin  -- architecture parallel_paths
   ResultVectorial_S <= LaneTags_S(0)(TAG_WIDTH);
 
   -- Restore the destination format width
-  ResultFmt_S    <= to_fpFmt(LaneTags_S(0)(FMTBITS+TAG_WIDTH downto TAG_WIDTH+1));
+  ResultFmt_S <= to_fpFmt(LaneTags_S(0)(FMTBITS+TAG_WIDTH downto TAG_WIDTH+1));
 
   -----------------------------------------------------------------------------
   -- Result selection

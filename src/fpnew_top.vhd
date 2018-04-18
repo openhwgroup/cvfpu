@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-12
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -55,7 +55,8 @@ entity fpnew_top is
     LATENCY_COMP_Xf8     : natural := 0;   -- Latency of FP8 comp. ops
     LATENCY_DIVSQRT      : natural := 0;   -- Latency of div/sqrt. postprocessing
     LATENCY_NONCOMP      : natural := 0;   -- Latency of non-comp. ops
-    LATENCY_CONV         : natural := 0);  -- Latency of conversion ops
+    LATENCY_CONV         : natural := 0;   -- Latency of conversion ops
+    ENFORCE_INPUT_NANBOX : boolean := true);  -- Enforce input NaN-boxing
 
   port (
     Clk_CI           : in  std_logic;
@@ -135,7 +136,8 @@ begin  -- architecture rtl
       UNITTYPES  => UNITTYPES,
       LATENCIES  => LATENCIES,
       GENVECTORS => Xfvec,
-      TAG_WIDTH  => TAG_WIDTH)
+      TAG_WIDTH  => TAG_WIDTH,
+      IN_NANBOX  => ENFORCE_INPUT_NANBOX)
     port map (
       Clk_CI         => Clk_CI,
       Reset_RBI      => Reset_RBI,

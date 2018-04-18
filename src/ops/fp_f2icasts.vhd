@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-22
--- Last update: 2018-04-08
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -46,18 +46,21 @@ use work.fpnew_comps_pkg.all;
 entity fp_f2icasts is
 
   generic (
-    FORMATS    : activeFormats_t    := (Active => (FP32 to FP16ALT => true, others => false),
-                                  Encoding     => DEFAULTENCODING);
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
     INTFORMATS : activeIntFormats_t := (Active => (others => true),
                                         Length => INTFMTLENGTHS);
-    LATENCY    : natural            := 0;
-    TAG_WIDTH  : natural            := 0);
+
+    LATENCY   : natural := 0;
+    TAG_WIDTH : natural := 0);
 
   port (
     Clk_CI       : in  std_logic;
     Reset_RBI    : in  std_logic;
     ---------------------------------------------------------------------------
     A_DI         : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    ABox_SI      : in  fmtLogic_t;
     RoundMode_SI : in  rvRoundingMode_t;
     OpMod_SI     : in  std_logic;
     SrcFmt_SI    : in  fpFmt_t;
@@ -194,7 +197,7 @@ begin  -- architecture rtl
       -- Classify input
       InputMantZero_S(fmt) <= unsigned(A_DI(FORMATS.Encoding(fmt).ManBits-1 downto 0)) = 0;
       InputInf_S(fmt)      <= (FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and InputMantZero_S(fmt);
-      InputNan_S(fmt)      <= (FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt));
+      InputNan_S(fmt)      <= ((FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt))) or ABox_SI(fmt) = '0';
       InputZero_S(fmt)     <= (FmtInputExp_D(fmt) = 0) and InputMantZero_S(fmt);
       InputNormal_S(fmt)   <= FmtInputExp_D(fmt) /= 0;
 
@@ -247,9 +250,9 @@ begin  -- architecture rtl
             SpecialResultInt_D := not SpecialResultInt_D;
           end if;
 
-          SpecialResult_D(ifmt)(SpecialResultInt_D'range) <= SpecialResultInt_D;
+          SpecialResult_D(ifmt)(SpecialResultInt_D'range)                  <= SpecialResultInt_D;
           -- Sign-extend integer result as per RISC-V ISA 2.3draft
-          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others  => SpecialResultInt_D(SpecialResultInt_D'high));
+          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(SpecialResultInt_D'high));
         end if;
       end process;
 
@@ -260,9 +263,9 @@ begin  -- architecture rtl
         IntFmtFinalMant_D(ifmt) <= (others => '0');
 
         -- mantissa
-        IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0) <= ShiftedMant_S(INTFORMATS.Length(ifmt)+SUPERFMT.ManBits+1 downto SUPERFMT.ManBits+2);
+        IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= ShiftedMant_S(INTFORMATS.Length(ifmt)+SUPERFMT.ManBits+1 downto SUPERFMT.ManBits+2);
         -- Sign-extend integer result as per RISC-V ISA 2.3draft
-        IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others  => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+        IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
 
       end process p_resAssemble;
     end generate g_activeFmts;
@@ -363,7 +366,7 @@ begin  -- architecture rtl
   ResRoundedSignCorr_D <= std_logic_vector(-signed(ResRounded_D(ResRounded_D'high-1 downto 0))) when Sign_D = '1' else
                           ResRounded_D(ResRounded_D'high-1 downto 0);
 
-  RoundedResZero_S  <= unsigned(ResRoundedSignCorr_D) = 0;
+  RoundedResZero_S <= unsigned(ResRoundedSignCorr_D) = 0;
 
   RegularStatus_D <= (NX => or_reduce(RoundSticky_S), others => '0');
 

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-20
--- Last update: 2018-04-12
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -52,7 +52,8 @@ package fpnew_comps_pkg is
       UNITTYPES  : opGroupFmtUnitTypes_t;
       LATENCIES  : opGroupFmtNaturals_t;
       GENVECTORS : boolean;
-      TAG_WIDTH  : natural);
+      TAG_WIDTH  : natural;
+      IN_NANBOX  : boolean);
     port (
       Clk_CI           : in  std_logic;
       Reset_RBI        : in  std_logic;
@@ -73,6 +74,7 @@ package fpnew_comps_pkg is
       OutValid_SO      : out std_logic;
       OutReady_SI      : in  std_logic);
   end component fpnew;
+  
   -----------------------------------------------------------------------------
   -- Unit Sub-Blocks
   -----------------------------------------------------------------------------
@@ -85,23 +87,24 @@ package fpnew_comps_pkg is
       GENVECTORS : boolean;
       TAG_WIDTH  : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      VectorialOp_SI            : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component addmul_block;
 
   component divsqrt_block is
@@ -112,23 +115,24 @@ package fpnew_comps_pkg is
       GENVECTORS : boolean;
       TAG_WIDTH  : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component divsqrt_block;
 
   component noncomp_block is
@@ -139,23 +143,24 @@ package fpnew_comps_pkg is
       GENVECTORS : boolean;
       TAG_WIDTH  : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      VectorialOp_SI            : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component noncomp_block;
 
   component conv_block is
@@ -167,25 +172,26 @@ package fpnew_comps_pkg is
       GENVECTORS : boolean;
       TAG_WIDTH  : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      FpFmt2_SI        : in  fpFmt_t;
-      IntFmt_SI        : in  intFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      FpFmt2_SI                 : in  fpFmt_t;
+      IntFmt_SI                 : in  intFmt_t;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component conv_block;
 
   component addmul_fmt_slice is
@@ -197,21 +203,22 @@ package fpnew_comps_pkg is
       GENVECTORS  : boolean;
       TAG_WIDTH   : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component addmul_fmt_slice;
 
   component divsqrt_multifmt_slice is
@@ -222,23 +229,24 @@ package fpnew_comps_pkg is
       GENVECTORS  : boolean;
       TAG_WIDTH   : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      RoundMode_SI              : in  rvRoundingMode_t;
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component divsqrt_multifmt_slice;
 
   component noncomp_fmt_slice is
@@ -250,22 +258,23 @@ package fpnew_comps_pkg is
       GENVECTORS  : boolean;
       TAG_WIDTH   : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component noncomp_fmt_slice;
 
   component conv_multifmt_slice is
@@ -277,25 +286,26 @@ package fpnew_comps_pkg is
       GENVECTORS  : boolean;
       TAG_WIDTH   : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      FpFmt_SI         : in  fpFmt_t;
-      FpFmt2_SI        : in  fpFmt_t;
-      IntFmt_SI        : in  intFmt_t;
-      VectorialOp_SI   : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(SLICE_WIDTH-1 downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO          : out std_logic;
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      FpFmt2_SI                 : in  fpFmt_t;
+      IntFmt_SI                 : in  intFmt_t;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component conv_multifmt_slice;
 
   -----------------------------------------------------------------------------
@@ -311,20 +321,21 @@ package fpnew_comps_pkg is
       LATENCY   : natural;
       TAG_WIDTH : natural);
     port (
-      Clk_CI           : in  std_logic;
-      Reset_RBI        : in  std_logic;
-      A_DI, B_DI, C_DI : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-      RoundMode_SI     : in  rvRoundingMode_t;
-      Op_SI            : in  fpOp_t;
-      OpMod_SI         : in  std_logic;
-      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI       : in  std_logic;
-      InReady_SO       : out std_logic;
-      Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-      Status_DO        : out rvStatus_t;
-      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      OutValid_SO      : out std_logic;
-      OutReady_SI      : in  std_logic);
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Z_DO                      : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
   end component fp_fma;
 
   component fp_divsqrt_multi is
@@ -333,22 +344,23 @@ package fpnew_comps_pkg is
       LATENCY   : natural;
       TAG_WIDTH : natural);
     port (
-      Clk_CI       : in  std_logic;
-      Reset_RBI    : in  std_logic;
-      A_DI, B_DI   : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      RoundMode_SI : in  rvRoundingMode_t;
-      Op_SI        : in  fpOp_t;
-      OpMod_SI     : in  std_logic;
-      FpFmt_SI     : in  fpFmt_t;
-      Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI   : in  std_logic;
-      InReady_SO   : out std_logic;
-      Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-      Status_DO    : out rvStatus_t;
-      Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      Zext_SO      : out std_logic;
-      OutValid_SO  : out std_logic;
-      OutReady_SI  : in  std_logic);
+      Clk_CI           : in  std_logic;
+      Reset_RBI        : in  std_logic;
+      A_DI, B_DI       : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI, BBox_SI : in  fmtLogic_t;
+      RoundMode_SI     : in  rvRoundingMode_t;
+      Op_SI            : in  fpOp_t;
+      OpMod_SI         : in  std_logic;
+      FpFmt_SI         : in  fpFmt_t;
+      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI       : in  std_logic;
+      InReady_SO       : out std_logic;
+      Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      Status_DO        : out rvStatus_t;
+      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO          : out std_logic;
+      OutValid_SO      : out std_logic;
+      OutReady_SI      : in  std_logic);
   end component fp_divsqrt_multi;
 
   -- Non-Computational FP Operations (Comparisons, Classifications etc.)
@@ -360,23 +372,24 @@ package fpnew_comps_pkg is
       LATENCY   : natural;
       TAG_WIDTH : natural);
     port (
-      Clk_CI         : in  std_logic;
-      Reset_RBI      : in  std_logic;
-      A_DI, B_DI     : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-      RoundMode_SI   : in  rvRoundingMode_t;
-      Op_SI          : in  fpOp_t;
-      OpMod_SI       : in  std_logic;
-      VectorialOp_SI : in  std_logic;
-      Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-      InValid_SI     : in  std_logic;
-      InReady_SO     : out std_logic;
-      Z_DO           : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-      Status_DO      : out rvStatus_t;
-      Tag_DO         : out std_logic_vector(TAG_WIDTH-1 downto 0);
-      UnpackClass_SO : out std_logic;
-      Zext_SO        : out std_logic;
-      OutValid_SO    : out std_logic;
-      OutReady_SI    : in  std_logic);
+      Clk_CI           : in  std_logic;
+      Reset_RBI        : in  std_logic;
+      A_DI, B_DI       : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+      ABox_SI, BBox_SI : in  std_logic;
+      RoundMode_SI     : in  rvRoundingMode_t;
+      Op_SI            : in  fpOp_t;
+      OpMod_SI         : in  std_logic;
+      VectorialOp_SI   : in  std_logic;
+      Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI       : in  std_logic;
+      InReady_SO       : out std_logic;
+      Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+      Status_DO        : out rvStatus_t;
+      Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      UnpackClass_SO   : out std_logic;
+      Zext_SO          : out std_logic;
+      OutValid_SO      : out std_logic;
+      OutReady_SI      : in  std_logic);
   end component fp_noncomp;
 
   -- Conversions between formats
@@ -390,7 +403,8 @@ package fpnew_comps_pkg is
     port (
       Clk_CI       : in  std_logic;
       Reset_RBI    : in  std_logic;
-      A_DI, B_DI   : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+      A_DI         : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+      ABox_SI      : in  fmtLogic_t;
       RoundMode_SI : in  rvRoundingMode_t;
       Op_SI        : in  fpOp_t;
       OpMod_SI     : in  std_logic;
@@ -420,6 +434,7 @@ package fpnew_comps_pkg is
       Clk_CI       : in  std_logic;
       Reset_RBI    : in  std_logic;
       A_DI         : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI      : in  fmtLogic_t;
       RoundMode_SI : in  rvRoundingMode_t;
       OpMod_SI     : in  std_logic;
       SrcFmt_SI    : in  fpFmt_t;
@@ -473,6 +488,7 @@ package fpnew_comps_pkg is
       Clk_CI       : in  std_logic;
       Reset_RBI    : in  std_logic;
       A_DI         : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+      ABox_SI      : in  fmtLogic_t;
       RoundMode_SI : in  rvRoundingMode_t;
       SrcFmt_SI    : in  fpFmt_t;
       DstFmt_SI    : in  fpFmt_t;

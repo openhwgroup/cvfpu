@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-05
--- Last update: 2018-04-07
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -37,36 +37,37 @@ use work.fpnew_comps_pkg.all;
 entity noncomp_block is
 
   generic (
-    FORMATS    : activeFormats_t := (Active   => (FP32 to FP16ALT => true,
-                                                         others => false),
-                                     Encoding => DEFAULTENCODING);
-    UNITTYPES  : fmtUnitTypes_t  := (others => PARALLEL);
-    LATENCIES  : fmtNaturals_t   := (others => 0);
-    GENVECTORS : boolean         := false;
-    TAG_WIDTH  : natural         := 0);
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
+    UNITTYPES  : fmtUnitTypes_t := (others => PARALLEL);
+    LATENCIES  : fmtNaturals_t  := (others => 0);
+    GENVECTORS : boolean        := false;
+    TAG_WIDTH  : natural        := 0);
 
   port (
-    Clk_CI           : in  std_logic;
-    Reset_RBI        : in  std_logic;
+    Clk_CI                    : in  std_logic;
+    Reset_RBI                 : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI, C_DI : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-    RoundMode_SI     : in  rvRoundingMode_t;
-    Op_SI            : in  fpOp_t;
-    OpMod_SI         : in  std_logic;
-    VectorialOp_SI   : in  std_logic;
-    FpFmt_SI         : in  fpFmt_t;
-    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    A_DI, B_DI, C_DI          : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    ABox_SI, BBox_SI, CBox_SI : in  fmtLogic_t;
+    RoundMode_SI              : in  rvRoundingMode_t;
+    Op_SI                     : in  fpOp_t;
+    OpMod_SI                  : in  std_logic;
+    VectorialOp_SI            : in  std_logic;
+    FpFmt_SI                  : in  fpFmt_t;
+    Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
     ---------------------------------------------------------------------------
-    InValid_SI       : in  std_logic;
-    InReady_SO       : out std_logic;
+    InValid_SI                : in  std_logic;
+    InReady_SO                : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-    Status_DO        : out rvStatus_t;
-    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    Zext_SO          : out std_logic;
+    Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    Status_DO                 : out rvStatus_t;
+    Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    Zext_SO                   : out std_logic;
     ---------------------------------------------------------------------------
-    OutValid_SO      : out std_logic;
-    OutReady_SI      : in  std_logic);
+    OutValid_SO               : out std_logic;
+    OutReady_SI               : in  std_logic);
 
 end entity noncomp_block;
 
@@ -166,6 +167,9 @@ begin  -- architecture rtl
             A_DI           => A_DI,
             B_DI           => B_DI,
             C_DI           => C_DI,
+            ABox_SI        => ABox_SI(fmt),
+            BBox_SI        => BBox_SI(fmt),
+            CBox_SI        => CBox_SI(fmt),
             RoundMode_SI   => RoundMode_SI,
             Op_SI          => Op_SI,
             OpMod_SI       => OpMod_SI,
@@ -276,8 +280,8 @@ begin  -- architecture rtl
       OutReady_SI   => OutReady_SI,
       OutIdx_SO     => open);
 
-  Zext_SO <= ArbOutTag_D(ArbOutTag_D'high);
-   Tag_DO <= ArbOutTag_D(Tag_DO'range);
+  Zext_SO     <= ArbOutTag_D(ArbOutTag_D'high);
+  Tag_DO      <= ArbOutTag_D(Tag_DO'range);
   OutValid_SO <= OutValid_S;
 
   -- The output will be read at the next clock iff both ready&valid are set

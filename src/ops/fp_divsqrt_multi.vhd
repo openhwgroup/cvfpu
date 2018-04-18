@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-04-12
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -37,32 +37,34 @@ use work.fpnew_comps_pkg.all;
 entity fp_divsqrt_multi is
 
   generic (
-    FORMATS   : activeFormats_t := (Active => (FP32 to FP16ALT => true, others => false),
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
                                   Encoding => DEFAULTENCODING);
-    LATENCY   : natural         := 0;
-    TAG_WIDTH : natural         := 0);
+
+    LATENCY   : natural := 0;
+    TAG_WIDTH : natural := 0);
 
   port (
-    Clk_CI       : in  std_logic;
-    Reset_RBI    : in  std_logic;
+    Clk_CI           : in  std_logic;
+    Reset_RBI        : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI   : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-    RoundMode_SI : in  rvRoundingMode_t;
-    Op_SI        : in  fpOp_t;
-    OpMod_SI     : in  std_logic;
-    FpFmt_SI     : in  fpFmt_t;
-    Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    A_DI, B_DI       : in  std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    ABox_SI, BBox_SI : in  fmtLogic_t;
+    RoundMode_SI     : in  rvRoundingMode_t;
+    Op_SI            : in  fpOp_t;
+    OpMod_SI         : in  std_logic;
+    FpFmt_SI         : in  fpFmt_t;
+    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
     ---------------------------------------------------------------------------
-    InValid_SI   : in  std_logic;
-    InReady_SO   : out std_logic;
+    InValid_SI       : in  std_logic;
+    InReady_SO       : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
-    Status_DO    : out rvStatus_t;
-    Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    Zext_SO      : out std_logic;
+    Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    Status_DO        : out rvStatus_t;
+    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    Zext_SO          : out std_logic;
     ---------------------------------------------------------------------------
-    OutValid_SO  : out std_logic;
-    OutReady_SI  : in  std_logic);
+    OutValid_SO      : out std_logic;
+    OutReady_SI      : in  std_logic);
 
 end entity fp_divsqrt_multi;
 
@@ -85,7 +87,7 @@ architecture iterative_lei of fp_divsqrt_multi is
 
   -- Unit output side
   signal OutResult_D            : std_logic_vector(63 downto 0);
-  signal OutStatusSlv_D : std_logic_vector(4 downto 0);
+  signal OutStatusSlv_D         : std_logic_vector(4 downto 0);
   signal OutStatus_D            : rvStatus_t;
   signal OutTag_D               : std_logic_vector(TAG_WIDTH-1 downto 0);
   signal OutZext_S              : std_logic;
@@ -152,20 +154,20 @@ begin  -- architecture iterative_lei
 
   i_fp_divsqrt : div_sqrt_top_mvp
     port map (
-      Clk_CI                 => Clk_CI,
-      Rst_RBI                => Reset_RBI,
-      Div_start_SI           => InDivValid_S,
-      Sqrt_start_SI          => InSqrtValid_S,
-      Operand_a_DI           => A_DI,
-      Operand_b_DI           => B_DI,
-      RM_SI                  => to_slv(RoundMode_SI),
-      Precision_ctl_SI       => (others => '0'),  -- turn off for now
-      Format_sel_SI          => Fmt_S,
-      Kill_SI                => '0',              -- TODO ADD KILL
-      Result_DO              => OutResult_D,
-      Fflags_SO => OutStatusSlv_D,
-      Ready_SO               => InReady_S,
-      Done_SO                => OutValid_S);
+      Clk_CI           => Clk_CI,
+      Rst_RBI          => Reset_RBI,
+      Div_start_SI     => InDivValid_S,
+      Sqrt_start_SI    => InSqrtValid_S,
+      Operand_a_DI     => A_DI,
+      Operand_b_DI     => B_DI,
+      RM_SI            => to_slv(RoundMode_SI),
+      Precision_ctl_SI => (others => '0'),  -- turn off for now
+      Format_sel_SI    => Fmt_S,
+      Kill_SI          => '0',              -- TODO ADD KILL
+      Result_DO        => OutResult_D,
+      Fflags_SO        => OutStatusSlv_D,
+      Ready_SO         => InReady_S,
+      Done_SO          => OutValid_S);
 
   OutStatus_D <= to_rvStatus(OutStatusSlv_D);
 

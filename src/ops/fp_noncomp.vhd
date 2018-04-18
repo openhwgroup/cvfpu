@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-02-14
--- Last update: 2018-04-17
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -48,25 +48,26 @@ entity fp_noncomp is
     TAG_WIDTH : natural := 0);
 
   port (
-    Clk_CI         : in  std_logic;
-    Reset_RBI      : in  std_logic;
+    Clk_CI           : in  std_logic;
+    Reset_RBI        : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI     : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-    RoundMode_SI   : in  rvRoundingMode_t;
-    Op_SI          : in  fpOp_t;
-    OpMod_SI       : in  std_logic;
-    VectorialOp_SI : in  std_logic;
-    Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
-    InValid_SI     : in  std_logic;
-    InReady_SO     : out std_logic;
+    A_DI, B_DI       : in  std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    ABox_SI, BBox_SI : in  std_logic;
+    RoundMode_SI     : in  rvRoundingMode_t;
+    Op_SI            : in  fpOp_t;
+    OpMod_SI         : in  std_logic;
+    VectorialOp_SI   : in  std_logic;
+    Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    InValid_SI       : in  std_logic;
+    InReady_SO       : out std_logic;
     ---------------------------------------------------------------------------
-    Z_DO           : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
-    Status_DO      : out rvStatus_t;
-    Tag_DO         : out std_logic_vector(TAG_WIDTH-1 downto 0);
-    UnpackClass_SO : out std_logic;
-    Zext_SO        : out std_logic;
-    OutValid_SO    : out std_logic;
-    OutReady_SI    : in  std_logic);
+    Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+    Status_DO        : out rvStatus_t;
+    Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    UnpackClass_SO   : out std_logic;
+    Zext_SO          : out std_logic;
+    OutValid_SO      : out std_logic;
+    OutReady_SI      : in  std_logic);
 
 end entity fp_noncomp;
 
@@ -187,12 +188,13 @@ begin  -- architecture rtl
   IsNormalB_S <= unsigned(ExpB_DI) /= 0;
 
   -- Infinities have all-ones exponents and zero mantissa
+  -- Improperly boxed operands are treated as canonical NaNs
   IsInfA_S <= ExpA_DI = INFEXP and MantA_DI = INFMANT;
   IsInfB_S <= ExpB_DI = INFEXP and MantB_DI = INFMANT;
 
   -- Nans have all-ones exponents and non-zero mantissa
-  IsNaNA_S <= unsigned(ExpA_DI) = MAXEXP and unsigned(MantA_DI) /= 0;
-  IsNaNB_S <= unsigned(ExpB_DI) = MAXEXP and unsigned(MantB_DI) /= 0;
+  IsNaNA_S <= (unsigned(ExpA_DI) = MAXEXP and unsigned(MantA_DI) /= 0) or ABox_SI = '0';
+  IsNaNB_S <= (unsigned(ExpB_DI) = MAXEXP and unsigned(MantB_DI) /= 0) or BBox_SI = '0';
 
   -- Zeroes are encoded by all-zero eponent and mantissa
   IsZeroA_S <= unsigned(std_logic_vector'(ExpA_DI & MantA_DI)) = 0;
@@ -205,9 +207,9 @@ begin  -- architecture rtl
   InputNaN_S <= IsNaNA_S or IsNaNB_S;
 
   -- Detect a signaling NaN at the inputs
-  SignalingNaNA_S <= (IsNaNA_S and MantA_DI(QUIETBIT) = '0');
-  SignalingNaN_S  <= (IsNaNA_S and MantA_DI(QUIETBIT) = '0')
-                    or (IsNaNB_S and MantB_DI(QUIETBIT) = '0');
+  -- Improperly boxed operands are treated as canonical NaNs
+  SignalingNaNA_S <= (IsNaNA_S and ABox_SI = '1' and MantA_DI(QUIETBIT) = '0');
+  SignalingNaN_S  <= SignalingNaNA_S or (IsNaNB_S and BBox_SI = '1' and MantB_DI(QUIETBIT) = '0');
 
   -- Assign current operation group for later output selection
   with Op_SI select
@@ -317,7 +319,7 @@ begin  -- architecture rtl
 
   -- All other ops need the comparator outputs for their result
   OperandsEqual_S   <= (signed(A_DI) = signed(B_DI)) or (IsZeroA_S and IsZeroB_S);
-  OperandASmaller_S <= (signed(A_DI) < signed(B_DI)) xor (SignA_DI and SignB_DI)='1';
+  OperandASmaller_S <= (signed(A_DI) < signed(B_DI)) xor (SignA_DI and SignB_DI) = '1';
 
   -----------------------------------------------------------------------------
   -- Minimum/Maximum - operation is encoded in RoundMode_SI:
@@ -336,7 +338,7 @@ begin  -- architecture rtl
 
     -- Both NaN inputs cause a NaN output
     if (IsNaNA_S and IsNaNB_S) then
-      ResArray_D(MINMAX)      <= NAN(EXP_BITS, MAN_BITS);  -- return canonical qnan
+      ResArray_D(MINMAX) <= NAN(EXP_BITS, MAN_BITS);  -- return canonical qnan
 
     -- If one operand is QNaN, the non-NaN operand is returned
     elsif IsNaNA_S then

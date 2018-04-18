@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-04-08
+-- Last update: 2018-04-18
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -37,18 +37,21 @@ use work.fpnew_comps_pkg.all;
 entity fp_conv_multi is
 
   generic (
-    FORMATS    : activeFormats_t    := (Active => (FP32 to FP16ALT => true, others => false),
-                                  Encoding     => DEFAULTENCODING);
+    FORMATS : activeFormats_t := (Active   => (FP32 to FP16ALT => true, others => false),
+                                  Encoding => DEFAULTENCODING);
+
     INTFORMATS : activeIntFormats_t := (Active => (others => true),
                                         Length => INTFMTLENGTHS);
-    LATENCY    : natural            := 0;
-    TAG_WIDTH  : natural            := 0);
+
+    LATENCY   : natural := 0;
+    TAG_WIDTH : natural := 0);
 
   port (
     Clk_CI       : in  std_logic;
     Reset_RBI    : in  std_logic;
     ---------------------------------------------------------------------------
-    A_DI, B_DI   : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+    A_DI         : in  std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
+    ABox_SI      : in  fmtLogic_t;
     RoundMode_SI : in  rvRoundingMode_t;
     Op_SI        : in  fpOp_t;
     OpMod_SI     : in  std_logic;
@@ -83,7 +86,7 @@ architecture parallel_paths of fp_conv_multi is
   -- Signal Declarations
   -----------------------------------------------------------------------------
 
-  signal OutReady_S  : std_logic;
+  signal OutReady_S                               : std_logic;
   signal F2IInValid_S, I2FInValid_S, F2FInValid_S : std_logic;
   signal F2IInReady_S, I2FInReady_S, F2FInReady_S : std_logic;
 
@@ -92,7 +95,7 @@ architecture parallel_paths of fp_conv_multi is
   signal F2IOutStatus_D, I2FOutStatus_D, F2FOutStatus_D : rvStatus_t;
   signal F2IResult_D, I2FResult_D, F2FResult_D          : std_logic_vector(Z_DO'range);
 
-  signal F2IOutTag_D, I2FOutTag_D, F2FOutTag_D : std_logic_vector(-1 downto 0); --dummy
+  signal F2IOutTag_D, I2FOutTag_D, F2FOutTag_D : std_logic_vector(-1 downto 0);  --dummy
 
   signal F2IZext_S, I2FZext_S, F2FZext_S : std_logic;
 
@@ -132,6 +135,7 @@ begin  -- architecture parallel_paths
         Clk_CI       => Clk_CI,
         Reset_RBI    => Reset_RBI,
         A_DI         => A_DI(FP_WIDTH-1 downto 0),
+        ABox_SI      => ABox_SI,
         RoundMode_SI => RoundMode_SI,
         OpMod_SI     => OpMod_SI,
         SrcFmt_SI    => FpFmt_SI,
@@ -194,7 +198,7 @@ begin  -- architecture parallel_paths
   g_noi2f : if not (anySet(FORMATS.Active) and anySet(INTFORMATS.Active)) generate
 
     I2FOutValid_S <= '0';
-    I2FInReady_S <= '0';
+    I2FInReady_S  <= '0';
 
   end generate g_noi2f;
 
@@ -210,6 +214,7 @@ begin  -- architecture parallel_paths
         Clk_CI       => Clk_CI,
         Reset_RBI    => Reset_RBI,
         A_DI         => A_DI(FP_WIDTH-1 downto 0),
+        ABox_SI      => ABox_SI,
         RoundMode_SI => RoundMode_SI,
         SrcFmt_SI    => FpFmt2_SI,
         DstFmt_SI    => FpFmt_SI,
@@ -231,7 +236,7 @@ begin  -- architecture parallel_paths
   g_nof2f : if not anySet(FORMATS.Active) generate
 
     F2FOutValid_S <= '0';
-    F2FInReady_S <= '0';
+    F2FInReady_S  <= '0';
 
   end generate g_nof2f;
 
