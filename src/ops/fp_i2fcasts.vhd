@@ -345,8 +345,8 @@ begin  -- architecture rtl
 
   end process;
 
-  RegularStatus_D <= (NV     => or_reduce(RoundSticky_S)
-                      or to_sl(OFAfterRound_S(DstFmt_S) or OFBeforeRound_S),
+  RegularStatus_D <= (NX     => or_reduce(RoundSticky_S),
+                      NV     => to_sl(OFAfterRound_S(DstFmt_S) or OFBeforeRound_S),
                       others => '0');
 
   -----------------------------------------------------------------------------

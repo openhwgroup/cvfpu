@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Fixed
 - Comparisons for negative values as well as zeroes
 - Comparisons for equality of NaNs now properly return false
+- Updated integer result handling for conversions to reflect changes in RISC-V ISA v2.3draft
+- Conversion status flags for rounded-to-zero results
 
 ## [0.1.0] - 2018-04-13
 ### Added

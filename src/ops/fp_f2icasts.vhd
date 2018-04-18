@@ -161,6 +161,7 @@ architecture rtl of fp_f2icasts is
   signal ResRounded_D         : std_logic_vector(INTWIDTH downto 0);
   signal ResRoundedSignCorr_D : std_logic_vector(Z_DO'range);
   signal RegularStatus_D      : rvStatus_t;
+  signal RoundedResZero_S     : boolean;
 
   -- final result
   signal Result_D : std_logic_vector(Z_DO'range);
@@ -229,23 +230,26 @@ begin  -- architecture rtl
 
       -- Special Case Handling
       p_specialCases : process(all)
+        variable SpecialResultInt_D : std_logic_vector(INTFORMATS.Length(ifmt)-1 downto 0);
       begin  -- process p_specialCases
 
         -- default assignment
         SpecialResult_D(ifmt) <= (others => '0');
 
         if (SpecialRes_S) then
+          -- By default overflow to positive max, which is 2**len or 2**(len-1)
+          -- MSB one in case of unsigned ops
+          SpecialResultInt_D(SpecialResultInt_D'high-1 downto 0) := (others => '1');
+          SpecialResultInt_D(SpecialResultInt_D'high)            := OpMod_SI;
 
-          -- Overflow to positive max, which is 2**len or 2**(len-1)
-          if (InputNan_S(SrcFmt_SI) or ((OFBeforeRound_S or InputInf_S(SrcFmt_SI)) and Sign_D = '0')) then
-            SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-2 downto 0) <= (others => '1');
-            -- MSB one in case of unsigned ops
-            SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1)          <= OpMod_SI;
-
-          -- otherwise negative OF or INF or unsigned, tie to -max or 0
-          else
-            SpecialResult_D(ifmt) <= (others => not OpMod_SI);
+          -- if we have a negative special case except for nans (OF or neg INF or unsigned), tie to -max or 0
+          if (not InputNan_S(SrcFmt_SI) and Sign_D = '1') then
+            SpecialResultInt_D := not SpecialResultInt_D;
           end if;
+
+          SpecialResult_D(ifmt)(SpecialResultInt_D'range) <= SpecialResultInt_D;
+          -- Sign-extend integer result as per RISC-V ISA 2.3draft
+          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others  => SpecialResultInt_D(SpecialResultInt_D'high));
         end if;
       end process;
 
@@ -257,6 +261,8 @@ begin  -- architecture rtl
 
         -- mantissa
         IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0) <= ShiftedMant_S(INTFORMATS.Length(ifmt)+SUPERFMT.ManBits+1 downto SUPERFMT.ManBits+2);
+        -- Sign-extend integer result as per RISC-V ISA 2.3draft
+        IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others  => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
 
       end process p_resAssemble;
     end generate g_activeFmts;
@@ -279,10 +285,11 @@ begin  -- architecture rtl
   -- Handle special results (nan, inf, overflow, negative unsigned. zero is
   -- handled automatically by the regular path)
   SpecialRes_S <= InputNan_S(SrcFmt_S) or InputInf_S(SrcFmt_S) or OFBeforeRound_S
-                  or (Sign_D = '1' and OpMod_SI = '1' and not InputZero_S(SrcFmt_S));
+                  or (Sign_D = '1' and OpMod_SI = '1' and not RoundedResZero_S);
 
   ---- special result raises invalid exception
-  SpecialStatus_D <= (NV => '1', others => '0');
+  SpecialStatus_D <= (NV     => '1',
+                      others => '0');
 
 
   -----------------------------------------------------------------------------
@@ -356,7 +363,9 @@ begin  -- architecture rtl
   ResRoundedSignCorr_D <= std_logic_vector(-signed(ResRounded_D(ResRounded_D'high-1 downto 0))) when Sign_D = '1' else
                           ResRounded_D(ResRounded_D'high-1 downto 0);
 
-  RegularStatus_D <= (NV => or_reduce(RoundSticky_S), others => '0');
+  RoundedResZero_S  <= unsigned(ResRoundedSignCorr_D) = 0;
+
+  RegularStatus_D <= (NX => or_reduce(RoundSticky_S), others => '0');
 
   -----------------------------------------------------------------------------
   -- Pipeline registers at the outputs of the unit
@@ -369,9 +378,8 @@ begin  -- architecture rtl
   Status_D <= SpecialStatus_D when SpecialRes_S else
               RegularStatus_D;
 
-  -- Output should be sign-extended downstream if we're doing signed operation
-  Zext_S <= not Result_D(Result_D'high) when OpMod_SI = '0' else
-            '1';
+  -- Output should be sign-extended downstream
+  Zext_S <= not Result_D(Result_D'high);
 
   -- Pipe through the zext indicator as well
   TagInt_D <= Zext_S & Tag_DI;
