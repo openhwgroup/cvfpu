@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-04-18
+-- Last update: 2018-04-19
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ architecture iterative_lei of fp_divsqrt_multi is
   signal OutResult_D            : std_logic_vector(63 downto 0);
   signal OutStatusSlv_D         : std_logic_vector(4 downto 0);
   signal OutStatus_D            : rvStatus_t;
-  signal OutTag_D               : std_logic_vector(TAG_WIDTH-1 downto 0);
+  signal OutTag_DP              : std_logic_vector(TAG_WIDTH-1 downto 0);
   signal OutZext_S              : std_logic;
   signal OutValid_S, OutReady_S : std_logic;
 
@@ -149,6 +149,20 @@ begin  -- architecture iterative_lei
   InReady_SO <= OutReady_S and InReady_S;
 
   -----------------------------------------------------------------------------
+  -- Store tag until the divider is done
+  -----------------------------------------------------------------------------
+  p_tagBuffer : process (Clk_CI, Reset_RBI) is
+  begin  -- process p_tagBuffer
+    if Reset_RBI = '0' then             -- asynchronous reset (active low)
+      OutTag_DP <= (others => '0');
+    elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
+      if (InDivValid_S or InSqrtValid_S) = '1' then
+        OutTag_DP <= Tag_DI;
+      end if;
+    end if;
+  end process p_tagBuffer;
+
+  -----------------------------------------------------------------------------
   -- Instance of multifmt div/sqrt unit
   -----------------------------------------------------------------------------
 
@@ -180,7 +194,7 @@ begin  -- architecture iterative_lei
   Status_D <= OutStatus_D;
 
   -- At least one pipleline register is required as the unit does not have a
-  -- backpressure path. The register can catch outputs that cannot be processed
+  -- backpressure path. The register will catch outputs that cannot be processed
   -- downstream
   i_fp_pipe : fp_pipe
     generic map (
@@ -192,7 +206,7 @@ begin  -- architecture iterative_lei
       Reset_RBI      => Reset_RBI,
       Result_DI      => Result_D,
       Status_DI      => Status_D,
-      Tag_DI         => Tag_DI,
+      Tag_DI         => OutTag_DP,
       InValid_SI     => OutValid_S,
       InReady_SO     => OutReady_S,
       ResultPiped_DO => Z_DO,

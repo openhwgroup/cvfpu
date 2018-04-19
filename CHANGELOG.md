@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Updated integer result handling for conversions to reflect changes in RISC-V ISA v2.3draft
 - Conversion status flags for rounded-to-zero results
 - Updated `FMIN_MAX` instructions to reflect changes in RISC-V ISA v2.3draft
+- Divider/Sqrt unit losing track of the tag
 
 ## [0.1.0] - 2018-04-13
 
