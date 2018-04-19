@@ -145,6 +145,9 @@ architecture rtl of fp_fma is
   alias MantC_D : std_logic_vector(MAN_BITS-1 downto 0)
     is C_D(MAN_BITS-1 downto 0);
 
+  -- Input NaN-Boxing
+  signal ABox_S, BBox_S, CBox_S : std_logic;
+
   -- FP classification signals
   signal IsNormalA_D, IsNormalB_D, IsNormalC_D : std_logic;
   signal IsInfA_S, IsInfB_S, IsInfC_S          : boolean;
@@ -243,6 +246,10 @@ begin  -- architecture rtl
     B_D <= B_DI;
     C_D <= C_DI;
 
+    ABox_S <= ABox_SI;
+    BBox_S <= BBox_SI;
+    CBox_S <= CBox_SI;
+
     -- OpMod_SI inverts sign of operand C
     if OpMod_SI = '1' then
       C_D <= (not SignC_DI) & AbsC_DI;
@@ -262,18 +269,24 @@ begin  -- architecture rtl
       -- ADD, SUB
       when (ADD) =>
         -- set multiplicand to positive one
-        A_D <= ONE(EXP_BITS, MAN_BITS);
+        A_D    <= ONE(EXP_BITS, MAN_BITS);
+        ABox_S <= '1';
 
       -- MUL
       when (MUL) =>
         -- set addend to positive zero
-        C_D <= (others => '0');
+        C_D    <= (others => '0');
+        CBox_S <= '1';
 
       -- Unused operations -> OPTIMIZE AWAY
       when others =>
         A_D <= (others => '-');
         B_D <= (others => '-');
         C_D <= (others => '-');
+
+        ABox_S <= '-';
+        BBox_S <= '-';
+        CBox_S <= '-';
 
     end case;
 
@@ -296,9 +309,9 @@ begin  -- architecture rtl
 
   -- Nans have all-ones exponents and non-zero mantissa
   -- Improperly boxed operands are treated as canonical NaNs
-  IsNaNA_S <= (unsigned(ExpA_D) = MAXEXP and unsigned(MantA_D) /= 0) or ABox_SI = '0';
-  IsNaNB_S <= (unsigned(ExpB_D) = MAXEXP and unsigned(MantB_D) /= 0) or BBox_SI = '0';
-  IsNaNC_S <= (unsigned(ExpC_D) = MAXEXP and unsigned(MantC_D) /= 0) or CBox_SI = '0';
+  IsNaNA_S <= (unsigned(ExpA_D) = MAXEXP and unsigned(MantA_D) /= 0) or ABox_S = '0';
+  IsNaNB_S <= (unsigned(ExpB_D) = MAXEXP and unsigned(MantB_D) /= 0) or BBox_S = '0';
+  IsNaNC_S <= (unsigned(ExpC_D) = MAXEXP and unsigned(MantC_D) /= 0) or CBox_S = '0';
 
   -- Zeroes are encoded by all-zero eponent and mantissa
   IsZeroA_S <= unsigned(ExpA_D & MantA_D) = 0;
@@ -313,9 +326,9 @@ begin  -- architecture rtl
 
   -- Detect a signaling NaN at the inputs (one is enough to trigger condition)
   -- Improperly boxed operands are treated as canonical NaNs
-  SignalingNaN_S <= (IsNaNA_S and ABox_SI = '1' and MantA_D(QUIETBIT) = '0')
-                    or (IsNaNB_S and BBox_SI = '1' and MantB_D(QUIETBIT) = '0')
-                    or (IsNaNC_S and CBox_SI = '1' and MantC_D(QUIETBIT) = '0');
+  SignalingNaN_S <= (IsNaNA_S and ABox_S = '1' and MantA_D(QUIETBIT) = '0')
+                    or (IsNaNB_S and BBox_S = '1' and MantB_D(QUIETBIT) = '0')
+                    or (IsNaNC_S and CBox_S = '1' and MantC_D(QUIETBIT) = '0');
 
   -- Effective subtraction in FMA occurs when product and addend signs differ
   EffSub_S <= (SignA_D xor SignB_D) /= SignC_D;  -- 3-way xor to boolean
