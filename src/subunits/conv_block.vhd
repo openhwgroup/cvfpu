@@ -65,6 +65,7 @@ entity conv_block is
     ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
+    Flush_SI                  : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
     Status_DO                 : out rvStatus_t;
@@ -263,6 +264,7 @@ begin  -- architecture rtl
         Tag_DI         => Tag_DI,
         InValid_SI     => InValid_SI,
         InReady_SO     => FmtInReady_S(findFirstActive(MERGEDFORMATS)),
+        Flush_SI       => Flush_SI,
         Z_DO           => FmtOutResult_D(findFirstActive(MERGEDFORMATS)),
         Status_DO      => FmtOutStatus_D(findFirstActive(MERGEDFORMATS)),
         Tag_DO         => FmtOutTags_D(findFirstActive(MERGEDFORMATS)),

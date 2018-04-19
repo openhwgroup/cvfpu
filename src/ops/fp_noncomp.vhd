@@ -58,14 +58,17 @@ entity fp_noncomp is
     OpMod_SI         : in  std_logic;
     VectorialOp_SI   : in  std_logic;
     Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
+    Flush_SI                  : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
     Status_DO        : out rvStatus_t;
     Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
     UnpackClass_SO   : out std_logic;
     Zext_SO          : out std_logic;
+    ---------------------------------------------------------------------------
     OutValid_SO      : out std_logic;
     OutReady_SI      : in  std_logic);
 
@@ -479,6 +482,7 @@ begin  -- architecture rtl
       Tag_DI         => TagInt_D,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
+      Flush_SI       => Flush_SI,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => TagIntPiped_D,

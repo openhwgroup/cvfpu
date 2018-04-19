@@ -69,6 +69,7 @@ entity fp_f2icasts is
     ---------------------------------------------------------------------------
     InValid_SI   : in  std_logic;
     InReady_SO   : out std_logic;
+    Flush_SI     : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO         : out std_logic_vector(MAXWIDTH(INTFORMATS)-1 downto 0);
     Status_DO    : out rvStatus_t;
@@ -401,6 +402,7 @@ begin  -- architecture rtl
       Tag_DI         => TagInt_D,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
+      Flush_SI       => Flush_SI,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => TagIntPiped_D,

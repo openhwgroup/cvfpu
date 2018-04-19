@@ -74,6 +74,7 @@ entity fpnew_top is
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
+    Flush_SI         : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO             : out std_logic_vector(WIDTH-1 downto 0);
     Status_DO        : out std_logic_vector(4 downto 0);
@@ -154,6 +155,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
+      Flush_SI       => Flush_SI,
       Z_DO           => Z_DO,
       Status_DO      => Status_D,
       Tag_DO         => Tag_DO,

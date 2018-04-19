@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - Sign-extended operations of the `SGNJ` family
 - Input operand NaN-boxing checks according to RISC-V ISA v2.2
+- Flush capability with `Flush_SI`
 
 ### Fixed
 

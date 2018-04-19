@@ -46,12 +46,15 @@ entity fp_pipe is
     Result_DI      : in  std_logic_vector(WIDTH-1 downto 0);
     Status_DI      : in  rvStatus_t;
     Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     InValid_SI     : in  std_logic;
     InReady_SO     : out std_logic;     -- Ready to Upstream
+    Flush_SI       : in  std_logic;
     ---------------------------------------------------------------------------
     ResultPiped_DO : out std_logic_vector(WIDTH-1 downto 0);
     StatusPiped_DO : out rvStatus_t;
     TagPiped_DO    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     OutValid_SO    : out std_logic;
     OutReady_SI    : in  std_logic);    -- Ready from Downstream
 
@@ -138,8 +141,8 @@ begin  -- architecture rtl
         TagPipe_D(i+1)   <= (others => '0');
         ValidPipe_S(i+1) <= '0';
       elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
-        if StageReady_S(i) = '1' then   -- Only advance pipeline if we're ready
-          ValidPipe_S(i+1) <= ValidPipe_S(i);
+        if (StageReady_S(i) or Flush_SI) = '1' then   -- Only advance pipeline if we're ready
+          ValidPipe_S(i+1) <= ValidPipe_S(i) and not Flush_SI;
           if ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
             ResPipe_D(i+1)  <= ResPipe_D(i);
             StatPipe_D(i+1) <= StatPipe_D(i);

@@ -62,6 +62,7 @@ entity fp_conv_multi is
     ---------------------------------------------------------------------------
     InValid_SI   : in  std_logic;
     InReady_SO   : out std_logic;
+    Flush_SI     : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
     Status_DO    : out rvStatus_t;
@@ -143,6 +144,7 @@ begin  -- architecture parallel_paths
         Tag_DI       => (others => '-'),
         InValid_SI   => F2IInValid_S,
         InReady_SO   => F2IInReady_S,
+        Flush_SI     => '0',
         Z_DO         => F2IOutResult_D,
         Status_DO    => F2IOutStatus_D,
         Tag_DO       => F2IOutTag_D,
@@ -182,6 +184,7 @@ begin  -- architecture parallel_paths
         Tag_DI       => (others => '-'),
         InValid_SI   => I2FInValid_S,
         InReady_SO   => I2FInReady_S,
+        Flush_SI     => '0',
         Z_DO         => I2FOutResult_D,
         Status_DO    => I2FOutStatus_D,
         Tag_DO       => I2FOutTag_D,
@@ -221,6 +224,7 @@ begin  -- architecture parallel_paths
         Tag_DI       => (others => '-'),
         InValid_SI   => F2FInValid_S,
         InReady_SO   => F2FInReady_S,
+        Flush_SI     => '0',
         Z_DO         => F2FOutResult_D,
         Status_DO    => F2FOutStatus_D,
         Tag_DO       => F2FOutTag_D,
@@ -277,6 +281,7 @@ begin  -- architecture parallel_paths
       Tag_DI         => TagInt_D,
       InValid_SI     => OutValid_S,
       InReady_SO     => OutReady_S,
+      Flush_SI       => Flush_SI,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => TagIntPiped_D,

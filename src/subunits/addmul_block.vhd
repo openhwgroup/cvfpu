@@ -62,6 +62,7 @@ entity addmul_block is
     ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
+    Flush_SI                  : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
     Status_DO                 : out rvStatus_t;
@@ -177,6 +178,7 @@ begin  -- architecture rtl
             Tag_DI         => Tag_DI,
             InValid_SI     => InValid_S,
             InReady_SO     => FmtInReady_S(fmt),
+            Flush_SI       => Flush_SI,
             Z_DO           => FmtOutResult_D(fmt),
             Status_DO      => FmtOutStatus_D(fmt),
             Tag_DO         => FmtOutTags_D(fmt),

@@ -67,12 +67,15 @@ entity addmul_fmt_slice is
     OpMod_SI                  : in  std_logic;
     VectorialOp_SI            : in  std_logic;
     Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
+    Flush_SI                  : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
     Status_DO                 : out rvStatus_t;
     Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     OutValid_SO               : out std_logic;
     OutReady_SI               : in  std_logic);
 
@@ -183,6 +186,7 @@ begin  -- architecture rtl
           Tag_DI       => TagInt_D,
           InValid_SI   => InValid_S,
           InReady_SO   => LaneInReady_S(i),
+          Flush_SI     => Flush_SI,
           Z_DO         => OpResult_D,
           Status_DO    => OpStatus_D,
           Tag_DO       => LaneTags_S(i),

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-20
--- Last update: 2018-04-18
+-- Last update: 2018-04-20
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -68,6 +68,7 @@ package fpnew_comps_pkg is
       Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI       : in  std_logic;
       InReady_SO       : out std_logic;
+      Flush_SI         : in  std_logic;
       Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
       Status_DO        : out rvStatus_t;
       Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -99,6 +100,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -127,6 +129,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -155,6 +158,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -186,6 +190,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -214,6 +219,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -241,6 +247,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -269,6 +276,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -300,6 +308,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -331,6 +340,7 @@ package fpnew_comps_pkg is
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
       Z_DO                      : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
       Status_DO                 : out rvStatus_t;
       Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -355,6 +365,7 @@ package fpnew_comps_pkg is
       Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI       : in  std_logic;
       InReady_SO       : out std_logic;
+      Flush_SI         : in  std_logic;
       Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO        : out rvStatus_t;
       Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -383,6 +394,7 @@ package fpnew_comps_pkg is
       Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI       : in  std_logic;
       InReady_SO       : out std_logic;
+      Flush_SI         : in  std_logic;
       Z_DO             : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
       Status_DO        : out rvStatus_t;
       Tag_DO           : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -414,6 +426,7 @@ package fpnew_comps_pkg is
       Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI   : in  std_logic;
       InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
       Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
       Status_DO    : out rvStatus_t;
       Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -442,6 +455,7 @@ package fpnew_comps_pkg is
       Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI   : in  std_logic;
       InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
       Z_DO         : out std_logic_vector(MAXWIDTH(INTFORMATS)-1 downto 0);
       Status_DO    : out rvStatus_t;
       Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -469,6 +483,7 @@ package fpnew_comps_pkg is
       Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI   : in  std_logic;
       InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
       Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO    : out rvStatus_t;
       Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -495,6 +510,7 @@ package fpnew_comps_pkg is
       Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI   : in  std_logic;
       InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
       Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
       Status_DO    : out rvStatus_t;
       Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
@@ -556,6 +572,7 @@ package fpnew_comps_pkg is
       Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
       InValid_SI     : in  std_logic;
       InReady_SO     : out std_logic;
+      Flush_SI       : in  std_logic;
       ResultPiped_DO : out std_logic_vector(WIDTH-1 downto 0);
       StatusPiped_DO : out rvStatus_t;
       TagPiped_DO    : out std_logic_vector(TAG_WIDTH-1 downto 0);

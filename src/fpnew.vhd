@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-18
+-- Last update: 2018-04-19
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -70,6 +70,7 @@ entity fpnew is
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
+    Flush_SI         : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS, INTFORMATS)-1 downto 0);
     Status_DO        : out rvStatus_t;
@@ -212,6 +213,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => OpGrpInValid_S(ADDMUL),
       InReady_SO     => OpGrpInReady_S(ADDMUL),
+      Flush_SI       => Flush_SI,
       Z_DO           => AddMulResult_D,
       Status_DO      => OpGrpOutStatuses_D(ADDMUL),
       Tag_DO         => OpGrpOutTags_D(ADDMUL),
@@ -251,6 +253,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => OpGrpInValid_S(DIVSQRT),
       InReady_SO     => OpGrpInReady_S(DIVSQRT),
+      Flush_SI       => Flush_SI,
       Z_DO           => DivSqrtResult_D,
       Status_DO      => OpGrpOutStatuses_D(DIVSQRT),
       Tag_DO         => OpGrpOutTags_D(DIVSQRT),
@@ -290,6 +293,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => OpGrpInValid_S(NONCOMP),
       InReady_SO     => OpGrpInReady_S(NONCOMP),
+      Flush_SI       => Flush_SI,
       Z_DO           => NonCompResult_D,
       Status_DO      => OpGrpOutStatuses_D(NONCOMP),
       Tag_DO         => OpGrpOutTags_D(NONCOMP),
@@ -332,6 +336,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => OpGrpInValid_S(CONV),
       InReady_SO     => OpGrpInReady_S(CONV),
+      Flush_SI       => Flush_SI,
       Z_DO           => OpGrpOutResults_D(CONV),
       Status_DO      => OpGrpOutStatuses_D(CONV),
       Tag_DO         => OpGrpOutTags_D(CONV),

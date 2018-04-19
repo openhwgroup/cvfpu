@@ -57,6 +57,7 @@ entity fp_divsqrt_multi is
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
+    Flush_SI         : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO             : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
     Status_DO        : out rvStatus_t;
@@ -177,7 +178,7 @@ begin  -- architecture iterative_lei
       RM_SI            => to_slv(RoundMode_SI),
       Precision_ctl_SI => (others => '0'),  -- turn off for now
       Format_sel_SI    => Fmt_S,
-      Kill_SI          => '0',              -- TODO ADD KILL
+      Kill_SI          => Flush_SI,              -- TODO ADD KILL
       Result_DO        => OutResult_D,
       Fflags_SO        => OutStatusSlv_D,
       Ready_SO         => InReady_S,
@@ -209,6 +210,7 @@ begin  -- architecture iterative_lei
       Tag_DI         => OutTag_DP,
       InValid_SI     => OutValid_S,
       InReady_SO     => OutReady_S,
+      Flush_SI       => Flush_SI,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => Tag_DO,

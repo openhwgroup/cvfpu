@@ -69,12 +69,15 @@ entity fp_fma is
     Op_SI                     : in  fpOp_t;
     OpMod_SI                  : in  std_logic;
     Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
+    Flush_SI                  : in  std_logic;
     ---------------------------------------------------------------------------
     Z_DO                      : out std_logic_vector(EXP_BITS+MAN_BITS downto 0);
     Status_DO                 : out rvStatus_t;
     Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+    ---------------------------------------------------------------------------
     OutValid_SO               : out std_logic;
     OutReady_SI               : in  std_logic);
 
@@ -517,6 +520,7 @@ begin  -- architecture rtl
       Tag_DI         => Tag_DI,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
+      Flush_SI       => Flush_SI,
       ResultPiped_DO => Z_DO,
       StatusPiped_DO => Status_DO,
       TagPiped_DO    => Tag_DO,
