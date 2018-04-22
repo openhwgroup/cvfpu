@@ -173,8 +173,8 @@ begin  -- architecture iterative_lei
       Rst_RBI          => Reset_RBI,
       Div_start_SI     => InDivValid_S,
       Sqrt_start_SI    => InSqrtValid_S,
-      Operand_a_DI     => A_DI,
-      Operand_b_DI     => B_DI,
+      Operand_a_DI     => A_D,
+      Operand_b_DI     => B_D,
       RM_SI            => to_slv(RoundMode_SI),
       Precision_ctl_SI => (others => '0'),  -- turn off for now
       Format_sel_SI    => Fmt_S,
