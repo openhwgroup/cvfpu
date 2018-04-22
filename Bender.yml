@@ -1,0 +1,33 @@
+package:
+  name: FPnew
+  authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
+
+dependencies:
+  common_cells: {git: "git@iis-git.ee.ethz.ch:sasa/common_cells.git", rev: master}
+  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:pulp-open/fpu.git", rev: master}
+
+sources:
+  - src/pkg/fpnew_pkg.vhd
+  - src/pkg/fpnew_fmts_pkg.vhd
+  - src/pkg/fpnew_comps_pkg.vhd
+  - src/pkg/fpnew_pkg_constants.vhd
+  - src/utils/fp_arbiter.vhd
+  - src/utils/fp_pipe.vhd
+  - src/utils/fp_rounding.vhd
+  - src/ops/fma_core.vhd
+  - src/ops/fp_fma.vhd
+  - src/ops/fp_divsqrt_multi.vhd
+  - src/ops/fp_noncomp.vhd
+  - src/ops/fp_f2fcasts.vhd
+  - src/ops/fp_f2icasts.vhd
+  - src/ops/fp_i2fcasts.vhd
+  - src/ops/fp_conv_multi.vhd
+  - src/subunits/addmul_fmt_slice.vhd
+  - src/subunits/addmul_block.vhd
+  - src/subunits/conv_multifmt_slice.vhd
+  - src/subunits/conv_block.vhd
+  - src/subunits/divsqrt_multifmt_slice.vhd
+  - src/subunits/noncomp_fmt_slice.vhd
+  - src/subunits/noncomp_block.vhd
+  - src/fpnew.vhd
+  - src/fpnew_top.vhd
