@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.2.0] - 2018-04-22
+
 ### Added
 
 - Sign-extended operations of the `SGNJ` family
