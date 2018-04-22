@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Updated `FMIN_MAX` instructions to reflect changes in RISC-V ISA v2.3draft
 - Divider/Sqrt unit losing track of the tag
 - Divider inputs are now compatible with non-64bit units
+- FP8 properly mapped to FP16 in in div/sqrt unit
 
 ## [0.1.0] - 2018-04-13
 

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-04-19
+-- Last update: 2018-04-22
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -82,15 +82,18 @@ architecture iterative_lei of fp_divsqrt_multi is
   -----------------------------------------------------------------------------
 
   -- Unit input side
-  signal InDivValid_S, InSqrtValid_S, InReady_S : std_logic;
-  signal Fmt_S                                  : std_logic_vector(1 downto 0);
-  signal A_D, B_D                               : std_logic_vector(63 downto 0);
+  signal InDivValid_S, InSqrtValid_S : std_logic;
+  signal InReady_S                   : std_logic;
+  signal Fmt_S                       : std_logic_vector(1 downto 0);
+  signal A_D, B_D                    : std_logic_vector(63 downto 0);
+  signal IsInFP8_S                   : boolean;
 
   -- Unit output side
   signal OutResult_D            : std_logic_vector(63 downto 0);
   signal OutStatusSlv_D         : std_logic_vector(4 downto 0);
   signal OutStatus_D            : rvStatus_t;
   signal OutTag_DP              : std_logic_vector(TAG_WIDTH-1 downto 0);
+  signal IsOutFP8_SP            : boolean;
   signal OutZext_S              : std_logic;
   signal OutValid_S, OutReady_S : std_logic;
 
@@ -134,12 +137,15 @@ begin  -- architecture iterative_lei
     "11" when FP16ALT,
     "10" when others;                   -- map fp8 to fp16
 
-  -- Map FP8 onto FP16
-  A_D <= std_logic_vector(resize(unsigned(A_DI), 64)) when FpFmt_SI /= FP8 else
-         std_logic_vector(resize(unsigned(A_DI), 64) sll 8);
+  IsInFP8_S <= FpFmt_SI = FP8;
 
-  B_D <= std_logic_vector(resize(unsigned(B_DI), 64)) when FpFmt_SI /= FP8 else
-         std_logic_vector(resize(unsigned(B_DI), 64) sll 8);
+  -- Map FP8 onto FP16
+  A_D <= std_logic_vector(resize(unsigned(A_DI), 64) sll 8) when IsInFP8_S else
+         std_logic_vector(resize(unsigned(A_DI), 64));
+
+  B_D <= std_logic_vector(resize(unsigned(B_DI), 64) sll 8) when IsInFP8_S else
+         std_logic_vector(resize(unsigned(B_DI), 64));
+
 
   -- Operation is only started when our extra pipestage in the end is ready for
   -- more data
@@ -150,15 +156,17 @@ begin  -- architecture iterative_lei
   InReady_SO <= OutReady_S and InReady_S;
 
   -----------------------------------------------------------------------------
-  -- Store tag until the divider is done
+  -- Store tag and whether we're using FP8 until the divider is done
   -----------------------------------------------------------------------------
   p_tagBuffer : process (Clk_CI, Reset_RBI) is
   begin  -- process p_tagBuffer
     if Reset_RBI = '0' then             -- asynchronous reset (active low)
-      OutTag_DP <= (others => '0');
+      OutTag_DP   <= (others => '0');
+      IsOutFP8_SP <= false;
     elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
-      if (InDivValid_S or InSqrtValid_S) = '1' then
-        OutTag_DP <= Tag_DI;
+      if ((InDivValid_S or InSqrtValid_S) and InReady_S) = '1' then
+        OutTag_DP   <= Tag_DI;
+        IsOutFP8_SP <= IsInFP8_S;
       end if;
     end if;
   end process p_tagBuffer;
@@ -178,7 +186,7 @@ begin  -- architecture iterative_lei
       RM_SI            => to_slv(RoundMode_SI),
       Precision_ctl_SI => (others => '0'),  -- turn off for now
       Format_sel_SI    => Fmt_S,
-      Kill_SI          => Flush_SI,              -- TODO ADD KILL
+      Kill_SI          => Flush_SI,
       Result_DO        => OutResult_D,
       Fflags_SO        => OutStatusSlv_D,
       Ready_SO         => InReady_S,
@@ -190,7 +198,8 @@ begin  -- architecture iterative_lei
   -- Pipeline registers at the outputs of the unit
   -----------------------------------------------------------------------------
 
-  Result_D <= std_logic_vector(resize(unsigned(OutResult_D), Z_DO'length));
+  Result_D <= std_logic_vector(resize(unsigned(OutResult_D), Z_DO'length) srl 8) when IsOutFP8_SP else
+              std_logic_vector(resize(unsigned(OutResult_D), Z_DO'length));
 
   Status_D <= OutStatus_D;
 
