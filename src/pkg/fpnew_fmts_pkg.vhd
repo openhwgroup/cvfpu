@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-07
+-- Last update: 2018-05-03
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -342,7 +342,7 @@ package fpnew_fmts_pkg is
   function anySet (constant val : fmtLogic_t)
     return boolean;
 
-   --! @brief Check for set format entry
+  --! @brief Check for set format entry
   --! @returns TRUE when any bit in FMTBOOLEANS_t val is set, FALSE otherwise
   --! @retval BOOLEAN
   --! /note This function is only needed when no VHDL-2008 support is present,
@@ -360,28 +360,28 @@ package fpnew_fmts_pkg is
   --! @brief Largest active latency
   --! @returns The largest active format-dependent latency from latency and
   --! format config
-  function largestActiveLatency (constant lat : fmtNaturals_t;
+  function largestActiveLatency (constant lat  : fmtNaturals_t;
                                  constant conf : activeFormats_t)
     return natural;
 
   --! @brief Largest active latency
   --! @returns The largest active group- and format-dependent latency from
   --! latency and format config
-  function largestActiveLatency (constant lat : opGroupFmtNaturals_t;
-                                 constant grp : fpOpGroup_t;
+  function largestActiveLatency (constant lat  : opGroupFmtNaturals_t;
+                                 constant grp  : fpOpGroup_t;
                                  constant conf : activeFormats_t)
     return natural;
 
   --! @brief Check for active merged unit
   --! @returns TRUE when an active format wants to live in a merged unit
   function anyMergedFormat (constant types : fmtUnitTypes_t;
-                            constant conf : activeFormats_t)
+                            constant conf  : activeFormats_t)
     return boolean;
 
   --! @brief Get first active merged format
   --! @returns The first format that wants to live in a merged unit
   function firstMergedFormat (constant types : fmtUnitTypes_t;
-                              constant conf : activeFormats_t)
+                              constant conf  : activeFormats_t)
     return fpFmt_t;
 
   --! @brief Get active formats configuration for merged formats
@@ -393,32 +393,32 @@ package fpnew_fmts_pkg is
   function getMultiLaneFormats (constant conf        : activeFormats_t;
                                 constant slice_width : natural;
                                 constant lane_no     : natural)
-  return activeFormats_t;
+    return activeFormats_t;
 
   --! @brief Set array row at format index fmt to std_logic_vector signal slv
   procedure set_row (signal arr   : out fmtSlArray2d_t; constant fmt : in fpFmt_t;
-                     variable slv   : in  std_logic_vector);
+                     variable slv : in  std_logic_vector);
 
 
   --! @brief Binds valid rows in format-indexed 2d array to 2d logic array
   procedure extract_active_rows (signal arr_out : out slArray2d_t;
-                              signal arr_in  : in  fmtSlArray2d_t;
-                              constant conf  : in  activeFormats_t);
+                                 signal arr_in  : in  fmtSlArray2d_t;
+                                 constant conf  : in  activeFormats_t);
 
   --! @brief Binds valid statuses in format-indexed array to status array
   procedure extract_active_statuses (signal arr_out : out statusArray_t;
-                                     signal arr_in : in fmtStatus_t;
-                                     constant conf : in activeFormats_t);
+                                     signal arr_in  : in  fmtStatus_t;
+                                     constant conf  : in  activeFormats_t);
 
-   --! @brief Binds valid logic in format-indexed array to logic vector
-  procedure extract_active_logic (signal slv : out std_logic_vector;
-                                  signal arr_in : in fmtLogic_t;
-                                  constant conf : in activeFormats_t);
+  --! @brief Binds valid logic in format-indexed array to logic vector
+  procedure extract_active_logic (signal slv    : out std_logic_vector;
+                                  signal arr_in : in  fmtLogic_t;
+                                  constant conf : in  activeFormats_t);
 
   --! @brief Binds valid logic in logic vector to format-indexed array entries
   procedure inject_active_logic (signal arr_out : out fmtLogic_t;
-                                 signal slv : in std_logic_vector;
-                                 constant conf : in activeFormats_t);
+                                 signal slv     : in  std_logic_vector;
+                                 constant conf  : in  activeFormats_t);
 
 
 
@@ -453,7 +453,7 @@ package fpnew_fmts_pkg is
   function getMultiLaneFormats (constant conf        : activeIntFormats_t;
                                 constant slice_width : natural;
                                 constant lane_no     : natural)
-  return activeIntFormats_t;
+    return activeIntFormats_t;
 
   --===========================================================================
   -- Float & Integer Format-Dependent Helper Functions
@@ -492,6 +492,12 @@ package fpnew_fmts_pkg is
   --! @returns The floating-point format as a STD_LOGIC_VECTOR
   --! @retval STD_LOGIC_VECTOR(clog2(fpFmt_t'pos(fpFmt_t'high))-1 downto 0)
   function to_slv (fmt : fpFmt_t)
+    return std_logic_vector;
+
+  --! @brief std_logic_vector from unitType_t
+  --! @returns The operation group in UNITTYPE_T as a STD_LOGIC_VECTOR
+  --! @retval STD_LOGIC_VECTOR(clog2(unitType_t'pos(unitType_t'high))-1 downto 0)
+  function to_slv (utype : unitType_t)
     return std_logic_vector;
 
   --! @brief std_logic_vector from intFmt_t
@@ -656,12 +662,12 @@ package body fpnew_fmts_pkg is
   begin
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        if WIDTH(conf.Encoding(fmt))=MAXWIDTH(conf) then
+        if WIDTH(conf.Encoding(fmt)) = MAXWIDTH(conf) then
           return fmt;
         end if;
       end if;
     end loop;  -- fmt
-    return fpFmt_t'right;                -- TODO error on no active
+    return fpFmt_t'right;               -- TODO error on no active
   end function largestActive;
 
   -----------------------------------------------------------------------------
@@ -671,12 +677,12 @@ package body fpnew_fmts_pkg is
   begin
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        if WIDTH(conf.Encoding(fmt))=MINWIDTH(conf) then
+        if WIDTH(conf.Encoding(fmt)) = MINWIDTH(conf) then
           return fmt;
         end if;
       end if;
     end loop;  -- fmt
-    return fpFmt_t'right;                -- TODO error on no active
+    return fpFmt_t'right;               -- TODO error on no active
   end function smallestActive;
 
   -----------------------------------------------------------------------------
@@ -779,11 +785,11 @@ package body fpnew_fmts_pkg is
   -----------------------------------------------------------------------------
 
   function anyMergedFormat (constant types : fmtUnitTypes_t;
-                            constant conf : activeFormats_t)
+                            constant conf  : activeFormats_t)
     return boolean is
   begin
     for fmt in fpFmt_t loop
-      if conf.Active(fmt) and types(fmt)=MERGED then
+      if conf.Active(fmt) and types(fmt) = MERGED then
         return true;
       end if;
     end loop;
@@ -792,12 +798,12 @@ package body fpnew_fmts_pkg is
 
   -----------------------------------------------------------------------------
 
-   function firstMergedFormat (constant types : fmtUnitTypes_t;
-                               constant conf : activeFormats_t)
+  function firstMergedFormat (constant types : fmtUnitTypes_t;
+                              constant conf  : activeFormats_t)
     return fpFmt_t is
   begin
     for fmt in fpFmt_t loop
-      if conf.Active(fmt) and types(fmt)=MERGED then
+      if conf.Active(fmt) and types(fmt) = MERGED then
         return fmt;
       end if;
     end loop;
@@ -824,7 +830,7 @@ package body fpnew_fmts_pkg is
   function getMultiLaneFormats (constant conf        : activeFormats_t;
                                 constant slice_width : natural;
                                 constant lane_no     : natural)
-  return activeFormats_t is
+    return activeFormats_t is
     variable res : activeFormats_t;
   begin
     for fmt in fpFmt_t loop
@@ -837,19 +843,19 @@ package body fpnew_fmts_pkg is
 
   -----------------------------------------------------------------------------
 
- procedure set_row (signal arr   : out fmtSlArray2d_t;  constant fmt : in fpFmt_t;
-                    variable slv   : in  std_logic_vector) is
+  procedure set_row (signal arr   : out fmtSlArray2d_t; constant fmt : in fpFmt_t;
+                     variable slv : in  std_logic_vector) is
   begin  -- procedure set_row
     for i in slv'range loop
-      arr(fmt,i) <= slv(i);
+      arr(fmt, i) <= slv(i);
     end loop;  -- i
   end procedure set_row;
 
   -----------------------------------------------------------------------------
 
   procedure extract_active_rows (signal arr_out : out slArray2d_t;
-                              signal arr_in  : in  fmtSlArray2d_t;
-                              constant conf  : in  activeFormats_t) is
+                                 signal arr_in  : in  fmtSlArray2d_t;
+                                 constant conf  : in  activeFormats_t) is
     variable idx : natural := 0;
   begin  -- procedure extract_active_rows
     for fmt in fpFmt_t loop
@@ -869,10 +875,10 @@ package body fpnew_fmts_pkg is
                                      constant conf  : in  activeFormats_t) is
     variable idx : natural := 0;
   begin  -- procedure extract_active_statuses
-     for fmt in fpFmt_t loop
+    for fmt in fpFmt_t loop
       if conf.Active(fmt) then
         arr_out(idx) <= arr_in(fmt);
-        idx := idx+1;
+        idx          := idx+1;
       end if;
     end loop;  -- fmt
   end procedure extract_active_statuses;
@@ -882,27 +888,27 @@ package body fpnew_fmts_pkg is
   procedure extract_active_logic (signal slv    : out std_logic_vector;
                                   signal arr_in : in  fmtLogic_t;
                                   constant conf : in  activeFormats_t) is
-        variable idx : natural := 0;
- begin  -- procedure extract_active_statuses
-     for fmt in fpFmt_t loop
+    variable idx : natural := 0;
+  begin  -- procedure extract_active_statuses
+    for fmt in fpFmt_t loop
       if conf.Active(fmt) then
         slv(idx) <= arr_in(fmt);
-        idx := idx+1;
+        idx      := idx+1;
       end if;
     end loop;  -- fmt
   end procedure extract_active_logic;
 
   -----------------------------------------------------------------------------
 
-  procedure inject_active_logic (signal arr_out    : out fmtLogic_t;
-                                  signal slv : in  std_logic_vector;
-                                  constant conf : in  activeFormats_t) is
-        variable idx : natural := 0;
- begin  -- procedure inject_active_logic
-     for fmt in fpFmt_t loop
+  procedure inject_active_logic (signal arr_out : out fmtLogic_t;
+                                 signal slv     : in  std_logic_vector;
+                                 constant conf  : in  activeFormats_t) is
+    variable idx : natural := 0;
+  begin  -- procedure inject_active_logic
+    for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-         arr_out(fmt) <= slv(idx);
-        idx := idx+1;
+        arr_out(fmt) <= slv(idx);
+        idx          := idx+1;
       end if;
     end loop;  -- fmt
   end procedure inject_active_logic;
@@ -950,9 +956,9 @@ package body fpnew_fmts_pkg is
   -----------------------------------------------------------------------------
 
   function getMultiLaneFormats (constant conf        : activeIntFormats_t;
-                                   constant slice_width : natural;
-                                   constant lane_no     : natural)
-  return activeIntFormats_t is
+                                constant slice_width : natural;
+                                constant lane_no     : natural)
+    return activeIntFormats_t is
     variable res : activeIntFormats_t;
   begin
     for ifmt in intFmt_t loop
@@ -1002,7 +1008,14 @@ package body fpnew_fmts_pkg is
   function to_slv (fmt : fpFmt_t)
     return std_logic_vector is
   begin
-   return std_logic_vector(to_unsigned(fpFmt_t'pos(fmt), clog2(fpFmt_t'pos(fpFmt_t'high))));
+    return std_logic_vector(to_unsigned(fpFmt_t'pos(fmt), clog2(fpFmt_t'pos(fpFmt_t'high))));
+  end function to_slv;
+
+  -----------------------------------------------------------------------------
+
+  function to_slv (utype : unitType_t) return std_logic_vector is
+  begin  -- function to_slv
+    return std_logic_vector(to_unsigned(unitType_t'pos(utype), clog2(unitType_t'pos(unitType_t'high))));
   end function to_slv;
 
   -----------------------------------------------------------------------------
@@ -1010,7 +1023,7 @@ package body fpnew_fmts_pkg is
   function to_slv (ifmt : intFmt_t)
     return std_logic_vector is
   begin
-   return std_logic_vector(to_unsigned(intFmt_t'pos(ifmt), clog2(intFmt_t'pos(intFmt_t'high))));
+    return std_logic_vector(to_unsigned(intFmt_t'pos(ifmt), clog2(intFmt_t'pos(intFmt_t'high))));
   end function to_slv;
 
   -----------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-18
+-- Last update: 2018-05-03
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -48,6 +48,12 @@ entity fpnew_top is
     Xf8     : boolean := true;          -- Enables FP8 format
     Xfvec   : boolean := true;          -- Generates vector for enabled formats
 
+    -- Unit types for operation groups
+    TYPE_ADDMUL  : natural := unitType_t'pos(PARALLEL);
+    TYPE_DIVSQRT : natural := unitType_t'pos(MERGED);
+    TYPE_NONCOMP : natural := unitType_t'pos(PARALLEL);
+    TYPE_CONV    : natural := unitType_t'pos(MERGED);
+            
     LATENCY_COMP_F       : natural := 0;   -- Latency of FP32 comp. ops
     LATENCY_COMP_D       : natural := 0;   -- Latency of FP64 comp. ops
     LATENCY_COMP_Xf16    : natural := 0;   -- Latency of FP16 comp. ops
@@ -56,6 +62,7 @@ entity fpnew_top is
     LATENCY_DIVSQRT      : natural := 0;   -- Latency of div/sqrt. postprocessing
     LATENCY_NONCOMP      : natural := 0;   -- Latency of non-comp. ops
     LATENCY_CONV         : natural := 0;   -- Latency of conversion ops
+    
     ENFORCE_INPUT_NANBOX : boolean := true);  -- Enforce input NaN-boxing
 
   port (
@@ -117,10 +124,10 @@ architecture rtl of fpnew_top is
                                                 CONV    => (others => LATENCY_CONV),
                                                 others  => (others  => 0));
 
-  constant UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL  => (others => PARALLEL),
-                                                  DIVSQRT => (others => MERGED),
-                                                  NONCOMP => (others => PARALLEL),
-                                                  CONV    => (others => MERGED));
+  constant UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL  => (others => unitType_t'val(TYPE_ADDMUL)),
+                                                  DIVSQRT => (others => unitType_t'val(TYPE_DIVSQRT)),
+                                                  NONCOMP => (others => unitType_t'val(TYPE_NONCOMP)),
+                                                  CONV    => (others => unitType_t'val(TYPE_CONV)));
 
   -----------------------------------------------------------------------------
   -- Signal Declarations
