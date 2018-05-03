@@ -32,11 +32,11 @@
 -- University of Bologna.
 -------------------------------------------------------------------------------
 
-library IEEE, work;
+library IEEE, fpnew_lib;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.fpnew_pkg.all;
-use work.fpnew_comps_pkg.all;
+use fpnew_lib.fpnew_pkg.all;
+use fpnew_lib.fpnew_comps_pkg.all;
 
 
 entity fp_noncomp is

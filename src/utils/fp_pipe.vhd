@@ -28,9 +28,9 @@
 -- University of Bologna.
 -------------------------------------------------------------------------------
 
-library IEEE, work;
+library IEEE, fpnew_lib;
 use IEEE.std_logic_1164.all;
-use work.fpnew_pkg.all;
+use fpnew_lib.fpnew_pkg.all;
 
 entity fp_pipe is
 

@@ -37,11 +37,11 @@
 -------------------------------------------------------------------------------
 
 
-library IEEE, work;
+library IEEE, fpnew_lib;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.fpnew_pkg.all;
-use work.fpnew_comps_pkg.all;
+use fpnew_lib.fpnew_pkg.all;
+use fpnew_lib.fpnew_comps_pkg.all;
 
 --! @brief Floating-Point Fused Multiply-Add Unit
 --! @details IEEE 754-compliant, parametric floating-point fused multiply-add

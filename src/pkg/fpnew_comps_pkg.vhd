@@ -28,11 +28,11 @@
 -- University of Bologna.
 -------------------------------------------------------------------------------
 
-library IEEE, work;
+library IEEE, fpnew_lib;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use work.fpnew_pkg.all;
-use work.fpnew_fmts_pkg.all;
+use fpnew_lib.fpnew_pkg.all;
+use fpnew_lib.fpnew_fmts_pkg.all;
 
 
 --! @brief Component Package for TransPrecision Floating-Point Units
