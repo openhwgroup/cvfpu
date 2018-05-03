@@ -110,7 +110,7 @@ architecture rtl of fpnew_top is
 
   constant INTFORMATS : activeIntFormats_t := (Active => (W      => true,
                                                           D      => RV64,
-                                                          others => false),
+                                                          others => Xfvec),
                                                Length => INTFMTLENGTHS);
 
   constant LATENCIES : opGroupFmtNaturals_t := (ADDMUL  => (FP32    => LATENCY_COMP_F,
