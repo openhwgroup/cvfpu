@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - Bender support for FPnew
-- Expose unit type generics in `fpnew_top`
+- Expose per-opgroup unit type generics in `fpnew_top`
+- Doxygen `doxyfile`
 
 ### Fixed
 
