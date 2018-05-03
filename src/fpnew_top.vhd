@@ -172,7 +172,7 @@ configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8 of fpnew_top is
 
   for rtl
     for all : fpnew
-      use entity work.fpnew
+      use entity fpnew_lib.fpnew
         generic map (
           FORMATS => (Active   => (FP32 to FP16ALT  => true,
                                    others  => false),
@@ -190,7 +190,7 @@ configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8 of fpnew_top is
 
   for rtl
     for all : fpnew
-      use entity work.fpnew
+      use entity fpnew_lib.fpnew
         generic map (
           FORMATS => (Active   => (FP32 to FP16ALT  => true,
                                    others  => false),
@@ -208,7 +208,7 @@ configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8 of fpnew_top is
 
   for rtl
     for all : fpnew
-      use entity work.fpnew
+      use entity fpnew_lib.fpnew
         generic map (
           FORMATS => (Active   => (FP32             => true,
                                    FP64             => false,
