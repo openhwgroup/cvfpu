@@ -1,4 +1,4 @@
-FPnew:
+fpnew:
   files: [
   src/pkg/fpnew_pkg.vhd,
   src/pkg/fpnew_fmts_pkg.vhd,
