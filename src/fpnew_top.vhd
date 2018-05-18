@@ -37,12 +37,12 @@ use fpnew_lib.fpnew_comps_pkg.all;
 entity fpnew_top is
 
   generic (
-    WIDTH     : natural := 64;          -- Narrower width will mask out fmts
-    TAG_WIDTH : natural := 0;           -- Tag is sent along with operation
+    WIDTH     : natural := 32;          -- Narrower width will mask out fmts
+    TAG_WIDTH : natural := 1;           -- Tag is sent along with operation
 
-    RV64    : boolean := true;          -- Enables 64-bit integer formats
+    RV64    : boolean := false;         -- Enables 64-bit integer formats
     RVF     : boolean := true;          -- Enables FP32 format
-    RVD     : boolean := true;          -- Enables FP64 format
+    RVD     : boolean := false;         -- Enables FP64 format
     Xf16    : boolean := true;          -- Enables FP16 format
     Xf16alt : boolean := true;          -- Enables FP16alt format
     Xf8     : boolean := true;          -- Enables FP8 format

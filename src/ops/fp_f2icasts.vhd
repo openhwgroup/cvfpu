@@ -97,7 +97,7 @@ architecture rtl of fp_f2icasts is
   constant INTWIDTH : natural := MAXWIDTH(INTFORMATS);
 
   -- Mantissa needs to be wide enough to hold implicit bit and integer width
-  constant MANTWIDTH : natural := maximum(SUPERFMT.ManBits+1, INTWIDTH);
+  constant MANTWIDTH : natural := maximum_t(SUPERFMT.ManBits+1, INTWIDTH);
 
   -- Make exponent wide enough to hold signed exponents
   constant EXPWIDTH : natural := SUPERFMT.ExpBits+1;

@@ -475,13 +475,13 @@ package fpnew_pkg is
   --! @brief Minimum
   --! @returns The smaller operand of l and r.
   --! @retval INTEGER
-  function minimum (l : integer; r : integer)
+  function minimum_t (l : integer; r : integer)
     return integer;
 
   --! @brief Maximum
   --! @returns The larger operand of l and r.
   --! @retval INTEGER
-  function maximum (l : integer; r : integer)
+  function maximum_t (l : integer; r : integer)
     return integer;
 
 
@@ -679,7 +679,7 @@ package body fpnew_pkg is
   function FMAEXPWIDTH (constant EXP_BITS : natural; constant MAN_BITS : natural)
     return natural is
   begin  -- function FMAEXPWIDTH
-    return maximum(EXP_BITS+2, clog2(2*(MAN_BITS+1)+3));
+    return maximum_t(EXP_BITS+2, clog2(2*(MAN_BITS+1)+3));
   end function FMAEXPWIDTH;
 
   -----------------------------------------------------------------------------
@@ -900,23 +900,23 @@ package body fpnew_pkg is
 
   -----------------------------------------------------------------------------
 
-  function minimum (l : integer; r : integer) return integer is
+  function minimum_t (l : integer; r : integer) return integer is
   begin
     if r < l then
       return r;
     end if;
     return l;
-  end function minimum;
+  end function minimum_t;
 
   -----------------------------------------------------------------------------
 
-  function maximum (l : integer; r : integer) return integer is
+  function maximum_t (l : integer; r : integer) return integer is
   begin
     if r > l then
       return r;
     end if;
     return l;
-  end function maximum;
+  end function maximum_t;
 
   -----------------------------------------------------------------------------
 

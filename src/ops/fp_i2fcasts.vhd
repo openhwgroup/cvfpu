@@ -95,11 +95,11 @@ architecture rtl of fp_i2fcasts is
   constant INTWIDTH : natural := MAXWIDTH(INTFORMATS);
 
   -- Mantissa needs to be wide enough to hold mantissa or integer width
-  constant MANTWIDTH : natural := maximum(SUPERFMT.ManBits, INTWIDTH);
+  constant MANTWIDTH : natural := maximum_t(SUPERFMT.ManBits, INTWIDTH);
 
   -- Make exponent wide enough to hold signed exponents or readjustment shift
   -- amount in signed form
-  constant EXPWIDTH : natural := maximum(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
+  constant EXPWIDTH : natural := maximum_t(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
 
 
   -----------------------------------------------------------------------------

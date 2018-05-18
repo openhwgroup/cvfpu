@@ -109,7 +109,7 @@ architecture parallel_paths of conv_multifmt_slice is
 
   constant FMTBITS      : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
   constant IFMTBITS     : natural := clog2(intFmt_t'pos(intFmt_t'high));
-  constant FMTSLVBITS   : natural := maximum(FMTBITS, IFMTBITS);
+  constant FMTSLVBITS   : natural := maximum_t(FMTBITS, IFMTBITS);
   constant TAGINT_WIDTH : natural := TAG_WIDTH+1+FMTSLVBITS+1;
   ---------------------------------------------------------------------------
   -- Type Definitions

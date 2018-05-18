@@ -582,7 +582,7 @@ package body fpnew_fmts_pkg is
   begin  -- function MINWIDTH
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        res := minimum(res, WIDTH(conf.Encoding(fmt)));
+        res := minimum_t(res, WIDTH(conf.Encoding(fmt)));
       end if;
     end loop;  -- fmt
     return res;
@@ -596,7 +596,7 @@ package body fpnew_fmts_pkg is
   begin  -- function MAXWIDTH
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        res := maximum(res, WIDTH(conf.Encoding(fmt)));
+        res := maximum_t(res, WIDTH(conf.Encoding(fmt)));
       end if;
     end loop;  -- fmt
     return res;
@@ -610,8 +610,8 @@ package body fpnew_fmts_pkg is
   begin  -- function SUPERFORMAT
     for fmt in fpFmt_t loop
       if config.Active(fmt) then
-        res.ExpBits := maximum(res.ExpBits, config.Encoding(fmt).ExpBits);
-        res.ManBits := maximum(res.ManBits, config.Encoding(fmt).ManBits);
+        res.ExpBits := maximum_t(res.ExpBits, config.Encoding(fmt).ExpBits);
+        res.ManBits := maximum_t(res.ManBits, config.Encoding(fmt).ManBits);
       end if;
     end loop;  -- fmt
     return res;
@@ -754,7 +754,7 @@ package body fpnew_fmts_pkg is
   begin  -- function largestActiveLatency
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        res := maximum(res, lat(fmt));
+        res := maximum_t(res, lat(fmt));
       end if;
     end loop;  -- fmt
     return res;
@@ -770,7 +770,7 @@ package body fpnew_fmts_pkg is
   begin  -- function largestActiveLatency
     for fmt in fpFmt_t loop
       if conf.Active(fmt) then
-        res := maximum(res, lat(grp)(fmt));
+        res := maximum_t(res, lat(grp)(fmt));
       end if;
     end loop;  -- fmt
     return res;
@@ -915,7 +915,7 @@ package body fpnew_fmts_pkg is
   begin  -- function MAXWIDTH
     for fmt in intFmt_t loop
       if conf.Active(fmt) then
-        res := maximum(res, conf.Length(fmt));
+        res := maximum_t(res, conf.Length(fmt));
       end if;
     end loop;  -- fmt
     return res;
@@ -968,7 +968,7 @@ package body fpnew_fmts_pkg is
   function MAXWIDTH (constant fpconf : activeFormats_t; constant intconf : activeIntFormats_t)
     return natural is
   begin  -- function MAXWIDTH
-    return maximum(MAXWIDTH(fpconf), MAXWIDTH(intconf));
+    return maximum_t(MAXWIDTH(fpconf), MAXWIDTH(intconf));
   end function MAXWIDTH;
 
   -----------------------------------------------------------------------------

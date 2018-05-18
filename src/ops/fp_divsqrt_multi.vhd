@@ -209,7 +209,7 @@ begin  -- architecture iterative_lei
   i_fp_pipe : fp_pipe
     generic map (
       WIDTH     => FP_WIDTH,
-      LATENCY   => maximum(1, LATENCY),
+      LATENCY   => maximum_t(1, LATENCY),
       TAG_WIDTH => TAG_WIDTH)
     port map (
       Clk_CI         => Clk_CI,

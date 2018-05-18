@@ -95,7 +95,7 @@ architecture rtl of fp_f2fcasts is
 
   -- Make exponent wide enough to hold internal exponents or readjustment
   -- shift amount in signed form
-  constant EXPWIDTH : natural := maximum(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
+  constant EXPWIDTH : natural := maximum_t(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
 
   -----------------------------------------------------------------------------
   -- Type Definitions
