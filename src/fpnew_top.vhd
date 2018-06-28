@@ -118,7 +118,7 @@ architecture rtl of fpnew_top is
                                                 others  => (others  => 0));
 
   constant UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL  => (others => PARALLEL),
-                                                  DIVSQRT => (others => MERGED),
+                                                  DIVSQRT => (others => NONE),
                                                   NONCOMP => (others => PARALLEL),
                                                   CONV    => (others => MERGED));
 
