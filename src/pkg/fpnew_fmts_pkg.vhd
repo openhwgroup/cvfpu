@@ -265,14 +265,14 @@ package fpnew_fmts_pkg is
   --! @returns The width of the narrowest active format given in record
   --! ACTIVEFORMATS_T conf
   --! @retval NATURAL
-  function MINWIDTH (constant conf : in activeFormats_t)
+  function MINWIDTH (constant conf : activeFormats_t)
     return natural;
 
   --! @brief Largest FP format width of active formats from configuration
   --! @returns The width of the largest active format given in record
   --! ACTIVEFORMATS_T conf
   --! @retval NATURAL
-  function MAXWIDTH (constant conf : in activeFormats_t)
+  function MAXWIDTH (constant conf : activeFormats_t)
     return natural;
 
   --! @brief Encoding of FP superformat for all active formats in configuration
@@ -909,7 +909,7 @@ package body fpnew_fmts_pkg is
 
   -----------------------------------------------------------------------------
 
-  function MAXWIDTH (constant conf : activeIntFormats_t)
+  function MAXWIDTH (constant conf : in activeIntFormats_t)
     return natural is
     variable res : natural := 0;
   begin  -- function MAXWIDTH
