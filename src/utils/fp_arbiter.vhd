@@ -72,6 +72,9 @@ architecture rtl of fp_arbiter is
   constant NUM_LEFT  : natural := 2**(clog2(NUM_INPUTS)-1);
   constant NUM_RIGHT : natural := NUM_INPUTS - NUM_LEFT;
 
+  -- To avoid null slices, make sure subindices have at least one element
+  constant SUBIDX_WIDTH : natural := maximum(1,clog2(NUM_INPUTS)-1);
+
   -----------------------------------------------------------------------------
   -- Signal Declarations
   -----------------------------------------------------------------------------
@@ -96,7 +99,7 @@ architecture rtl of fp_arbiter is
   signal LeftOutTag_D, RightOutTag_D       : std_logic_vector(OutTag_DO'range);
 
   -- Index of subtree results
-  signal LeftOutIdx_S, RightOutIdx_S : std_logic_vector(clog2(NUM_INPUTS)-2 downto 0);
+  signal LeftOutIdx_S, RightOutIdx_S : std_logic_vector(SUBIDX_WIDTH-1 downto 0);
 
   -- Handshake signals for subtree output side
   signal LeftOutValid_S, RightOutVaLid_s : std_logic;
@@ -104,10 +107,6 @@ architecture rtl of fp_arbiter is
 
   -- Arbitration selection
   signal Selection_S : std_logic;       -- 1 for right, 0 for left
-
-  -- Lower chosen index bits to OR onto ours
-  signal SubOutIdx_S : std_logic_vector(clog2(NUM_INPUTS)-2 downto 0);
-
 
   -----------------------------------------------------------------------------
   -- Component declaration since we're instantiating ourselves
@@ -201,7 +200,14 @@ begin  -- architecture rtl
         OutIdx_SO     => NarrowIdx_S);
 
     -- Zero-extend subtree index to shared subindex width
-    LeftOutIdx_S <= std_logic_vector(resize(unsigned(NarrowIdx_S), SubOutIdx_S'length));
+    p_subtreeIdx : process (all) is
+      variable LeftIdx_S : std_logic_vector(LeftOutIdx_S'range) := (others => '0');
+    begin
+      LeftIdx_S(NarrowIdx_S'range) := NarrowIdx_S;
+
+      LeftOutIdx_S <= LeftIdx_S;
+    end process p_subtreeIdx;
+    --LeftOutIdx_S <= std_logic_vector(resize(unsigned(NarrowIdx_S), SUBIDX_WIDTH));
 
   end generate g_instLeftSubree;
 
@@ -265,7 +271,13 @@ begin  -- architecture rtl
         OutIdx_SO     => NarrowIdx_S);
 
     -- Zero-extend subtree index to shared subindex width
-    RightOutIdx_S <= std_logic_vector(resize(unsigned(NarrowIdx_S), SubOutIdx_S'length));
+    p_subtreeIdx : process (all) is
+      variable RightIdx_S : std_logic_vector(RightOutIdx_S'range) := (others => '0');
+    begin
+      RightIdx_S(NarrowIdx_S'range) := NarrowIdx_S;
+
+      RightOutIdx_S <= RightIdx_S;
+    end process p_subtreeIdx;
 
   end generate g_instRightSubree;
 
@@ -304,25 +316,44 @@ begin  -- architecture rtl
 
   p_selection : process (all) is
 
+    variable Sel_S       : std_logic;
+    variable SubOutIdx_S : std_logic_vector(SUBIDX_WIDTH-1 downto 0);
 
   begin  -- process p_arbitrate
 
     -- both subtrees carry a valid result
     if (LeftOutValid_S and RightOutValid_S) = '1' then
       -- Decide according to the topmost bit of the priority position
-      Selection_S <= Priorities_SI (clog2(NUM_INPUTS)-1);
+      Sel_S := Priorities_SI (clog2(NUM_INPUTS)-1);
 
     -- right subtree carries a valid result
     elsif RightOutValid_S = '1' then
-      Selection_S <= '1';
+      Sel_S := '1';
 
     -- otherwise pick left result
     else
-      Selection_S <= '0';
-
+      Sel_S := '0';
     end if;
 
+    -- According to the selection above, select proper subindex
+    if Sel_S = '1' then
+      SubOutIdx_S := RightOutIdx_S;
+    else
+      SubOutIdx_S := LeftOutIdx_S;
+    end if;
+
+    -- Subindex only exists if we're not a leaf node and is appended
+    if (NUM_INPUTS > 2) then
+      OutIdx_SO(OutIdx_SO'high-1 downto 0) <= SubOutIdx_S;
+    end if;
+
+    -- Drive the selection signal for the data output of the arbiter
+    Selection_S <= Sel_S;
+
   end process p_selection;
+
+  -- Current selection is the MSB of the output ID
+  OutIdx_SO(OutIdx_SO'high) <= Selection_S;
 
   -- Select the subtree result according to the selection
   OutResult_DO <= RightOutResult_D when Selection_S = '1' else LeftOutResult_D;
@@ -335,13 +366,5 @@ begin  -- architecture rtl
   -- Let the corresponding subtree know we are ready to use its result
   LeftOutReady_S  <= OutReady_SI and (not Selection_S);  -- left chosen
   RightOutReady_S <= OutReady_SI and Selection_S;        -- right chosen
-
-  -- Chosen subIndex
-  SubOutIdx_S <= RightOutIdx_S when Selection_S = '1' else LeftOutIdx_S;
-
-  -- The Index of this output is the subIndex with our choice on top
-  OutIdx_SO(clog2(NUM_INPUTS)-1)          <= Selection_S;
-  OutIdx_SO(clog2(NUM_INPUTS)-2 downto 0) <= SubOutIdx_S;
-
 
 end architecture rtl;

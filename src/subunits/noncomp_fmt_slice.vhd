@@ -238,11 +238,14 @@ begin  -- architecture rtl
   -- Output of slice is vectorial if the output vectorial tag is set (lane 0)
   ResultVectorial_S <= LaneTags_S(0)(TAG_WIDTH);  -- VectorialOp
 
+  ResultPreUnpack_D(SliceResult_D'range)                   <= SliceResult_D;
   -- Extend result to fit in slice result width (NaN-boxing or zero-extension)
   -- --> could happen if the slice width is not a multiple of the fp format
-  ResultPreUnpack_D(SliceResult_D'range)                   <= SliceResult_D;
-  ResultPreUnpack_D(Z_DO'high downto SliceResult_D'high+1) <= (others => '0') when LaneZext_S(0) = '1' else
-                                                              (others => '1');
+  g_nanBoxNarrowResult : if (SliceResult_D'length /= Z_DO'length) generate
+    ResultPreUnpack_D(Z_DO'high downto SliceResult_D'high+1) <= (others => '0') when LaneZext_S(0) = '1' else
+                                                                (others => '1');
+  end generate g_nanBoxNarrowResult;
+
   -----------------------------------------------------------------------------
   -- Result Selection
   -----------------------------------------------------------------------------

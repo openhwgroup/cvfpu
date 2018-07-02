@@ -194,8 +194,10 @@ begin  -- architecture rtl
       IntFmtInputs_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)
         <= A_DI(INTFORMATS.Length(ifmt)-1 downto 0);
 
-      IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
-        <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
+      g_signExtendNarrowResult : if (INTFORMATS.Length(ifmt) < INTWIDTH) generate
+        IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
+          <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
+      end generate g_signExtendNarrowResult;
 
     end generate g_activeFmts;
   end generate g_intFmtSpecific;

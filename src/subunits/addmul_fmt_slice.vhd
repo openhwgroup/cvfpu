@@ -232,10 +232,13 @@ begin  -- architecture rtl
   -- Result Selection
   -----------------------------------------------------------------------------
 
+  Z_DO(SliceResult_D'range) <= SliceResult_D;
+
   -- Extend result to fit in slice result width (NaN-boxing) --> could happen
   -- if the slice width is not a multiple of the fp format
-  Z_DO(SliceResult_D'range)                   <= SliceResult_D;
-  Z_DO(Z_DO'high downto SliceResult_D'high+1) <= (others => '1');
+  g_nanBoxNarrowResult : if (SliceResult_D'length /= Z_DO'length) generate
+    Z_DO(Z_DO'high downto SliceResult_D'high+1) <= (others => '1');
+  end generate g_nanBoxNarrowResult;
 
   -- Combine slice status (logic ORing)
   Status_DO <= combined_status(LaneStatus_D);

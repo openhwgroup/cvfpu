@@ -96,7 +96,7 @@ architecture parallel_paths of fp_conv_multi is
   signal F2IOutStatus_D, I2FOutStatus_D, F2FOutStatus_D : rvStatus_t;
   signal F2IResult_D, I2FResult_D, F2FResult_D          : std_logic_vector(Z_DO'range);
 
-  signal F2IOutTag_D, I2FOutTag_D, F2FOutTag_D : std_logic_vector(-1 downto 0);  --dummy
+  signal F2IOutTag_D, I2FOutTag_D, F2FOutTag_D : std_logic_vector(0 downto 0);  --dummy
 
   signal F2IZext_S, I2FZext_S, F2FZext_S : std_logic;
 
@@ -131,7 +131,7 @@ begin  -- architecture parallel_paths
         FORMATS    => FORMATS,
         INTFORMATS => INTFORMATS,
         LATENCY    => 0,
-        TAG_WIDTH  => 0)
+        TAG_WIDTH  => 1)
       port map (
         Clk_CI       => Clk_CI,
         Reset_RBI    => Reset_RBI,
@@ -154,9 +154,13 @@ begin  -- architecture parallel_paths
 
     -- Extend as needed
     F2IResult_D(F2IOutResult_D'range)                          <= F2IOutResult_D;
-    F2IResult_D(F2IResult_D'high downto F2IOutResult_D'high+1) <= (others => '1') when F2IZext_S = '0' else
-                                                                  (others => '0');
+    g_signExtendNarrowResult : if (INT_WIDTH < Z_DO'length) generate
+      F2IResult_D(F2IResult_D'high downto F2IOutResult_D'high+1) <= (others => '1') when F2IZext_S = '0' else
+                                                                    (others => '0');
+    end generate g_signExtendNarrowResult;
+
   end generate g_f2i;
+
   g_nof2i : if not (anySet(FORMATS.Active) and anySet(INTFORMATS.Active)) generate
 
     F2IOutValid_S <= '0';
@@ -172,7 +176,7 @@ begin  -- architecture parallel_paths
         FORMATS    => FORMATS,
         INTFORMATS => INTFORMATS,
         LATENCY    => 0,
-        TAG_WIDTH  => 0)
+        TAG_WIDTH  => 1)
       port map (
         Clk_CI       => Clk_CI,
         Reset_RBI    => Reset_RBI,
@@ -194,10 +198,13 @@ begin  -- architecture parallel_paths
 
     -- Extend as needed
     I2FResult_D(I2FOutResult_D'range)                          <= I2FOutResult_D;
-    I2FResult_D(I2FResult_D'high downto I2FOutResult_D'high+1) <= (others => '1') when I2FZext_S = '0' else
-                                                                  (others => '0');
+    g_nanBoxNarrowResult : if (FP_WIDTH < Z_DO'length) generate
+      I2FResult_D(I2FResult_D'high downto I2FOutResult_D'high+1) <= (others => '1') when I2FZext_S = '0' else
+                                                                    (others => '0');
+    end generate g_nanBoxNarrowResult;
 
   end generate g_i2f;
+
   g_noi2f : if not (anySet(FORMATS.Active) and anySet(INTFORMATS.Active)) generate
 
     I2FOutValid_S <= '0';
@@ -212,7 +219,7 @@ begin  -- architecture parallel_paths
       generic map (
         FORMATS   => FORMATS,
         LATENCY   => 0,
-        TAG_WIDTH => 0)
+        TAG_WIDTH => 1)
       port map (
         Clk_CI       => Clk_CI,
         Reset_RBI    => Reset_RBI,
@@ -234,9 +241,13 @@ begin  -- architecture parallel_paths
 
     -- Extend as needed
     F2FResult_D(F2FOutResult_D'range)                          <= F2FOutResult_D;
-    F2FResult_D(F2FResult_D'high downto F2FOutResult_D'high+1) <= (others => '1') when F2FZext_S = '0' else
-                                                                  (others => '0');
+    g_nanBoxNarrowResult : if (FP_WIDTH < Z_DO'length) generate
+      F2FResult_D(F2FResult_D'high downto F2FOutResult_D'high+1) <= (others => '1') when F2FZext_S = '0' else
+                                                                    (others => '0');
+    end generate g_nanBoxNarrowResult;
+
   end generate g_f2f;
+
   g_nof2f : if not anySet(FORMATS.Active) generate
 
     F2FOutValid_S <= '0';

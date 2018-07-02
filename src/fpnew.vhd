@@ -221,11 +221,8 @@ begin  -- architecture rtl
       OutValid_SO    => OpGrpOutValid_S(ADDMUL),
       OutReady_SI    => OpGrpOutReady_S(ADDMUL));
 
-  -- Perform the proper extension (in case integers are wider than floats)
+  -- Assign the result to the output container
   OpGrpOutResults_D(ADDMUL)(AddMulResult_D'range) <= AddMulResult_D;
-  OpGrpOutResults_D(ADDMUL)(Z_DO'high downto AddMulResult_D'high+1)
-    <= (others => '0') when OpGrpOutZext_S(ADDMUL) = '1' else
-    (others    => '1');
 
 
   -- DIVSQRT
@@ -261,11 +258,8 @@ begin  -- architecture rtl
       OutValid_SO    => OpGrpOutValid_S(DIVSQRT),
       OutReady_SI    => OpGrpOutReady_S(DIVSQRT));
 
-  -- Perform the proper extension (in case integers are wider than floats)
+  -- Assign the result to the output container
   OpGrpOutResults_D(DIVSQRT)(DivSqrtResult_D'range) <= DivSqrtResult_D;
-  OpGrpOutResults_D(DIVSQRT)(Z_DO'high downto DivSqrtResult_D'high+1)
-    <= (others => '0') when OpGrpOutZext_S(DIVSQRT) = '1' else
-    (others    => '1');
 
 
   -- NONCOMP
@@ -301,11 +295,8 @@ begin  -- architecture rtl
       OutValid_SO    => OpGrpOutValid_S(NONCOMP),
       OutReady_SI    => OpGrpOutReady_S(NONCOMP));
 
-  -- Perform the proper extension (in case integers are wider than floats)
+  -- Assign the result to the output container
   OpGrpOutResults_D(NONCOMP)(NonCompResult_D'range) <= NonCompResult_D;
-  OpGrpOutResults_D(NONCOMP)(Z_DO'high downto NonCompResult_D'high+1)
-    <= (others => '0') when OpGrpOutZext_S(NONCOMP) = '1' else
-    (others    => '1');
 
 
   -- CONV
@@ -344,6 +335,22 @@ begin  -- architecture rtl
       OutValid_SO    => OpGrpOutValid_S(CONV),
       OutReady_SI    => OpGrpOutReady_S(CONV));
 
+
+  -- Extend result to fit in slice result width (NaN-boxing) --> could happen
+  -- if the slice width is not a multiple of the fp format
+  g_nanBoxNarrowResult : if (FLEN < DATA_WIDTH) generate
+    OpGrpOutResults_D(ADDMUL)(Z_DO'high downto AddMulResult_D'high+1)
+      <= (others => '0') when OpGrpOutZext_S(ADDMUL) = '1' else
+      (others    => '1');
+
+    OpGrpOutResults_D(DIVSQRT)(Z_DO'high downto DivSqrtResult_D'high+1)
+      <= (others => '0') when OpGrpOutZext_S(DIVSQRT) = '1' else
+      (others    => '1');
+
+    OpGrpOutResults_D(NONCOMP)(Z_DO'high downto NonCompResult_D'high+1)
+      <= (others => '0') when OpGrpOutZext_S(NONCOMP) = '1' else
+      (others    => '1');
+  end generate g_nanBoxNarrowResult;
 
   -----------------------------------------------------------------------------
   -- Output Arbitration

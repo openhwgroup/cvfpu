@@ -253,7 +253,9 @@ begin  -- architecture rtl
 
           SpecialResult_D(ifmt)(SpecialResultInt_D'range)                  <= SpecialResultInt_D;
           -- Sign-extend integer result as per RISC-V ISA 2.3draft
-          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(SpecialResultInt_D'high));
+          if (INTFORMATS.Length(ifmt) < INTWIDTH) then
+            SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(SpecialResultInt_D'high));
+          end if;
         end if;
       end process;
 
@@ -266,7 +268,9 @@ begin  -- architecture rtl
         -- mantissa
         IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= ShiftedMant_S(INTFORMATS.Length(ifmt)+SUPERFMT.ManBits+1 downto SUPERFMT.ManBits+2);
         -- Sign-extend integer result as per RISC-V ISA 2.3draft
-        IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+        if (INTFORMATS.Length(ifmt) < INTWIDTH) then
+          IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+        end if;
 
       end process p_resAssemble;
     end generate g_activeFmts;
@@ -351,8 +355,8 @@ begin  -- architecture rtl
   -- Round the result
   i_fp_rounding : fp_rounding
     generic map (
-      EXP_BITS => INTWIDTH,
-      MAN_BITS => 0)
+      EXP_BITS => INTWIDTH-1,
+      MAN_BITS => 1) -- some tools don't support null slices well
     port map (
       ResultAbs_DI     => FinalMant_D,
       ResultSign_DI    => Sign_D,
