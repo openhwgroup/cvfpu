@@ -27,6 +27,7 @@ sources:
   - src/subunits/conv_multifmt_slice.vhd
   - src/subunits/conv_block.vhd
   - src/subunits/divsqrt_multifmt_slice.vhd
+  - src/subunits/divsqrt_block.vhd
   - src/subunits/noncomp_fmt_slice.vhd
   - src/subunits/noncomp_block.vhd
   - src/fpnew.vhd
