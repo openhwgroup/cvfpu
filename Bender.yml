@@ -4,7 +4,7 @@ package:
 
 dependencies:
   common_cells: {git: "git@iis-git.ee.ethz.ch:sasa/common_cells.git", rev: master}
-  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:pulp-open/fpu.git", rev: master}
+  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:sasa/fpu.git", rev: master}
 
 sources:
   - src/pkg/fpnew_pkg.vhd
