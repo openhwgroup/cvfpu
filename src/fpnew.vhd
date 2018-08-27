@@ -51,7 +51,7 @@ entity fpnew is
 
     LATENCIES  : opGroupFmtNaturals_t := (others => (others => 0));
     GENVECTORS : boolean              := true;
-    TAG_WIDTH  : natural              := 0;
+    TAG_WIDTH  : natural              := 1;
     IN_NANBOX  : boolean              := true);
 
   port (
