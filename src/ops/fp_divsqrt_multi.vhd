@@ -164,7 +164,7 @@ begin  -- architecture iterative_lei
       OutTag_DP   <= (others => '0');
       IsOutFP8_SP <= false;
     elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
-      if ((InDivValid_S or InSqrtValid_S) and InReady_S) = '1' then
+      if (InDivValid_S or InSqrtValid_S) = '1' then
         OutTag_DP   <= Tag_DI;
         IsOutFP8_SP <= IsInFP8_S;
       end if;
