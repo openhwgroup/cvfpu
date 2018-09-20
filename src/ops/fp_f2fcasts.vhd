@@ -158,7 +158,7 @@ architecture rtl of fp_f2fcasts is
   signal FinalMant_D           : std_logic_vector(MANTWIDTH+1 downto 0);
 
   -- final shift amount for mantissa
-  signal MantShamt_S : natural;
+  signal MantShamt_S : integer;
 
   -- reassembled value before rounding
   signal FmtPreRndRes_D : fmtPreRnd_t;
@@ -315,14 +315,14 @@ begin  -- architecture rtl
 
 
   p_finalAdjustPrepare : process (all) is
-    variable MantShamtInt_S : natural;
+    variable MantShamtInt_S : integer;
   begin  -- process p_finalAdjust
 
     -- Default assignments
     FinalExp_D <= DestExp_D;
 
     -- Place mantissa to the left of shifter space
-    MantPreshift_D <= std_logic_vector(resize(unsigned(InternalMant_D), MantPreshift_D'length) sll SUPERFMT.ManBits+2);
+    MantPreshift_D <= std_logic_vector(resize(unsigned(InternalMant_D), MantPreshift_D'length) sll MANTWIDTH+1);
 
     -- By default shift mantissa to the required number of bits
     MantShamtInt_S := SUPERFMT.ManBits - FORMATS.Encoding(DstFmt_S).ManBits;
@@ -345,8 +345,8 @@ begin  -- architecture rtl
     end if;
 
     -- Sanitize mantissa shift amount to be in bounds
-    if MantShamtInt_S > SUPERFMT.ManBits+1 then
-      MantShamtInt_S := SUPERFMT.ManBits+1;
+    if MantShamtInt_S > MANTWIDTH+1 then
+      MantShamtInt_S := MANTWIDTH+1;
     end if;
 
     -- assign final shift amount
