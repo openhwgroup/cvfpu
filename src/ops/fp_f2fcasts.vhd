@@ -203,19 +203,23 @@ begin  -- architecture rtl
 
       -- Format-specific special case bit-patterns
       p_specialRes : process (all) is
+        variable specialResult : std_logic_vector(Z_DO'range);
       begin  -- process p_specialRes
 
         -- default special result is ones (NaN boxing)
-        SpecialResult_D(fmt) <= (others => '1');
+        specialResult := (others => '1');
 
         -- detect nan
         if InputNan_S(SrcFmt_S) then
-          SpecialResult_D(fmt)(WIDTH(fmt, FORMATS)-1 downto 0) <= NAN(fmt, FORMATS);
+          specialResult(WIDTH(fmt, FORMATS)-1 downto 0) := NAN(fmt, FORMATS);
 
         -- detect zero
         elsif InputZero_S(SrcFmt_S) then
-          SpecialResult_D(fmt) <= (others => '0');
+          specialResult(WIDTH(fmt, FORMATS)-1) := Sign_D;
+          specialResult(WIDTH(fmt, FORMATS)-2 downto 0) := (others => '0');
         end if;
+
+        SpecialResult_D(fmt) <= specialResult;
 
       end process p_specialRes;
 
