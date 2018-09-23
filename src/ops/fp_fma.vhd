@@ -237,7 +237,7 @@ begin  -- architecture rtl
   --! | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
   --! | ADDSUB   | \c 0        | ADD: Set operand A to +1.0
   --! | ADDSUB   | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
-  --! | MUL      | \c 0        | MUL: Set operand C to +0.0
+  --! | MUL      | \c 0        | MUL: Set operand C to -0.0 (for proper zero rounding)
   --! | *others* | \c -        | *invalid*
   --! \note \c OpMod_SI always inverts the sign of the addend.
   p_opSel : process (all) is
@@ -277,8 +277,8 @@ begin  -- architecture rtl
 
       -- MUL
       when (MUL) =>
-        -- set addend to positive zero
-        C_D    <= (others => '0');
+        -- set addend to negative zero
+        C_D    <= NEGZERO(EXP_BITS, MAN_BITS);
         CBox_S <= '1';
 
       -- Unused operations -> OPTIMIZE AWAY

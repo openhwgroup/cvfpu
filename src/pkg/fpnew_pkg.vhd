@@ -319,6 +319,12 @@ package fpnew_pkg is
   function ONE (constant EXP_BITS : natural; constant MAN_BITS : natural)
     return std_logic_vector;
 
+  --! @brief Bit-pattern for -0.0 for FP format
+  --! @returns Negative zero (-0.0) encoded in the FP format
+  --! @retval STD_LOGIC_VECTOR(EXP_BITS+MAN_BITS downto 0)
+  function NEGZERO (constant EXP_BITS : natural; constant MAN_BITS : natural)
+    return std_logic_vector;
+
   --! @brief Bit-pattern for largest normal absolute number in FP format
   --! @returns The largest normal number absolute for the FP format
   --! @retval STD_LOGIC_VECTOR(EXP_BITS+MAN_BITS-1 downto 0)
@@ -660,6 +666,17 @@ package body fpnew_pkg is
       := std_logic_vector(to_unsigned(BIAS(EXP_BITS), EXP_BITS));
     return res;
   end function ONE;
+
+  -----------------------------------------------------------------------------
+
+  function NEGZERO (constant EXP_BITS : natural; constant MAN_BITS : natural)
+    return std_logic_vector is
+    variable res : std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+  begin  -- function ONE
+    res := (others => '0');
+    res(EXP_BITS+MAN_BITS) := '1';
+    return res;
+  end function NEGZERO;
 
   -----------------------------------------------------------------------------
 
