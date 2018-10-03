@@ -52,7 +52,8 @@ entity fpnew_pkg_constants is
     OP_F2I     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     OP_I2F     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     OP_F2F     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
-    OP_CPK     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
+    OP_CPKAB   : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
+    OP_CPKCD   : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     --FP FORMATS--------------------------------------------------------------
     FMT_NUMBITS : out integer;
     FMT_FP32    : out std_logic_vector(clog2(fpFmt_t'pos(fpFmt_t'high))-1 downto 0);
@@ -92,7 +93,8 @@ architecture arch of fpnew_pkg_constants is
   constant C_OP_F2I     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(F2I), C_OP_NUMBITS));
   constant C_OP_I2F     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(I2F), C_OP_NUMBITS));
   constant C_OP_F2F     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(F2F), C_OP_NUMBITS));
-  constant C_OP_CPK     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPK), C_OP_NUMBITS));
+  constant C_OP_CPKAB   : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPKAB), C_OP_NUMBITS));
+  constant C_OP_CPKCD   : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPKCD), C_OP_NUMBITS));
 
   -----------------------------------------------------------------------------
   -- FP Format Encoding
@@ -132,7 +134,8 @@ begin -- architecture arch
   OP_F2I     <= C_OP_F2I;
   OP_I2F     <= C_OP_I2F;
   OP_F2F     <= C_OP_F2F;
-  OP_CPK     <= C_OP_CPK;
+  OP_CPKAB   <= C_OP_CPKAB;
+  OP_CPKCD   <= C_OP_CPKCD;
 
   FMT_NUMBITS <= C_FMT_NUMBITS;
   FMT_FP32    <= C_FMT_FP32;

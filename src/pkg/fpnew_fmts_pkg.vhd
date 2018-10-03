@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-05-03
+-- Last update: 2018-10-02
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -389,10 +389,25 @@ package fpnew_fmts_pkg is
                              constant conf  : activeFormats_t)
     return activeFormats_t;
 
-  --! @brief Get active formats configuration for a multiformat unit lane
+  --! @brief Active formats for a multiformat unit lane
+  --! @returns The configuration of formats that are active in lane number
+  --! NATURAL lane_no
+  --! @retval ACTIVEFORMATS_T
   function getMultiLaneFormats (constant conf        : activeFormats_t;
                                 constant slice_width : natural;
                                 constant lane_no     : natural)
+    return activeFormats_t;
+
+  --! @brief Active formats for a multiformat conversion unit lane
+  --! @returns The configuration of formats that are active in lane number
+  --! NATURAL lane_no
+  --! @retval ACTIVEFORMATS_T
+  --! /note Conversions have other requirements as cast-and-pack operations
+  --! incur irregular lane layouts
+  function getMultiLaneFormats (constant conf        : activeFormats_t;
+                                constant slice_width : natural;
+                                constant lane_no     : natural;
+                                constant cpk_fmts    : fmtBooleans_t)
     return activeFormats_t;
 
   --! @brief Set array row at format index fmt to std_logic_vector signal slv
@@ -449,7 +464,10 @@ package fpnew_fmts_pkg is
   function anySet (constant val : intFmtBooleans_t)
     return boolean;
 
-  --! @brief Get active integer formats configuration for a multiformat unit lane
+  --! @brief Active integer formats for a multiformat unit lane
+  --! @returns The configuration of integer formats that are active in lane
+  --! number NATURAL lane_no
+  --! @retval ACTIVEINTFORMATS_T
   function getMultiLaneFormats (constant conf        : activeIntFormats_t;
                                 constant slice_width : natural;
                                 constant lane_no     : natural)
@@ -836,6 +854,25 @@ package body fpnew_fmts_pkg is
     for fmt in fpFmt_t loop
       res.Active(fmt) := conf.Active(fmt)
                          and slice_width/WIDTH(conf.Encoding(fmt)) > lane_no;
+    end loop;  -- fmt
+    res.Encoding := conf.Encoding;
+    return res;
+  end function getMultiLaneFormats;
+
+  -----------------------------------------------------------------------------
+
+  function getMultiLaneFormats (constant conf        : activeFormats_t;
+                                constant slice_width : natural;
+                                constant lane_no     : natural;
+                                constant cpk_fmts    : fmtBooleans_t)
+    return activeFormats_t is
+    variable res : activeFormats_t;
+  begin
+    for fmt in fpFmt_t loop
+      -- Put in CPK formats at least twice
+      res.Active(fmt) := conf.Active(fmt)
+                         and (slice_width/WIDTH(conf.Encoding(fmt)) > lane_no
+                              or (cpk_fmts(fmt) and lane_no < 2));
     end loop;  -- fmt
     res.Encoding := conf.Encoding;
     return res;

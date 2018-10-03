@@ -53,7 +53,7 @@ entity fpnew_top is
     TYPE_DIVSQRT : natural := unitType_t'pos(MERGED);
     TYPE_NONCOMP : natural := unitType_t'pos(PARALLEL);
     TYPE_CONV    : natural := unitType_t'pos(MERGED);
-            
+
     LATENCY_COMP_F       : natural := 0;   -- Latency of FP32 comp. ops
     LATENCY_COMP_D       : natural := 0;   -- Latency of FP64 comp. ops
     LATENCY_COMP_Xf16    : natural := 0;   -- Latency of FP16 comp. ops
@@ -62,7 +62,7 @@ entity fpnew_top is
     LATENCY_DIVSQRT      : natural := 0;   -- Latency of div/sqrt. postprocessing
     LATENCY_NONCOMP      : natural := 0;   -- Latency of non-comp. ops
     LATENCY_CONV         : natural := 0;   -- Latency of conversion ops
-    
+
     ENFORCE_INPUT_NANBOX : boolean := true);  -- Enforce input NaN-boxing
 
   port (
@@ -175,58 +175,58 @@ begin  -- architecture rtl
 end architecture rtl;
 
 
-configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity work.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32 to FP16ALT  => true,
-                                   others  => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => true,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32 to FP16ALT  => true,
+--                                   others  => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => true,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8;
 
-configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity work.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32 to FP16ALT  => true,
-                                   others  => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => false,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32 to FP16ALT  => true,
+--                                   others  => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => false,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8;
 
-configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity work.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32             => true,
-                                   FP64             => false,
-                                   FP16 to FP16ALT  => true,
-                                   others           => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => false,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32             => true,
+--                                   FP64             => false,
+--                                   FP16 to FP16ALT  => true,
+--                                   others           => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => false,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8;
