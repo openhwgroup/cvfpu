@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-10-06
+-- Last update: 2018-10-07
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -128,6 +128,9 @@ architecture parallel_paths of conv_multifmt_slice is
   -- Signal Declarations
   -----------------------------------------------------------------------------
 
+  -- Target is used for vectorial casts
+  signal Target_D : std_logic_vector(Z_DO'range);
+  
   -- Width of input and output format (for vectors). Wider formats than
   -- SLICE_WIDTH will be ignored in the unit
   signal SrcFmtWidth_S : natural;
@@ -144,7 +147,7 @@ architecture parallel_paths of conv_multifmt_slice is
 
   -- Internal Vectorial Selection
   signal VectorialOp_S               : std_logic;
-  signal OpCOutReady_S, OpCInValid_S : std_logic;
+  signal TargetInValid_S, TargetOutReady_S : std_logic;
 
   -- Output data for each format
   signal FmtOpResults_S    : fmtResults_t;
@@ -165,7 +168,7 @@ architecture parallel_paths of conv_multifmt_slice is
   signal LaneZext_S     : std_logic_vector(0 to NUMLANES-1);
   signal LaneTags_S     : laneTags_t;
 
-  signal OpCDelayed_D   : std_logic_vector(Z_DO'range);
+  signal TargetDelayed_D   : std_logic_vector(Z_DO'range);
   signal PackedResult_D : std_logic_vector(Z_DO'range);
 
 begin
@@ -174,6 +177,11 @@ begin
   -- Input Side signals
   -----------------------------------------------------------------------------
 
+  -- Target only used for vectorial ops
+  with Op_SI select Target_D <=
+    C_DI when CPKAB | CPKCD,
+    B_DI when others;
+  
   -- Figure out the source and destination format width (depends on op)
   with Op_SI select SrcFmtWidth_S <=
     WIDTH(FpFmt_SI, FORMATS)     when F2I,
@@ -191,7 +199,7 @@ begin
   -- Mask vectorial enable if we don't have vector support
   VectorialOp_S <= VectorialOp_SI and to_sl(GENVECTORS);
 
-  OpCInValid_S <= InValid_SI and VectorialOp_S;
+  TargetInValid_S <= InValid_SI and VectorialOp_S;
 
   DstCPK_S <= to_sl(Op_SI = CPKAB or Op_SI = CPKCD);
 
@@ -337,8 +345,8 @@ begin
 
   end generate g_sliceLanes;
 
-  -- Operand C for vectorial casts needs to follow the pipeline
-  i_op_c_pipe : fp_pipe
+  -- Target for vectorial casts needs to follow the pipeline
+  i_target_pipe : fp_pipe
     generic map (
       WIDTH     => SLICE_WIDTH,
       LATENCY   => LATENCY,
@@ -346,19 +354,19 @@ begin
     port map (
       Clk_CI         => Clk_CI,
       Reset_RBI      => Reset_RBI,
-      Result_DI      => C_DI,
+      Result_DI      => Target_D,
       Status_DI      => (others => '-'),
       Tag_DI         => VecTag_S,
-      InValid_SI     => OpCInValid_S,
+      InValid_SI     => TargetInValid_S,
       InReady_SO     => open,
       Flush_SI       => Flush_SI,
-      ResultPiped_DO => OpCDelayed_D,
+      ResultPiped_DO => TargetDelayed_D,
       StatusPiped_DO => open,
       TagPiped_DO    => DstVecTag_S,
       OutValid_SO    => ResultVectorial_S,
-      OutReady_SI    => OpCOutReady_S);
+      OutReady_SI    => TargetOutReady_S);
 
-  OpCOutReady_S <= OutReady_SI and ResultVectorial_S;
+  TargetOutReady_S <= OutReady_SI and ResultVectorial_S;
 
   -- Restore the destination format information
   ResultFpFmt_S    <= to_fpFmt(LaneTags_S(0)(FMTBITS+TAG_WIDTH-1 downto TAG_WIDTH));
@@ -389,9 +397,9 @@ begin
         ResultTmp((i+1)*WIDTH(ResultFpFmt_S , FORMATS)-1 downto i*WIDTH(ResultFpFmt_S, FORMATS))
           := LaneResults_D(i)(WIDTH(ResultFpFmt_S, FORMATS)-1 downto 0);
       end loop;
-      -- Vectorial Floats preserve some entries in OP C
+      -- Vectorial Floats preserve some entries in Target
       if ResultVectorial_S = '1' then
-        ResultTmp := OpCDelayed_D;
+        ResultTmp := TargetDelayed_D;
         -- same thing but with shifts
         for i in 0 to SLICE_WIDTH/WIDTH(ResultFpFmt_S, FORMATS)-1 loop
           if not (i > 1 and IsResultCPK_S = '1') then
