@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-09-28
+-- Last update: 2018-10-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -87,8 +87,8 @@ architecture iterative_lei of fp_divsqrt_multi is
   -- Signal Declarations
   -----------------------------------------------------------------------------
   -- Input Handshaking
-  signal InValid_S, InReady_S : std_logic;
-  signal IsInFP8_S            : boolean;
+  signal InReady_S : std_logic;
+  signal IsInFP8_S : boolean;
 
   -- DivSqrt input side
   signal DivValid_S, SqrtValid_S : std_logic;
@@ -193,7 +193,8 @@ begin  -- architecture iterative_lei
       when IDLE =>
         InReady_S <= '1';               -- We're ready
         -- New work arrives
-        if (DivValid_S or SqrtValid_S) = '1' then
+--         if (DivValid_S or SqrtValid_S) = '1' then
+        if ((DivValid_S or SqrtValid_S) and DivSqrtReady_S) = '1' then
           State_DN <= BUSY;
         end if;
 
@@ -206,7 +207,8 @@ begin  -- architecture iterative_lei
           if PipeInReady_S = '1' then
             State_DN <= IDLE;           -- We can go back to idling
             -- ..unless there is another incoming instruction
-            if InValid_SI = '1' then
+--             if InValid_SI = '1' then
+            if (InValid_SI and DivSqrtReady_S) = '1' then
               InReady_S <= '1';         -- We take the next instruction
               State_DN  <= BUSY;        -- And stay busy with it
             end if;
@@ -225,7 +227,8 @@ begin  -- architecture iterative_lei
         if PipeInReady_S = '1' then
           State_DN <= IDLE;             -- We can go back to idling
           -- ..unless there is another incoming instruction
-          if InValid_SI = '1' then
+--           if InValid_SI = '1' then
+          if (InValid_SI and DivSqrtReady_S) = '1' then
             InReady_S <= '1';           -- We take the next instruction
             State_DN  <= BUSY;          -- And stay busy with it
           end if;
