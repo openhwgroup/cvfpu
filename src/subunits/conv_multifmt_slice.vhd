@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-10-07
+-- Last update: 2018-10-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -130,7 +130,7 @@ architecture parallel_paths of conv_multifmt_slice is
 
   -- Target is used for vectorial casts
   signal Target_D : std_logic_vector(Z_DO'range);
-  
+
   -- Width of input and output format (for vectors). Wider formats than
   -- SLICE_WIDTH will be ignored in the unit
   signal SrcFmtWidth_S : natural;
@@ -146,11 +146,12 @@ architecture parallel_paths of conv_multifmt_slice is
   signal VecTag_S, DstVecTag_S : std_logic_vector(VECTAG_WIDTH-1 downto 0);
 
   -- Internal Vectorial Selection
-  signal VectorialOp_S               : std_logic;
+  signal VectorialOp_S                     : std_logic;
   signal TargetInValid_S, TargetOutReady_S : std_logic;
 
   -- Output data for each format
-  signal FmtOpResults_S    : fmtResults_t;
+  signal FmtOpResults_D    : fmtResults_t;
+  signal FmtOpResultsAss_D : fmtResults_t;
   signal IntFmtOpResults_D : intFmtResults_t;
 
   signal LaneResults_D     : laneResults_t;
@@ -168,8 +169,8 @@ architecture parallel_paths of conv_multifmt_slice is
   signal LaneZext_S     : std_logic_vector(0 to NUMLANES-1);
   signal LaneTags_S     : laneTags_t;
 
-  signal TargetDelayed_D   : std_logic_vector(Z_DO'range);
-  signal PackedResult_D : std_logic_vector(Z_DO'range);
+  signal TargetDelayed_D : std_logic_vector(Z_DO'range);
+  signal PackedResult_D  : std_logic_vector(Z_DO'range);
 
 begin
 
@@ -181,7 +182,7 @@ begin
   with Op_SI select Target_D <=
     C_DI when CPKAB | CPKCD,
     B_DI when others;
-  
+
   -- Figure out the source and destination format width (depends on op)
   with Op_SI select SrcFmtWidth_S <=
     WIDTH(FpFmt_SI, FORMATS)     when F2I,
@@ -329,19 +330,20 @@ begin
       LaneInReady_S(i)  <= '0';
     end generate g_laneBypass;
 
---     g_fmtResults : for fmt in fpFmt_t generate
---       g_activeFmts : if LANEFORMATS.Active(fmt) generate
---         FmtOpResults_D(fmt)((i+1)*WIDTH(fmt, LANEFORMATS)-1 downto i*WIDTH(fmt, LANEFORMATS))
---           <= Result_D(WIDTH(fmt, LANEFORMATS)-1 downto 0);
---       end generate g_activeFmts;
---     end generate g_fmtResults;
+    g_fmtResults : for fmt in fpFmt_t generate
+      g_activeFmts : if LANEFORMATS.Active(fmt) and i < SLICE_WIDTH/WIDTH(fmt, LANEFORMATS) generate
+        FmtOpResults_D(fmt)((i+1)*WIDTH(fmt, LANEFORMATS)-1 downto i*WIDTH(fmt, LANEFORMATS))
+          <= LaneResults_D(i)(WIDTH(fmt, LANEFORMATS)-1 downto 0);
+      end generate g_activeFmts;
+    end generate g_fmtResults;
 
---     g_intfmtResults : for ifmt in intFmt_t generate
---       g_activeFmts : if LANEINTFORMATS.Active(ifmt) generate
---         IntFmtOpResults_D(ifmt)((i+1)*LANEINTFORMATS.Length(ifmt)-1 downto i*LANEINTFORMATS.Length(ifmt))
---           <= Result_D(LANEINTFORMATS.Length(ifmt)-1 downto 0);
---       end generate g_activeFmts;
---     end generate g_intfmtResults;
+    g_intfmtResults : for ifmt in intFmt_t generate
+      g_activeFmts : if LANEINTFORMATS.Active(ifmt) generate
+        IntFmtOpResults_D(ifmt)((i+1)*LANEINTFORMATS.Length(ifmt)-1 downto i*LANEINTFORMATS.Length(ifmt))
+          <= LaneResults_D(i)(LANEINTFORMATS.Length(ifmt)-1 downto 0);
+      end generate g_activeFmts;
+    end generate g_intfmtResults;
+
 
   end generate g_sliceLanes;
 
@@ -382,38 +384,32 @@ begin
   -----------------------------------------------------------------------------
 
   p_assembleResult : process (all) is
-    variable ResultTmp : std_logic_vector(Z_DO'range);
+    variable ResultTmp    : fmtResults_t;
+    variable ResultMask_D : fmtResults_t;
+    constant ONES         : unsigned(Z_DO'range) := (others => '1');
   begin  -- process p_assembleResult
 
-    ResultTmp := (others => not LaneZext_S(0));
+    -- Default Assignment
+    ResultTmp    := FmtOpResults_D;
+    ResultMask_D := (others => std_logic_vector(ONES));
 
-    if IsResultFmtInt_S = '1' then
-      for i in 0 to SLICE_WIDTH/INTFORMATS.Length(ResultIntFmt_S)-1 loop
-        ResultTmp((i+1)*INTFORMATS.Length(ResultIntFmt_S)-1 downto i*INTFORMATS.Length(ResultIntFmt_S))
-          := LaneResults_D(i)(INTFORMATS.Length(ResultIntFmt_S)-1 downto 0);
-      end loop;
-    else
-      for i in 0 to SLICE_WIDTH/WIDTH(ResultFpFmt_S, FORMATS)-1 loop
-        ResultTmp((i+1)*WIDTH(ResultFpFmt_S , FORMATS)-1 downto i*WIDTH(ResultFpFmt_S, FORMATS))
-          := LaneResults_D(i)(WIDTH(ResultFpFmt_S, FORMATS)-1 downto 0);
-      end loop;
-      -- Vectorial Floats preserve some entries in Target
-      if ResultVectorial_S = '1' then
-        ResultTmp := TargetDelayed_D;
-        -- same thing but with shifts
-        for i in 0 to SLICE_WIDTH/WIDTH(ResultFpFmt_S, FORMATS)-1 loop
-          if not (i > 1 and IsResultCPK_S = '1') then
-            ResultTmp((i+1+2*to_integer(unsigned(ResultShift_S)))*WIDTH(ResultFpFmt_S, FORMATS)-1 downto (i+2*to_integer(unsigned(ResultShift_S)))*WIDTH(ResultFpFmt_S, FORMATS))
-              := LaneResults_D(i)(WIDTH(ResultFpFmt_S , FORMATS)-1 downto 0);
-          end if;
-        end loop;
-      end if;
+    if (not IsResultFmtInt_S and ResultVectorial_S) = '1' then
+      for fmt in fpFmt_t loop
+        ResultTmp(fmt)    := std_logic_vector(unsigned(FmtOpResults_D(fmt)) sll 2*to_integer(unsigned(ResultShift_S))*WIDTH(fmt, FORMATS));
+        ResultMask_D(fmt) := std_logic_vector(ONES sll 2*to_integer(unsigned(ResultShift_S))*WIDTH(fmt, FORMATS));
+        -- CPK only touches 2 elements of the target
+        if IsResultCPK_S = '1' then
+          ResultMask_D(fmt) := ResultMask_D(fmt) and std_logic_vector(ONES srl SLICE_WIDTH-2*(1+to_integer(unsigned(ResultShift_S)))*WIDTH(fmt, FORMATS));
+        end if;
+        ResultTmp(fmt) := (ResultTmp(fmt) and ResultMask_D(fmt)) or (TargetDelayed_D and not ResultMask_D(fmt));
+      end loop;  -- fmt
     end if;
-    Z_DO <= ResultTmp;
+
+    FmtOpResultsAss_D <= ResultTmp;
   end process p_assembleResult;
 
---   Z_DO <= IntFmtOpResults_D(ResultIntFmt_S) when IsResultFmtInt_S = '1' else
---           FmtOpResults_D(ResultFpFmt_S);
+  Z_DO <= IntFmtOpResults_D(ResultIntFmt_S) when IsResultFmtInt_S = '1' else
+          FmtOpResultsAss_D(ResultFpFmt_S);
 
   -- Separate the sign-extension information from the tag again
   Tag_DO  <= LaneTags_S(0)(Tag_DO'range);
