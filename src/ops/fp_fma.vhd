@@ -235,9 +235,9 @@ begin  -- architecture rtl
   --! | FMADD    | \c 1        | FMSUB: Invert sign of operand C
   --! | FNMSUB   | \c 0        | FNMSUB: Invert sign of operand A
   --! | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
-  --! | ADDSUB   | \c 0        | ADD: Set operand A to +1.0
-  --! | ADDSUB   | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
-  --! | MUL      | \c 0        | MUL: Set operand C to -0.0 (for proper zero rounding)
+  --! | ADD      | \c 0        | ADD: Set operand A to +1.0
+  --! | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
+  --! | MUL      | \c 0        | MUL: Set operand C to +0.0
   --! | *others* | \c -        | *invalid*
   --! \note \c OpMod_SI always inverts the sign of the addend.
   p_opSel : process (all) is

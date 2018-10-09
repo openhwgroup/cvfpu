@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-05
--- Last update: 2018-04-18
+-- Last update: 2018-10-06
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -241,6 +241,7 @@ begin  -- architecture rtl
       generic map (
         FORMATS     => MERGEDFORMATS,
         INTFORMATS  => INTFORMATS,
+        CPKFORMATS => (FP64 => true, FP32 => true, others => false),
         LATENCIES   => LATENCIES,
         SLICE_WIDTH => WIDTH,
         GENVECTORS  => GENVECTORS,

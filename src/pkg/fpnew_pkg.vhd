@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-08
--- Last update: 2018-04-09
+-- Last update: 2018-06-20
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -246,13 +246,14 @@ package fpnew_pkg is
   --! | F2I        | Cast: Float to Signed Integer | Cast: Float to Unsigned Integer | \c CONV
   --! | I2F        | Cast: Signed Integer to Float | Cast: Unsigned Integer to Float | \c CONV
   --! | F2F        | Cast: Float to Float | \e n/a | \c CONV
-  --! | CPK        | Cast and Pack | \e n/a | *n/a*
+  --! | CPKAB      | Cast and Pack to Entries 0,1  | Cast and Pack to Entries 2,3 | \c CONV
+  --! | CPKCD      | Cast and Pack to Entries 4,5  | Cast and Pack to Entries 6,7 | \c CONV
   --! \warning Enumerated literals are encoded in order! Only add entries at
   --! <em> THE END </em> of the list or you will break backwards compatibility
   --! to fixed upstream circuits.
   type fpOp_t is (FMADD, FNMSUB, ADD, MUL, DIV, SQRT,
                   SGNJ, MINMAX, CMP, CLASS,
-                  F2I, I2F, F2F, CPK);
+                  F2I, I2F, F2F, CPKAB, CPKCD);
 
   --! @brief Array of booleans for each operation
   --! @details Array of BOOLEAN that hold a value for each \ref fpOp_t
@@ -708,7 +709,7 @@ package body fpnew_pkg is
       when FMADD | FNMSUB | ADD | MUL => return ADDMUL;
       when DIV | SQRT => return DIVSQRT;
       when SGNJ | MINMAX | CMP | CLASS => return NONCOMP;
-      when F2I | I2F | F2F => return CONV;
+      when F2I | I2F | F2F | CPKAB | CPKCD => return CONV;
       when others =>
         -- pragma synthesis_off
         report "Operation '" & fpOp_t'image(op) & "' is not bound to an OpGroup!" severity failure;

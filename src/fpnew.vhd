@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-19
+-- Last update: 2018-10-07
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -321,8 +321,8 @@ begin  -- architecture rtl
       Clk_CI         => Clk_CI,
       Reset_RBI      => Reset_RBI,
       A_DI           => A_DI,
-      B_DI           => (others => '-'),
-      C_DI           => (others => '-'),
+      B_DI           => B_DI,
+      C_DI           => C_DI,
       ABox_SI        => ABox_S,
       BBox_SI        => BBox_S,
       CBox_SI        => CBox_S,
