@@ -136,20 +136,31 @@ begin  -- architecture rtl
     process (Clk_CI, Reset_RBI) is
     begin  -- process
       if Reset_RBI = '0' then           -- asynchronous reset (active low)
-        ResPipe_D(i+1)   <= (others => '0');
-        StatPipe_D(i+1)  <= (others => '0');
-        TagPipe_D(i+1)   <= (others => '0');
+        --ResPipe_D(i+1)   <= (others => '0');
+        --StatPipe_D(i+1)  <= (others => '0');
+        --TagPipe_D(i+1)   <= (others => '0');
         ValidPipe_S(i+1) <= '0';
       elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
-        if (StageReady_S(i) or Flush_SI) = '1' then   -- Only advance pipeline if we're ready
-          ValidPipe_S(i+1) <= ValidPipe_S(i) and not Flush_SI;
-          if ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
-            ResPipe_D(i+1)  <= ResPipe_D(i);
-            StatPipe_D(i+1) <= StatPipe_D(i);
-            TagPipe_D(i+1)  <= TagPipe_D(i);
-          end if;
+        if Flush_SI = '1' then
+          ValidPipe_S(i+1) <= '0';
+        elsif StageReady_S(i) = '1' then -- only advance pipeline if we're ready
+          ValidPipe_S(i+1) <= ValidPipe_S(i);
+        end if;
+
+        if StageReady_S(i) = '1' and ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
+          ResPipe_D(i+1)  <= ResPipe_D(i);
+          StatPipe_D(i+1) <= StatPipe_D(i);
+          TagPipe_D(i+1)  <= TagPipe_D(i);
         end if;
       end if;
+        --if (StageReady_S(i) or Flush_SI) = '1' then   -- Only advance pipeline if we're ready
+        --  ValidPipe_S(i+1) <= ValidPipe_S(i) and not Flush_SI;
+        --  if ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
+        --    ResPipe_D(i+1)  <= ResPipe_D(i);
+        --    StatPipe_D(i+1) <= StatPipe_D(i);
+        --    TagPipe_D(i+1)  <= TagPipe_D(i);
+        --  end if;
+        --end if;
     end process;
 
   end generate g_pipeStage;
