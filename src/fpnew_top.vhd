@@ -50,14 +50,14 @@ entity fpnew_top is
     TYPE_NONCOMP : natural := unitType_t'pos(PARALLEL);
     TYPE_CONV    : natural := unitType_t'pos(PARALLEL);
 
-    LATENCY_COMP_F       : natural := 0;   -- Latency of FP32 comp. ops
-    LATENCY_COMP_D       : natural := 0;   -- Latency of FP64 comp. ops
-    LATENCY_COMP_Xf16    : natural := 0;   -- Latency of FP16 comp. ops
-    LATENCY_COMP_Xf16alt : natural := 0;   -- Latency of FP16alt comp. ops
-    LATENCY_COMP_Xf8     : natural := 0;   -- Latency of FP8 comp. ops
-    LATENCY_DIVSQRT      : natural := 0;   -- Latency of div/sqrt. postprocessing
-    LATENCY_NONCOMP      : natural := 0;   -- Latency of non-comp. ops
-    LATENCY_CONV         : natural := 0;   -- Latency of conversion ops
+    LATENCY_COMP_F       : natural := 0;  -- Latency of FP32 comp. ops
+    LATENCY_COMP_D       : natural := 0;  -- Latency of FP64 comp. ops
+    LATENCY_COMP_Xf16    : natural := 0;  -- Latency of FP16 comp. ops
+    LATENCY_COMP_Xf16alt : natural := 0;  -- Latency of FP16alt comp. ops
+    LATENCY_COMP_Xf8     : natural := 0;  -- Latency of FP8 comp. ops
+    LATENCY_DIVSQRT      : natural := 0;  -- Latency of div/sqrt. postprocessing
+    LATENCY_NONCOMP      : natural := 0;  -- Latency of non-comp. ops
+    LATENCY_CONV         : natural := 0;  -- Latency of conversion ops
 
     ENFORCE_INPUT_NANBOX : boolean := true);  -- Enforce input NaN-boxing
 
@@ -74,6 +74,7 @@ entity fpnew_top is
     FpFmt2_SI        : in  std_logic_vector(clog2(fpFmt_t'pos(fpFmt_t'high))-1 downto 0);
     IntFmt_SI        : in  std_logic_vector(clog2(intFmt_t'pos(intFmt_t'high))-1 downto 0);
     Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI       : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
@@ -95,35 +96,35 @@ architecture rtl of fpnew_top is
   -- Static Translation of Generic Inputs
   -----------------------------------------------------------------------------
 
-  constant FORMATS : activeFormats_t := (Active   => (FP32    => RVF,
-                                                      FP64    => RVD,
-                                                      FP16    => Xf16,
-                                                      FP8     => Xf8,
-                                                      FP16ALT => Xf16alt,
-                                                      others  => false),
+  constant FORMATS : activeFormats_t := (Active             => (FP32 => RVF,
+                                                    FP64    => RVD,
+                                                    FP16    => Xf16,
+                                                    FP8     => Xf8,
+                                                    FP16ALT => Xf16alt,
+                                                    others  => false),
                                          Encoding => DEFAULTENCODING);
 
 
-  constant INTFORMATS : activeIntFormats_t := (Active => (W      => true,
+  constant INTFORMATS : activeIntFormats_t := (Active            => (W => true,
                                                           D      => RV64,
                                                           others => Xfvec),
                                                Length => INTFMTLENGTHS);
 
-  constant LATENCIES : opGroupFmtNaturals_t := (ADDMUL  => (FP32    => LATENCY_COMP_F,
-                                                            FP64    => LATENCY_COMP_D,
-                                                            FP16    => LATENCY_COMP_Xf16,
-                                                            FP8     => LATENCY_COMP_Xf8,
-                                                            FP16ALT => LATENCY_COMP_Xf16alt,
-                                                            others  => 0),
-                                                DIVSQRT => (others  => LATENCY_DIVSQRT),
+  constant LATENCIES : opGroupFmtNaturals_t := (ADDMUL             => (FP32 => LATENCY_COMP_F,
+                                                           FP64    => LATENCY_COMP_D,
+                                                           FP16    => LATENCY_COMP_Xf16,
+                                                           FP8     => LATENCY_COMP_Xf8,
+                                                           FP16ALT => LATENCY_COMP_Xf16alt,
+                                                           others  => 0),
+                                                DIVSQRT => (others => LATENCY_DIVSQRT),
                                                 NONCOMP => (others => LATENCY_NONCOMP),
                                                 CONV    => (others => LATENCY_CONV),
-                                                others  => (others  => 0));
+                                                others  => (others => 0));
 
-  constant UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL  => (others => unitType_t'val(TYPE_ADDMUL)),
-                                                  DIVSQRT => (others => unitType_t'val(TYPE_DIVSQRT)),
-                                                  NONCOMP => (others => unitType_t'val(TYPE_NONCOMP)),
-                                                  CONV    => (others => unitType_t'val(TYPE_CONV)));
+  constant UNITTYPES : opGroupFmtUnitTypes_t := (ADDMUL  => (others => unitType_t'val(TYPE_ADDMUL)),
+                                                 DIVSQRT => (others => unitType_t'val(TYPE_DIVSQRT)),
+                                                 NONCOMP => (others => unitType_t'val(TYPE_NONCOMP)),
+                                                 CONV    => (others => unitType_t'val(TYPE_CONV)));
 
   -----------------------------------------------------------------------------
   -- Signal Declarations
@@ -133,7 +134,7 @@ architecture rtl of fpnew_top is
 
 begin  -- architecture rtl
 
-  i_fpnew: fpnew
+  i_fpnew : fpnew
     generic map (
       FORMATS    => FORMATS,
       INTFORMATS => INTFORMATS,
@@ -156,6 +157,7 @@ begin  -- architecture rtl
       FpFmt2_SI      => to_fpFmt(FpFmt2_SI),
       IntFmt_SI      => to_intFmt(IntFmt_SI),
       Tag_DI         => Tag_DI,
+      PrecCtl_SI     => PrecCtl_SI,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
       Flush_SI       => Flush_SI,

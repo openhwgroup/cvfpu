@@ -63,6 +63,7 @@ entity fpnew is
     FpFmt2_SI        : in  fpFmt_t;
     IntFmt_SI        : in  intFmt_t;
     Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI       : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
@@ -247,6 +248,7 @@ begin  -- architecture rtl
       FpFmt_SI       => FpFmt_SI,
       VectorialOp_SI => VectorialOp_SI,
       Tag_DI         => Tag_DI,
+      PrecCtl_SI     => PrecCtl_SI,
       InValid_SI     => OpGrpInValid_S(DIVSQRT),
       InReady_SO     => OpGrpInReady_S(DIVSQRT),
       Flush_SI       => Flush_SI,

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-18
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -65,6 +65,7 @@ entity divsqrt_multifmt_slice is
     FpFmt_SI                  : in  fpFmt_t;
     VectorialOp_SI            : in  std_logic;
     Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI                : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
@@ -232,6 +233,7 @@ begin  -- architecture parallel_paths
           OpMod_SI     => OpMod_SI,
           FpFmt_SI     => FpFmt_SI,
           Tag_DI       => TagInt_D,
+          PrecCtl_SI   => PrecCtl_SI,
           InValid_SI   => InValid_S,
           InReady_SO   => LaneInReady_S(i),
           Flush_SI     => Flush_SI,

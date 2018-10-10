@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-08
--- Last update: 2018-10-08
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -50,6 +50,7 @@ entity fp_divsqrt_multi is
     OpMod_SI         : in  std_logic;
     FpFmt_SI         : in  fpFmt_t;
     Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+        PrecCtl_SI       : in std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
@@ -254,7 +255,7 @@ begin  -- architecture iterative_lei
       Operand_a_DI     => A_D,
       Operand_b_DI     => B_D,
       RM_SI            => to_slv(RoundMode_SI),
-      Precision_ctl_SI => (others => '0'),  -- turn off for now
+      Precision_ctl_SI => PrecCtl_SI(5 downto 0),
       Format_sel_SI    => Fmt_S,
       Kill_SI          => Flush_SI,
       Result_DO        => DivSqrtResultPre_D,

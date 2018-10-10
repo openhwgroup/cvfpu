@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-05
--- Last update: 2018-04-18
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -53,6 +53,7 @@ entity divsqrt_block is
     FpFmt_SI                  : in  fpFmt_t;
     VectorialOp_SI            : in  std_logic;
     Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI                : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
@@ -224,6 +225,7 @@ begin  -- architecture rtl
         FpFmt_SI       => FpFmt_SI,
         VectorialOp_SI => VectorialOp_SI,
         Tag_DI         => Tag_DI,
+        PrecCtl_SI     => PrecCtl_SI,
         InValid_SI     => InValid_SI,
         InReady_SO     => FmtInReady_S(findFirstActive(MERGEDFORMATS)),
         Flush_SI       => Flush_SI,

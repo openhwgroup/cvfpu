@@ -101,7 +101,7 @@ architecture rtl of conv_fmt_slice is
   -----------------------------------------------------------------------------
 
   -- Inputs
-  type sourceEntries_t is array (0 to NUMSRCENTRIES-1) of std_logic_vector(SRCFMT_WIDTH-1 downto 0);
+  type sourceEntries_t is array (0 to NUMSRCLANES-1) of std_logic_vector(SRCFMT_WIDTH-1 downto 0);
 
 
   -- Vectors of results for the lanes
@@ -240,7 +240,7 @@ begin  -- architecture rtl
         LaneStatus_D(i) <= OpStatus_D when LaneOutValid_S(i) = '1' else
                            (others => '0');
       end generate g_laneInst;
-      
+
       g_laneBypass : if (i /= 0 and not GENVECTORS) or not FORMATS.Active(fmt) generate
         LaneInReady_S(i)  <= '0';
         DstResults_D(i)   <= (others => not LaneZext_S(0));
