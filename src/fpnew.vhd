@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-10-07
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ entity fpnew is
     UNITTYPES : opGroupFmtUnitTypes_t := (ADDMUL  => (others => PARALLEL),
                                           DIVSQRT => (others => MERGED),
                                           NONCOMP => (others => PARALLEL),
-                                          CONV    => (others => MERGED));
+                                          CONV    => (others => PARALLEL));
 
     LATENCIES  : opGroupFmtNaturals_t := (others => (others => 0));
     GENVECTORS : boolean              := true;

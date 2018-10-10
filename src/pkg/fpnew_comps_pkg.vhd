@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-20
--- Last update: 2018-10-06
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -62,6 +62,7 @@ package fpnew_comps_pkg is
       FpFmt2_SI        : in  fpFmt_t;
       IntFmt_SI        : in  intFmt_t;
       Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      PrecCtl_SI       : in  std_logic_vector(6 downto 0);
       InValid_SI       : in  std_logic;
       InReady_SO       : out std_logic;
       Flush_SI         : in  std_logic;
@@ -123,6 +124,7 @@ package fpnew_comps_pkg is
       FpFmt_SI                  : in  fpFmt_t;
       VectorialOp_SI            : in  std_logic;
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      PrecCtl_SI                : in  std_logic_vector(6 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
       Flush_SI                  : in  std_logic;
@@ -241,6 +243,7 @@ package fpnew_comps_pkg is
       FpFmt_SI                  : in  fpFmt_t;
       VectorialOp_SI            : in  std_logic;
       Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      PrecCtl_SI                : in  std_logic_vector(6 downto 0);
       InValid_SI                : in  std_logic;
       InReady_SO                : out std_logic;
       Flush_SI                  : in  std_logic;
@@ -280,6 +283,67 @@ package fpnew_comps_pkg is
       OutValid_SO               : out std_logic;
       OutReady_SI               : in  std_logic);
   end component noncomp_fmt_slice;
+
+  component conv_fmt_slice is
+    generic (
+      FORMATS     : activeFormats_t;
+      CPKFORMATS  : fmtBooleans_t;
+      SRCFMT      : fpFmt_t;
+      LATENCY     : natural;
+      SLICE_WIDTH : natural;
+      GENVECTORS  : boolean;
+      TAG_WIDTH   : natural);
+    port (
+      Clk_CI                    : in  std_logic;
+      Reset_RBI                 : in  std_logic;
+      A_DI, B_DI, C_DI          : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      ABox_SI, BBox_SI, CBox_SI : in  std_logic;
+      RoundMode_SI              : in  rvRoundingMode_t;
+      Op_SI                     : in  fpOp_t;
+      OpMod_SI                  : in  std_logic;
+      FpFmt_SI                  : in  fpFmt_t;
+      VectorialOp_SI            : in  std_logic;
+      Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI                : in  std_logic;
+      InReady_SO                : out std_logic;
+      Flush_SI                  : in  std_logic;
+      Z_DO                      : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO                 : out rvStatus_t;
+      Tag_DO                    : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO                   : out std_logic;
+      OutValid_SO               : out std_logic;
+      OutReady_SI               : in  std_logic);
+  end component conv_fmt_slice;
+
+  component conv_ifmt_slice is
+    generic (
+      INTFORMATS  : activeIntFormats_t;
+      FPENCODING  : fpFmtEncoding_t;
+      LATENCY     : natural;
+      SLICE_WIDTH : natural;
+      GENVECTORS  : boolean;
+      TAG_WIDTH   : natural);
+    port (
+      Clk_CI         : in  std_logic;
+      Reset_RBI      : in  std_logic;
+      A_DI           : in  std_logic_vector(SLICE_WIDTH-1 downto 0);
+      ABox_SI        : in  std_logic;
+      RoundMode_SI   : in  rvRoundingMode_t;
+      Op_SI          : in  fpOp_t;
+      OpMod_SI       : in  std_logic;
+      IntFmt_SI      : in  intFmt_t;
+      VectorialOp_SI : in  std_logic;
+      Tag_DI         : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI     : in  std_logic;
+      InReady_SO     : out std_logic;
+      Flush_SI       : in  std_logic;
+      Z_DO           : out std_logic_vector(SLICE_WIDTH-1 downto 0);
+      Status_DO      : out rvStatus_t;
+      Tag_DO         : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO        : out std_logic;
+      OutValid_SO    : out std_logic;
+      OutReady_SI    : in  std_logic);
+  end component conv_ifmt_slice;
 
   component conv_multifmt_slice is
     generic (
@@ -360,6 +424,7 @@ package fpnew_comps_pkg is
       OpMod_SI         : in  std_logic;
       FpFmt_SI         : in  fpFmt_t;
       Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      PrecCtl_SI       : in  std_logic_vector(6 downto 0);
       InValid_SI       : in  std_logic;
       InReady_SO       : out std_logic;
       Flush_SI         : in  std_logic;
@@ -461,6 +526,32 @@ package fpnew_comps_pkg is
       OutReady_SI  : in  std_logic);
   end component fp_f2icasts;
 
+  component fp_f2icasts_fmt is
+    generic (
+      SRCENCODING : fpFmtEncoding_t;
+      INTFORMATS  : activeIntFormats_t;
+      LATENCY     : natural;
+      TAG_WIDTH   : natural);
+    port (
+      Clk_CI       : in  std_logic;
+      Reset_RBI    : in  std_logic;
+      A_DI         : in  std_logic_vector(WIDTH(SRCENCODING)-1 downto 0);
+      ABox_SI      : in  std_logic;
+      RoundMode_SI : in  rvRoundingMode_t;
+      OpMod_SI     : in  std_logic;
+      DstFmt_SI    : in  intFmt_t;
+      Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI   : in  std_logic;
+      InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
+      Z_DO         : out std_logic_vector(MAXWIDTH(INTFORMATS)-1 downto 0);
+      Status_DO    : out rvStatus_t;
+      Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO      : out std_logic;
+      OutValid_SO  : out std_logic;
+      OutReady_SI  : in  std_logic);
+  end component fp_f2icasts_fmt;
+
   -- Integer to Float casts
   --! \copydoc work.fp_i2fcasts
   component fp_i2fcasts is
@@ -489,6 +580,31 @@ package fpnew_comps_pkg is
       OutReady_SI  : in  std_logic);
   end component fp_i2fcasts;
 
+  component fp_i2fcasts_fmt is
+    generic (
+      DSTENCODING : fpFmtEncoding_t;
+      INTFORMATS  : activeIntFormats_t;
+      LATENCY     : natural;
+      TAG_WIDTH   : natural);
+    port (
+      Clk_CI       : in  std_logic;
+      Reset_RBI    : in  std_logic;
+      A_DI         : in  std_logic_vector(MAXWIDTH(INTFORMATS)-1 downto 0);
+      RoundMode_SI : in  rvRoundingMode_t;
+      OpMod_SI     : in  std_logic;
+      SrcFmt_SI    : in  intFmt_t;
+      Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI   : in  std_logic;
+      InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
+      Z_DO         : out std_logic_vector(WIDTH(DSTENCODING)-1 downto 0);
+      Status_DO    : out rvStatus_t;
+      Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO      : out std_logic;
+      OutValid_SO  : out std_logic;
+      OutReady_SI  : in  std_logic);
+  end component fp_i2fcasts_fmt;
+
   -- Float to Float casts
   --! \copydoc work.fp_f2fcasts
   component fp_f2fcasts is
@@ -515,6 +631,30 @@ package fpnew_comps_pkg is
       OutValid_SO  : out std_logic;
       OutReady_SI  : in  std_logic);
   end component fp_f2fcasts;
+
+  component fp_f2fcasts_fmt is
+    generic (
+      SRCENCODING : fpFmtEncoding_t;
+      DSTENCODING : fpFmtEncoding_t;
+      LATENCY     : natural;
+      TAG_WIDTH   : natural);
+    port (
+      Clk_CI       : in  std_logic;
+      Reset_RBI    : in  std_logic;
+      A_DI         : in  std_logic_vector(WIDTH(SRCENCODING)-1 downto 0);
+      ABox_SI      : in  std_logic;
+      RoundMode_SI : in  rvRoundingMode_t;
+      Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+      InValid_SI   : in  std_logic;
+      InReady_SO   : out std_logic;
+      Flush_SI     : in  std_logic;
+      Z_DO         : out std_logic_vector(WIDTH(DSTENCODING)-1 downto 0);
+      Status_DO    : out rvStatus_t;
+      Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
+      Zext_SO      : out std_logic;
+      OutValid_SO  : out std_logic;
+      OutReady_SI  : in  std_logic);
+  end component fp_f2fcasts_fmt;
 
   -----------------------------------------------------------------------------
   -- Helper Modules
@@ -617,5 +757,3 @@ package fpnew_comps_pkg is
 
 
 end package fpnew_comps_pkg;
-
-

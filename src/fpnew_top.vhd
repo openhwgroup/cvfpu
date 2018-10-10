@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-05-03
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -48,7 +48,7 @@ entity fpnew_top is
     TYPE_ADDMUL  : natural := unitType_t'pos(PARALLEL);
     TYPE_DIVSQRT : natural := unitType_t'pos(MERGED);
     TYPE_NONCOMP : natural := unitType_t'pos(PARALLEL);
-    TYPE_CONV    : natural := unitType_t'pos(MERGED);
+    TYPE_CONV    : natural := unitType_t'pos(PARALLEL);
 
     LATENCY_COMP_F       : natural := 0;   -- Latency of FP32 comp. ops
     LATENCY_COMP_D       : natural := 0;   -- Latency of FP64 comp. ops

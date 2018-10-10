@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-10-08
+-- Last update: 2018-10-09
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -88,7 +88,7 @@ entity conv_multifmt_slice is
 end entity conv_multifmt_slice;
 
 
-architecture parallel_paths of conv_multifmt_slice is
+architecture multi_inst of conv_multifmt_slice is
 
   -----------------------------------------------------------------------------
   -- Constant Definitions
@@ -418,4 +418,39 @@ begin
   OutValid_SO <= LaneOutValid_S(0);
 
 
-end architecture parallel_paths;
+end architecture multi_inst;
+
+
+-- library IEEE, work;
+-- use IEEE.std_logic_1164.all;
+-- use IEEE.numeric_std.all;
+-- use work.fpnew_pkg.all;
+-- use work.fpnew_fmts_pkg.all;
+-- use work.fpnew_comps_pkg.all;
+
+-- architecture conv_matrix of conv_multifmt_slice is
+
+--   -----------------------------------------------------------------------------
+--   -- Constant Definitions
+--   -----------------------------------------------------------------------------
+--   -- Latency given by highest latency in active set
+--   constant LATENCY : natural := largestActiveLatency(LATENCIES, FORMATS);
+
+--   -- Check how many bits are needed for the narrowest active float format
+--   constant MIN_WIDTH : natural := MINWIDTH(FORMATS);
+
+--   -- Largest integer format we need to handle
+--   constant INT_WIDTH : natural := MAXWIDTH(INTFORMATS);
+
+--   -----------------------------------------------------------------------------
+--   -- Type Definitions
+--   -----------------------------------------------------------------------------
+
+--   -- Vectors of results for the lanes
+--   type fmtResults_t is array (fpFmt_t) of std_logic_vector(SLICE_WIDTH-1 downto 0);
+--   type intFmtResults_t is array (intFmt_t) of std_logic_vector(SLICE_WIDTH-1 downto 0);
+
+--   begin  -- architecture conv_matrix
+
+
+-- end architecture conv_matrix;
