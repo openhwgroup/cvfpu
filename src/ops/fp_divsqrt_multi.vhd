@@ -12,19 +12,15 @@
 -------------------------------------------------------------------------------
 -- Description:
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, work;
@@ -171,7 +167,7 @@ begin  -- architecture iterative_lei
 
   -----------------------------------------------------------------------------
   -- Control
-  ----------------------------------------------------------------------------- 
+  -----------------------------------------------------------------------------
   -- Operation is only started when the control FSM is ready
   DivValid_S  <= InValid_SI and to_sl(Op_SI = DIV) and InReady_S and not Flush_SI;
   SqrtValid_S <= InValid_SI and to_sl(Op_SI /= DIV) and InReady_S and not Flush_SI;
@@ -183,7 +179,7 @@ begin  -- architecture iterative_lei
     InReady_S       <= '0';
     PipeInValid_S   <= '0';
     PipeInDataSel_S <= DIRECT;          -- Divsqrt feeds pipeline directly
-    HoldResult_S    <= '0';             -- Don't save divsqrt output to hold 
+    HoldResult_S    <= '0';             -- Don't save divsqrt output to hold
     State_DN        <= State_DP;        -- By default, stay in the same state
 
     -- FSM
