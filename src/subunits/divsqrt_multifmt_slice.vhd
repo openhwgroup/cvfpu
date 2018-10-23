@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-18
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -17,19 +17,15 @@
 --              - I2F
 --              - F2F
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -69,6 +65,7 @@ entity divsqrt_multifmt_slice is
     FpFmt_SI                  : in  fpFmt_t;
     VectorialOp_SI            : in  std_logic;
     Tag_DI                    : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI                : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI                : in  std_logic;
     InReady_SO                : out std_logic;
@@ -236,6 +233,7 @@ begin  -- architecture parallel_paths
           OpMod_SI     => OpMod_SI,
           FpFmt_SI     => FpFmt_SI,
           Tag_DI       => TagInt_D,
+          PrecCtl_SI   => PrecCtl_SI,
           InValid_SI   => InValid_S,
           InReady_SO   => LaneInReady_S(i),
           Flush_SI     => Flush_SI,

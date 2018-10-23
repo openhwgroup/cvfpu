@@ -16,15 +16,19 @@
 --              Supported operations from fpnew_pkg.fpOp:
 --              - I2F
 -------------------------------------------------------------------------------
--- Copyright 2018 ETH Zurich and University of Bologna.
--- Copyright and related rights are licensed under the Solderpad Hardware
--- License, Version 0.51 (the "License"); you may not use this file except in
--- compliance with the License.  You may obtain a copy of the License at
--- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
--- or agreed to in writing, software, hardware and materials distributed under
--- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
--- CONDITIONS OF ANY KIND, either express or implied. See the License for the
--- specific language governing permissions and limitations under the License.
+-- Copyright (C) 2018 ETH Zurich, University of Bologna
+-- All rights reserved.
+--
+-- This code is under development and not yet released to the public.
+-- Until it is released, the code is under the copyright of ETH Zurich and
+-- the University of Bologna, and may contain confidential and/or unpublished
+-- work. Any reuse/redistribution is strictly forbidden without written
+-- permission from ETH Zurich.
+--
+-- Bug fixes and contributions will eventually be released under the
+-- SolderPad open hardware license in the context of the PULP platform
+-- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
+-- University of Bologna.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -39,15 +43,14 @@ use fpnew_lib.fpnew_comps_pkg.all;
 --! floating-point casts as well as integer-float and float-integer casts.
 --! Supported operations from fpnew_pkg.fpOp:
 --! - F2I
-entity fp_i2fcasts is
+entity fp_i2fcasts_fmt is
 
   generic (
-    FORMATS    : activeFormats_t    := (Active => (FP32 to FP16ALT => true, others => false),
-                                  Encoding     => DEFAULTENCODING);
-    INTFORMATS : activeIntFormats_t := (Active => (others => true),
-                                        Length => INTFMTLENGTHS);
-    LATENCY    : natural            := 0;
-    TAG_WIDTH  : natural := 0);
+    DSTENCODING : fpFmtEncoding_t    := DEFAULTENCODING(FP32);
+    INTFORMATS  : activeIntFormats_t := (Active => (others => true),
+                                        Length  => INTFMTLENGTHS);
+    LATENCY     : natural            := 0;
+    TAG_WIDTH   : natural            := 0);
 
   port (
     Clk_CI       : in  std_logic;
@@ -57,14 +60,13 @@ entity fp_i2fcasts is
     RoundMode_SI : in  rvRoundingMode_t;
     OpMod_SI     : in  std_logic;
     SrcFmt_SI    : in  intFmt_t;
-    DstFmt_SI    : in  fpFmt_t;
     Tag_DI       : in  std_logic_vector(TAG_WIDTH-1 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI   : in  std_logic;
     InReady_SO   : out std_logic;
     Flush_SI     : in  std_logic;
     ---------------------------------------------------------------------------
-    Z_DO         : out std_logic_vector(MAXWIDTH(FORMATS)-1 downto 0);
+    Z_DO         : out std_logic_vector(WIDTH(DSTENCODING)-1 downto 0);
     Status_DO    : out rvStatus_t;
     Tag_DO       : out std_logic_vector(TAG_WIDTH-1 downto 0);
     Zext_SO      : out std_logic;
@@ -72,30 +74,24 @@ entity fp_i2fcasts is
     OutValid_SO  : out std_logic;
     OutReady_SI  : in  std_logic);
 
-end entity fp_i2fcasts;
+end entity fp_i2fcasts_fmt;
 
 
-architecture rtl of fp_i2fcasts is
+architecture rtl of fp_i2fcasts_fmt is
 
   -----------------------------------------------------------------------------
   -- Constants
   -----------------------------------------------------------------------------
 
-  -- Check how many bits are needed to hold all active float formats
-  constant SUPERFMT : fpFmtEncoding_t := SUPERFORMAT(FORMATS);
-
-  -- Check the largest float format
-  constant LARGESTFMT : fpFmtEncoding_t := FORMATS.Encoding(largestActive(FORMATS));
-
   -- Largest integer format we need to handle
   constant INTWIDTH : natural := MAXWIDTH(INTFORMATS);
 
   -- Mantissa needs to be wide enough to hold mantissa or integer width
-  constant MANTWIDTH : natural := maximum_t(SUPERFMT.ManBits, INTWIDTH);
+  constant MANTWIDTH : natural := maximum(DSTENCODING.ManBits, INTWIDTH);
 
   -- Make exponent wide enough to hold signed exponents or readjustment shift
   -- amount in signed form
-  constant EXPWIDTH : natural := maximum_t(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
+  constant EXPWIDTH : natural := maximum(DSTENCODING.ExpBits+1, clog2(MANTWIDTH)+1);
 
 
   -----------------------------------------------------------------------------
@@ -106,7 +102,7 @@ architecture rtl of fp_i2fcasts is
   type fmtExponent_t is array (fpFmt_t) of signed(EXPWIDTH-1 downto 0);
 
   --! @breif Holds a pre-round absolute result for each format
-  type fmtPreRnd_t is array (fpFmt_t) of std_logic_vector(MAXWIDTH(FORMATS)-2 downto 0);
+  type fmtPreRnd_t is array (fpFmt_t) of std_logic_vector(WIDTH(DSTENCODING)-2 downto 0);
 
   --! @breif Holds an input value for each format
   type intFmtValues_t is array (intFmt_t) of std_logic_vector(A_DI'range);
@@ -117,7 +113,6 @@ architecture rtl of fp_i2fcasts is
 
   -- Sanitized formats (disabled formats default to first enabled one)
   signal SrcFmt_S : intFmt_t;
-  signal DstFmt_S : fpFmt_t := smallestActive(FORMATS);
 
   -- input santitization
   signal IntFmtInputs_D : intFmtValues_t;
@@ -150,14 +145,13 @@ architecture rtl of fp_i2fcasts is
   signal RoundSticky_S : std_logic_vector(1 downto 0);
 
   -- Result absolute value before rounding
-  signal FmtPreRndRes_D : fmtPreRnd_t;
-  signal PreRndRes_D    : std_logic_vector(MAXWIDTH(FORMATS)-2 downto 0);
+  signal PreRndRes_D : std_logic_vector(WIDTH(DSTENCODING)-2 downto 0);
 
   -- Biased exponent for target format
   signal BiasedExp_D, FinalExp_D : signed(InternalExp_D'range);
 
   signal OFBeforeRound_S : boolean;
-  signal OFAfterRound_S  : fmtBooleans_t;
+  signal OFAfterRound_S  : boolean;
 
 -- roudned result
   signal ResRounded_D, ResRoundedSignCorr_D : std_logic_vector(Z_DO'range);
@@ -175,61 +169,28 @@ begin  -- architecture rtl
   -----------------------------------------------------------------------------
   SrcFmt_S <= SrcFmt_SI when INTFORMATS.Active(SrcFmt_SI) else
               findFirstActive(INTFORMATS);
-  DstFmt_S <= DstFmt_SI when FORMATS.Active(DstFmt_SI) else
-              findFirstActive(FORMATS);
-
-
-
-  -----------------------------------------------------------------------------
-  -- Parallel component generation for integer-format specific indices
-  -----------------------------------------------------------------------------
-  g_intFmtSpecific : for ifmt in intFmt_t generate
-    g_activeFmts : if INTFORMATS.Active(ifmt) generate
-
-      -- Sign extend the input value into the whole input vector
-      IntFmtInputs_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)
-        <= A_DI(INTFORMATS.Length(ifmt)-1 downto 0);
-
-      g_signExtendNarrowResult : if (INTFORMATS.Length(ifmt) < INTWIDTH) generate
-        IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
-          <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
-      end generate g_signExtendNarrowResult;
-
-    end generate g_activeFmts;
-  end generate g_intFmtSpecific;
-
-  ------------------------------------------------------------------------------
-  -- Parallel components generation for float format-specific indices
-  ------------------------------------------------------------------------------
-  g_fmtSpecific : for fmt in fpFmt_t generate
-    g_activeFmts : if FORMATS.Active(fmt) generate
-
-      -- Concatenates the exponent to the right position in the final mantissa
-      p_preRndAssemble : process (all) is
-      begin  -- process
-
-        -- default: fill with ones (NaN boxing)
-        FmtPreRndRes_D(fmt) <= (others => '1');
-
-        -- Assemble the preround result
-        FmtPreRndRes_D(fmt)(WIDTH(fmt, FORMATS)-2 downto FORMATS.Encoding(fmt).ManBits)
-          <= std_logic_vector(FinalExp_D(FORMATS.Encoding(fmt).ExpBits-1 downto 0));
-
-        FmtPreRndRes_D(fmt)(FORMATS.Encoding(fmt).ManBits-1 downto 0)
-          <= FinalMant_D(FORMATS.Encoding(fmt).ManBits-1 downto 0);  -- RS are behind
-
-      end process;
-
-      -- Classify final result
-      OFAfterRound_S(fmt) <= unsigned(ResRoundedSignCorr_D(WIDTH(fmt, FORMATS)-2 downto FORMATS.Encoding(fmt).ManBits)) = unsigned'(MAXEXP(fmt, FORMATS));
-
-    end generate g_activeFmts;
-  end generate g_fmtSpecific;
-
 
   -----------------------------------------------------------------------------
   -- Input acquisition
   -----------------------------------------------------------------------------
+  -- sign extend narrower formats
+  p_intInputs : process (all) is
+  begin  -- process p_intInputs
+
+    for ifmt in intFmt_t loop
+      if INTFORMATS.Active(ifmt) then
+
+        -- Sign extend the input value into the whole input vector
+        IntFmtInputs_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)
+          <= A_DI(INTFORMATS.Length(ifmt)-1 downto 0);
+
+        IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
+          <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
+
+      end if;
+    end loop;
+  end process p_intInputs;
+
 
   -- Sanitized input pattern (depends on input integer length)
   A_D <= IntFmtInputs_D(SrcFmt_S);
@@ -240,7 +201,6 @@ begin  -- architecture rtl
   -- Get the input value's magnitude
   Input_D <= A_D when Sign_D = '0' else
              std_logic_vector(-signed(A_D));
-
 
   -----------------------------------------------------------------------------
   -- Normalization
@@ -270,7 +230,7 @@ begin  -- architecture rtl
   -----------------------------------------------------------------------------
   -- Bias and clip exponent to target format, shift mantissa into proper place
   -----------------------------------------------------------------------------
-  BiasedExp_D <= InternalExp_D + BIAS(DstFmt_S, FORMATS);
+  BiasedExp_D <= InternalExp_D + BIAS(DSTENCODING);
 
   p_clipExponent : process (all) is
   begin  -- process p_finalAdjust
@@ -283,10 +243,10 @@ begin  -- architecture rtl
     MantPreshift_D <= std_logic_vector(resize(unsigned(InternalMant_D), MantPreshift_D'length) sll MANTWIDTH);
 
     -- Check for exponent overflow and clip
-    if (BiasedExp_D >= natural'(MAXEXP(DstFmt_S, FORMATS))) then
+    if (BiasedExp_D >= natural'(MAXEXP(DSTENCODING))) then
       -- set up largest normal number, MAXEXP of superformat is still MAXEXP if
       -- clipped to shorter exponent width -> such smart
-      FinalExp_D      <= to_signed(MAXEXP(SUPERFMT), EXPWIDTH)-1;
+      FinalExp_D      <= to_signed(MAXEXP(DSTENCODING), EXPWIDTH)-1;
       MantPreshift_D  <= (others => '1');
       OFBeforeRound_S <= true;
 
@@ -296,7 +256,7 @@ begin  -- architecture rtl
   end process p_clipExponent;
 
   -- Mantissa shift amount is only dependent on target float format
-  MantShamt_S <= MANTWIDTH - FORMATS.Encoding(DstFmt_S).ManBits;
+  MantShamt_S <= MANTWIDTH - DSTENCODING.ManBits;
 
   -- Do the acutal shift
   ShiftedMant_D <= std_logic_vector(unsigned(MantPreshift_D) srl MantShamt_S);
@@ -306,9 +266,22 @@ begin  -- architecture rtl
 
   RoundSticky_S <= ShiftedMant_D(MANTWIDTH-1) & or_reduce(ShiftedMant_D(MANTWIDTH-2 downto 0));
 
-  -- Result before rounding
-  PreRndRes_D <= FmtPreRndRes_D(DstFmt_S);
 
+  -- Concatenates the exponent to the right position in the final mantissa
+  p_preRndAssemble : process (all) is
+  begin  -- process
+
+    -- default: fill with ones (NaN boxing)
+    PreRndRes_D <= (others => '1');
+
+    -- Assemble the preround result
+    PreRndRes_D(WIDTH(DSTENCODING)-2 downto DSTENCODING.ManBits)
+      <= std_logic_vector(FinalExp_D(DSTENCODING.ExpBits-1 downto 0));
+
+    PreRndRes_D(DSTENCODING.ManBits-1 downto 0)
+      <= FinalMant_D(DSTENCODING.ManBits-1 downto 0);  -- RS are behind
+
+  end process;
 
   -----------------------------------------------------------------------------
   -- Rounding and Postprocessing
@@ -317,8 +290,8 @@ begin  -- architecture rtl
   -- Round the result
   i_fp_rounding : fp_rounding
     generic map (
-      EXP_BITS => LARGESTFMT.ExpBits,
-      MAN_BITS => LARGESTFMT.ManBits)
+      EXP_BITS => DSTENCODING.ExpBits,
+      MAN_BITS => DSTENCODING.ManBits)
     port map (
       ResultAbs_DI     => PreRndRes_D,
       ResultSign_DI    => Sign_D,
@@ -328,7 +301,6 @@ begin  -- architecture rtl
       ResZero_SI       => false,        -- we don't round zeroes
       EffSub_SI        => false,        -- dito
       RoundedResult_DO => ResRounded_D);
-
 
   p_fixSign : process (all) is
   begin  -- process
@@ -340,12 +312,15 @@ begin  -- architecture rtl
     ResRoundedSignCorr_D(ResRoundedSignCorr_D'high) <= '1';
 
     -- this will put it where it belongs (maybe topmost again)
-    ResRoundedSignCorr_D(WIDTH(DstFmt_S, FORMATS)-1) <= Sign_D;
+    ResRoundedSignCorr_D(WIDTH(DSTENCODING)-1) <= Sign_D;
 
   end process;
 
+  -- Classify final result
+  OFAfterRound_S <= unsigned(ResRoundedSignCorr_D(WIDTH(DSTENCODING)-2 downto DSTENCODING.ManBits)) = unsigned'(MAXEXP(DSTENCODING));
+
   RegularStatus_D <= (NX     => or_reduce(RoundSticky_S),
-                      NV     => to_sl(OFAfterRound_S(DstFmt_S) or OFBeforeRound_S),
+                      NV     => to_sl(OFAfterRound_S or OFBeforeRound_S),
                       others => '0');
 
   -----------------------------------------------------------------------------
@@ -361,7 +336,7 @@ begin  -- architecture rtl
 
   i_fp_pipe : fp_pipe
     generic map (
-      WIDTH     => MAXWIDTH(FORMATS),
+      WIDTH     => WIDTH(DSTENCODING),
       LATENCY   => LATENCY,
       TAG_WIDTH => TAG_WIDTH)
     port map (

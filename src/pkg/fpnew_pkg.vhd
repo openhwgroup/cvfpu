@@ -6,25 +6,21 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-08
--- Last update: 2018-04-09
+-- Last update: 2018-06-20
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description:
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE;
@@ -246,13 +242,14 @@ package fpnew_pkg is
   --! | F2I        | Cast: Float to Signed Integer | Cast: Float to Unsigned Integer | \c CONV
   --! | I2F        | Cast: Signed Integer to Float | Cast: Unsigned Integer to Float | \c CONV
   --! | F2F        | Cast: Float to Float | \e n/a | \c CONV
-  --! | CPK        | Cast and Pack | \e n/a | *n/a*
+  --! | CPKAB      | Cast and Pack to Entries 0,1  | Cast and Pack to Entries 2,3 | \c CONV
+  --! | CPKCD      | Cast and Pack to Entries 4,5  | Cast and Pack to Entries 6,7 | \c CONV
   --! \warning Enumerated literals are encoded in order! Only add entries at
   --! <em> THE END </em> of the list or you will break backwards compatibility
   --! to fixed upstream circuits.
   type fpOp_t is (FMADD, FNMSUB, ADD, MUL, DIV, SQRT,
                   SGNJ, MINMAX, CMP, CLASS,
-                  F2I, I2F, F2F, CPK);
+                  F2I, I2F, F2F, CPKAB, CPKCD);
 
   --! @brief Array of booleans for each operation
   --! @details Array of BOOLEAN that hold a value for each \ref fpOp_t
@@ -317,6 +314,12 @@ package fpnew_pkg is
   --! @returns Positive one (+1.0) encoded in the FP format
   --! @retval STD_LOGIC_VECTOR(EXP_BITS+MAN_BITS downto 0)
   function ONE (constant EXP_BITS : natural; constant MAN_BITS : natural)
+    return std_logic_vector;
+
+  --! @brief Bit-pattern for -0.0 for FP format
+  --! @returns Negative zero (-0.0) encoded in the FP format
+  --! @retval STD_LOGIC_VECTOR(EXP_BITS+MAN_BITS downto 0)
+  function NEGZERO (constant EXP_BITS : natural; constant MAN_BITS : natural)
     return std_logic_vector;
 
   --! @brief Bit-pattern for largest normal absolute number in FP format
@@ -663,6 +666,17 @@ package body fpnew_pkg is
 
   -----------------------------------------------------------------------------
 
+  function NEGZERO (constant EXP_BITS : natural; constant MAN_BITS : natural)
+    return std_logic_vector is
+    variable res : std_logic_vector(EXP_BITS+MAN_BITS downto 0);
+  begin  -- function ONE
+    res := (others => '0');
+    res(EXP_BITS+MAN_BITS) := '1';
+    return res;
+  end function NEGZERO;
+
+  -----------------------------------------------------------------------------
+
   function MAXNORMAL (constant EXP_BITS : natural; constant MAN_BITS : natural)
     return std_logic_vector is
     variable res : std_logic_vector(EXP_BITS+MAN_BITS-1 downto 0);
@@ -691,7 +705,7 @@ package body fpnew_pkg is
       when FMADD | FNMSUB | ADD | MUL => return ADDMUL;
       when DIV | SQRT => return DIVSQRT;
       when SGNJ | MINMAX | CMP | CLASS => return NONCOMP;
-      when F2I | I2F | F2F => return CONV;
+      when F2I | I2F | F2F | CPKAB | CPKCD => return CONV;
       when others =>
         -- pragma synthesis_off
         report "Operation '" & fpOp_t'image(op) & "' is not bound to an OpGroup!" severity failure;

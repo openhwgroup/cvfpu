@@ -9,8 +9,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ### Added
 
 - Bender support for FPnew
+- Expose per-opgroup unit type generics in `fpnew_top`
+- Doxygen `doxyfile`
+- Getting started blab in `README.md`
 
 ### Fixed
+
+- Integer format activation for vectorial conversions
+- Underflow behavior of F2F casts
+
 
 ## [0.2.0] - 2018-04-22
 
@@ -30,6 +37,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Divider/Sqrt unit losing track of the tag
 - Divider inputs are now compatible with non-64bit units
 - FP8 properly mapped to FP16 in in div/sqrt unit
+
 
 ## [0.1.0] - 2018-04-13
 

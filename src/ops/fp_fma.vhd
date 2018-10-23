@@ -21,19 +21,15 @@
 --                   ISA, Document Version 2.2", Editors Andrew Waterman and
 --                   Krste Asanović, RISC-V Foundation, May 2017
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 
@@ -235,8 +231,8 @@ begin  -- architecture rtl
   --! | FMADD    | \c 1        | FMSUB: Invert sign of operand C
   --! | FNMSUB   | \c 0        | FNMSUB: Invert sign of operand A
   --! | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
-  --! | ADDSUB   | \c 0        | ADD: Set operand A to +1.0
-  --! | ADDSUB   | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
+  --! | ADD      | \c 0        | ADD: Set operand A to +1.0
+  --! | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
   --! | MUL      | \c 0        | MUL: Set operand C to +0.0
   --! | *others* | \c -        | *invalid*
   --! \note \c OpMod_SI always inverts the sign of the addend.
@@ -277,8 +273,8 @@ begin  -- architecture rtl
 
       -- MUL
       when (MUL) =>
-        -- set addend to positive zero
-        C_D    <= (others => '0');
+        -- set addend to negative zero
+        C_D    <= NEGZERO(EXP_BITS, MAN_BITS);
         CBox_S <= '1';
 
       -- Unused operations -> OPTIMIZE AWAY

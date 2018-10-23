@@ -13,19 +13,15 @@
 -- Description: Wrapper for pipeline stages to be inserted at the output of
 --              individual FP operations.
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -136,20 +132,31 @@ begin  -- architecture rtl
     process (Clk_CI, Reset_RBI) is
     begin  -- process
       if Reset_RBI = '0' then           -- asynchronous reset (active low)
-        ResPipe_D(i+1)   <= (others => '0');
-        StatPipe_D(i+1)  <= (others => '0');
-        TagPipe_D(i+1)   <= (others => '0');
+        --ResPipe_D(i+1)   <= (others => '0');
+        --StatPipe_D(i+1)  <= (others => '0');
+        --TagPipe_D(i+1)   <= (others => '0');
         ValidPipe_S(i+1) <= '0';
       elsif Clk_CI'event and Clk_CI = '1' then  -- rising clock edge
-        if (StageReady_S(i) or Flush_SI) = '1' then   -- Only advance pipeline if we're ready
-          ValidPipe_S(i+1) <= ValidPipe_S(i) and not Flush_SI;
-          if ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
-            ResPipe_D(i+1)  <= ResPipe_D(i);
-            StatPipe_D(i+1) <= StatPipe_D(i);
-            TagPipe_D(i+1)  <= TagPipe_D(i);
-          end if;
+        if Flush_SI = '1' then
+          ValidPipe_S(i+1) <= '0';
+        elsif StageReady_S(i) = '1' then -- only advance pipeline if we're ready
+          ValidPipe_S(i+1) <= ValidPipe_S(i);
+        end if;
+
+        if StageReady_S(i) = '1' and ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
+          ResPipe_D(i+1)  <= ResPipe_D(i);
+          StatPipe_D(i+1) <= StatPipe_D(i);
+          TagPipe_D(i+1)  <= TagPipe_D(i);
         end if;
       end if;
+        --if (StageReady_S(i) or Flush_SI) = '1' then   -- Only advance pipeline if we're ready
+        --  ValidPipe_S(i+1) <= ValidPipe_S(i) and not Flush_SI;
+        --  if ValidPipe_S(i) = '1' then  -- Clock-gate data unless we're valid
+        --    ResPipe_D(i+1)  <= ResPipe_D(i);
+        --    StatPipe_D(i+1) <= StatPipe_D(i);
+        --    TagPipe_D(i+1)  <= TagPipe_D(i);
+        --  end if;
+        --end if;
     end process;
 
   end generate g_pipeStage;

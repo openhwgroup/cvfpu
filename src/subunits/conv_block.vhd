@@ -6,25 +6,21 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-04-05
--- Last update: 2018-04-18
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description:
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -150,45 +146,138 @@ begin  -- architecture rtl
     g_activeOps : if FORMATS.Active(fmt) generate
 
       -- Enable signals are format-specific
-      signal InValid_S : std_logic;
+      signal F2FInValid_S, IntInValid_S : std_logic;
+      signal F2FInReady_S, IntInReady_S : std_logic;
+      signal F2FResult_D, IntResult_D   : std_logic_vector(Z_DO'range);
+      signal F2FStatus_D, IntStatus_D   : rvStatus_t;
+      signal F2FZext_S, IntZext_S       : std_logic;
+
+      signal F2FOutValid_S, IntOutValid_S : std_logic;
+      signal F2FOutReady_S, IntOutReady_S : std_logic;
+
+      signal TagInt_D, TagPiped_D : std_logic_vector(TAG_WIDTH downto 0);
+      signal PipeInRes_D          : std_logic_vector(Z_DO'range);
+      signal PipeInStatus_D       : rvStatus_t;
+      signal PipeInZext_S         : std_logic;
+      signal PipeInReady_S        : std_logic;
+      signal PipeInValid_S        : std_logic;
+
 
     begin
 
       -- Generate enable logic for the format: only valid if format selected
-      InValid_S <= InValid_SI and to_sl(FpFmt_SI = fmt);
+      -- F2F cast insts have fixed src FMT
+      F2FInValid_S <= InValid_SI and to_sl(FpFmt2_SI = fmt and (Op_SI = F2F or Op_SI = CPKAB or Op_SI = CPKCD));
+      -- Int casts use only FpFmt_SI
+      IntInValid_S <= InValid_SI and to_sl(FpFmt_SI = fmt and (Op_SI = I2F or Op_SI = F2I));
 
       -------------------------------------------------------------------------
       -- Generate format-specific subunits for float formats (parallel)
       -------------------------------------------------------------------------
       g_parallelOps : if UNITTYPES(fmt) = PARALLEL generate
 
-        --i_noncomp_fmt_slice : noncomp_fmt_slice
-        --  generic map (
-        --    EXP_BITS    => FORMATS.Encoding(fmt).ExpBits,
-        --    MAN_BITS    => FORMATS.Encoding(fmt).ManBits,
-        --    LATENCY     => LATENCIES(fmt),
-        --    SLICE_WIDTH => WIDTH,
-        --    GENVECTORS  => GENVECTORS,
-        --    TAG_WIDTH   => TAG_WIDTH)
-        --  port map (
-        --    Clk_CI         => Clk_CI,
-        --    Reset_RBI      => Reset_RBI,
-        --    A_DI           => A_DI,
-        --    B_DI           => B_DI,
-        --    C_DI           => C_DI,
-        --    RoundMode_SI   => RoundMode_SI,
-        --    Op_SI          => Op_SI,
-        --    OpMod_SI       => OpMod_SI,
-        --    VectorialOp_SI => VectorialOp_SI,
-        --    Tag_DI         => Tag_DI,
-        --    InValid_SI     => InValid_S,
-        --    InReady_SO     => FmtInReady_S(fmt),
-        --    Z_DO           => FmtOutResult_D(fmt),
-        --    Status_DO      => FmtOutStatus_D(fmt),
-        --    Tag_DO         => FmtOutTags_D(fmt),
-        --    Zext_SO        => FmtOutZext_S(fmt),
-        --    OutValid_SO    => FmtOutValid_S(fmt),
-        --    OutReady_SI    => FmtOutReady_S(fmt));
+        i_conv_fmt_slice : conv_fmt_slice
+          generic map (
+            FORMATS     => FORMATS,
+            CPKFORMATS  => (FP64 => true, FP32 => true, others => false),
+            SRCFMT      => fmt,
+            LATENCY     => 0,
+            SLICE_WIDTH => WIDTH,
+            GENVECTORS  => GENVECTORS,
+            TAG_WIDTH   => 1)
+          port map (
+            Clk_CI         => Clk_CI,
+            Reset_RBI      => Reset_RBI,
+            A_DI           => A_DI,
+            B_DI           => B_DI,
+            C_DI           => C_DI,
+            ABox_SI        => ABox_SI(fmt),
+            BBox_SI        => BBox_SI(fmt),
+            CBox_SI        => CBox_SI(fmt),
+            RoundMode_SI   => RoundMode_SI,
+            Op_SI          => Op_SI,
+            OpMod_SI       => OpMod_SI,
+            FpFmt_SI       => FpFmt_SI,
+            VectorialOp_SI => VectorialOp_SI,
+            Tag_DI         => "-",
+            InValid_SI     => F2FInValid_S,
+            InReady_SO     => F2FInReady_S,
+            Flush_SI       => Flush_SI,
+            Z_DO           => F2FResult_D,
+            Status_DO      => F2FStatus_D,
+            Tag_DO         => open,
+            Zext_SO        => F2FZext_S,
+            OutValid_SO    => F2FOutValid_S,
+            OutReady_SI    => PipeInReady_S);
+
+
+        i_conv_ifmt_slice : conv_ifmt_slice
+          generic map (
+            INTFORMATS  => INTFORMATS,
+            FPENCODING  => FORMATS.Encoding(fmt),
+            LATENCY     => 0,
+            SLICE_WIDTH => WIDTH,
+            GENVECTORS  => GENVECTORS,
+            TAG_WIDTH   => 1)
+          port map (
+            Clk_CI         => Clk_CI,
+            Reset_RBI      => Reset_RBI,
+            A_DI           => A_DI,
+            ABox_SI        => ABox_SI(fmt),
+            RoundMode_SI   => RoundMode_SI,
+            Op_SI          => Op_SI,
+            OpMod_SI       => OpMod_SI,
+            IntFmt_SI      => IntFmt_SI,
+            VectorialOp_SI => VectorialOp_SI,
+            Tag_DI         => "-",
+            InValid_SI     => IntInValid_S,
+            InReady_SO     => IntInReady_S,
+            Flush_SI       => Flush_SI,
+            Z_DO           => IntResult_D,
+            Status_DO      => IntStatus_D,
+            Tag_DO         => open,
+            Zext_SO        => IntZext_S,
+            OutValid_SO    => IntOutValid_S,
+            OutReady_SI    => PipeInReady_S);
+
+        PipeInRes_D <= F2FResult_D when (Op_SI = F2F or Op_SI = CPKAB or Op_SI = CPKCD) else
+                       IntResult_D when (Op_SI = I2F or Op_SI = F2I) else
+                       (others => '-');
+        PipeInStatus_D <= F2FStatus_D when (Op_SI = F2F or Op_SI = CPKAB or Op_SI = CPKCD) else
+                          IntStatus_D when (Op_SI = I2F or Op_SI = F2I) else
+                          (others => '-');
+        PipeInZext_S <= F2FZext_S when (Op_SI = F2F or Op_SI = CPKAB or Op_SI = CPKCD) else
+                        IntZext_S when (Op_SI = I2F or Op_SI = F2I) else
+                        '-';
+
+        PipeInValid_S <= F2FOutValid_S when (Op_SI = F2F or Op_SI = CPKAB or Op_SI = CPKCD) else
+                         IntOutValid_S when (Op_SI = I2F or Op_SI = F2I) else
+                         '0';
+
+        TagInt_D <= PipeInZext_S & Tag_DI;
+
+        i_fp_pipe : fp_pipe
+          generic map (
+            WIDTH     => WIDTH,
+            LATENCY   => largestActiveLatency(LATENCIES, FORMATS),
+            TAG_WIDTH => TAG_WIDTH+1)
+          port map (
+            Clk_CI         => Clk_CI,
+            Reset_RBI      => Reset_RBI,
+            Result_DI      => PipeInRes_D,
+            Status_DI      => PipeInStatus_D,
+            Tag_DI         => TagInt_D,
+            InValid_SI     => PipeInValid_S,
+            InReady_SO     => PipeInReady_S,
+            Flush_SI       => Flush_SI,
+            ResultPiped_DO => FmtOutResult_D(fmt),
+            StatusPiped_DO => FmtOutStatus_D(fmt),
+            TagPiped_DO    => TagPiped_D,
+            OutValid_SO    => FmtOutValid_S(fmt),
+            OutReady_SI    => FmtOutReady_S(fmt));
+
+        FmtOutZext_S(fmt) <= TagPiped_D(TAG_WIDTH);
+        FmtOutTags_D(fmt) <= TagPiped_D(TAG_WIDTH-1 downto 0);
 
       end generate g_parallelOps;
 
@@ -241,6 +330,7 @@ begin  -- architecture rtl
       generic map (
         FORMATS     => MERGEDFORMATS,
         INTFORMATS  => INTFORMATS,
+        CPKFORMATS  => (FP64 => true, FP32 => true, others => false),
         LATENCIES   => LATENCIES,
         SLICE_WIDTH => WIDTH,
         GENVECTORS  => GENVECTORS,

@@ -3,8 +3,8 @@ package:
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
-  common_cells: {git: "git@iis-git.ee.ethz.ch:sasa/common_cells.git", rev: master}
-  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:pulp-open/fpu.git", rev: master}
+  common_cells: {git: "https://github.com/pulp-platform/common_cells.git", version: 1.7.5}
+  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:sasa/fpu.git", rev: master}
 
 sources:
   - src/pkg/fpnew_pkg.vhd
@@ -26,7 +26,9 @@ sources:
   - src/subunits/addmul_block.vhd
   - src/subunits/conv_multifmt_slice.vhd
   - src/subunits/conv_block.vhd
+  - src/subunits/divsqrt_block.vhd
   - src/subunits/divsqrt_multifmt_slice.vhd
+  - src/subunits/divsqrt_block.vhd
   - src/subunits/noncomp_fmt_slice.vhd
   - src/subunits/noncomp_block.vhd
   - src/fpnew.vhd

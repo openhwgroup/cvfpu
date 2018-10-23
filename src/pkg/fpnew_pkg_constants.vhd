@@ -12,19 +12,15 @@
 -------------------------------------------------------------------------------
 -- Description: Exposes constants from the fpnew_pkg package as ports
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -52,7 +48,8 @@ entity fpnew_pkg_constants is
     OP_F2I     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     OP_I2F     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     OP_F2F     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
-    OP_CPK     : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
+    OP_CPKAB   : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
+    OP_CPKCD   : out std_logic_vector(clog2(fpOp_t'pos(fpOp_t'high))-1 downto 0);
     --FP FORMATS--------------------------------------------------------------
     FMT_NUMBITS : out integer;
     FMT_FP32    : out std_logic_vector(clog2(fpFmt_t'pos(fpFmt_t'high))-1 downto 0);
@@ -92,7 +89,8 @@ architecture arch of fpnew_pkg_constants is
   constant C_OP_F2I     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(F2I), C_OP_NUMBITS));
   constant C_OP_I2F     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(I2F), C_OP_NUMBITS));
   constant C_OP_F2F     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(F2F), C_OP_NUMBITS));
-  constant C_OP_CPK     : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPK), C_OP_NUMBITS));
+  constant C_OP_CPKAB   : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPKAB), C_OP_NUMBITS));
+  constant C_OP_CPKCD   : std_logic_vector(C_OP_NUMBITS-1 downto 0) := std_logic_vector(to_unsigned(fpOp_t'pos(CPKCD), C_OP_NUMBITS));
 
   -----------------------------------------------------------------------------
   -- FP Format Encoding
@@ -132,7 +130,8 @@ begin -- architecture arch
   OP_F2I     <= C_OP_F2I;
   OP_I2F     <= C_OP_I2F;
   OP_F2F     <= C_OP_F2F;
-  OP_CPK     <= C_OP_CPK;
+  OP_CPKAB   <= C_OP_CPKAB;
+  OP_CPKCD   <= C_OP_CPKCD;
 
   FMT_NUMBITS <= C_FMT_NUMBITS;
   FMT_FP32    <= C_FMT_FP32;

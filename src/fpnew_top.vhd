@@ -6,25 +6,21 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-24
--- Last update: 2018-04-18
+-- Last update: 2018-10-10
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description: Converts to package-specific formats to standard logic types
 -------------------------------------------------------------------------------
--- Copyright (C) 2018 ETH Zurich, University of Bologna
--- All rights reserved.
---
--- This code is under development and not yet released to the public.
--- Until it is released, the code is under the copyright of ETH Zurich and
--- the University of Bologna, and may contain confidential and/or unpublished
--- work. Any reuse/redistribution is strictly forbidden without written
--- permission from ETH Zurich.
---
--- Bug fixes and contributions will eventually be released under the
--- SolderPad open hardware license in the context of the PULP platform
--- (http://www.pulp-platform.org), under the copyright of ETH Zurich and the
--- University of Bologna.
+-- Copyright 2018 ETH Zurich and University of Bologna.
+-- Copyright and related rights are licensed under the Solderpad Hardware
+-- License, Version 0.51 (the "License"); you may not use this file except in
+-- compliance with the License.  You may obtain a copy of the License at
+-- http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+-- or agreed to in writing, software, hardware and materials distributed under
+-- this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
 library IEEE, fpnew_lib;
@@ -52,16 +48,17 @@ entity fpnew_top is
     TYPE_ADDMUL  : natural := unitType_t'pos(PARALLEL);
     TYPE_DIVSQRT : natural := unitType_t'pos(MERGED);
     TYPE_NONCOMP : natural := unitType_t'pos(PARALLEL);
-    TYPE_CONV    : natural := unitType_t'pos(MERGED);
+    TYPE_CONV    : natural := unitType_t'pos(PARALLEL);
 
-    LATENCY_COMP_F       : natural := 0;   -- Latency of FP32 comp. ops
-    LATENCY_COMP_D       : natural := 0;   -- Latency of FP64 comp. ops
-    LATENCY_COMP_Xf16    : natural := 0;   -- Latency of FP16 comp. ops
-    LATENCY_COMP_Xf16alt : natural := 0;   -- Latency of FP16alt comp. ops
-    LATENCY_COMP_Xf8     : natural := 0;   -- Latency of FP8 comp. ops
-    LATENCY_DIVSQRT      : natural := 0;   -- Latency of div/sqrt. postprocessing
-    LATENCY_NONCOMP      : natural := 0;   -- Latency of non-comp. ops
-    LATENCY_CONV         : natural := 0;   -- Latency of conversion ops
+    LATENCY_COMP_F       : natural := 0;  -- Latency of FP32 comp. ops
+    LATENCY_COMP_D       : natural := 0;  -- Latency of FP64 comp. ops
+    LATENCY_COMP_Xf16    : natural := 0;  -- Latency of FP16 comp. ops
+    LATENCY_COMP_Xf16alt : natural := 0;  -- Latency of FP16alt comp. ops
+    LATENCY_COMP_Xf8     : natural := 0;  -- Latency of FP8 comp. ops
+    LATENCY_DIVSQRT      : natural := 0;  -- Latency of div/sqrt. postprocessing
+    LATENCY_NONCOMP      : natural := 0;  -- Latency of non-comp. ops
+    LATENCY_CONV         : natural := 0;  -- Latency of conversion ops
+
     ENFORCE_INPUT_NANBOX : boolean := true);  -- Enforce input NaN-boxing
 
   port (
@@ -77,6 +74,7 @@ entity fpnew_top is
     FpFmt2_SI        : in  std_logic_vector(clog2(fpFmt_t'pos(fpFmt_t'high))-1 downto 0);
     IntFmt_SI        : in  std_logic_vector(clog2(intFmt_t'pos(intFmt_t'high))-1 downto 0);
     Tag_DI           : in  std_logic_vector(TAG_WIDTH-1 downto 0);
+    PrecCtl_SI       : in  std_logic_vector(6 downto 0);
     ---------------------------------------------------------------------------
     InValid_SI       : in  std_logic;
     InReady_SO       : out std_logic;
@@ -109,7 +107,7 @@ architecture rtl of fpnew_top is
 
   constant INTFORMATS : activeIntFormats_t := (Active => (W      => true,
                                                           D      => RV64,
-                                                          others => false),
+                                                          others => Xfvec),
                                                Length => INTFMTLENGTHS);
 
   constant LATENCIES : opGroupFmtNaturals_t := (ADDMUL  => (FP32    => LATENCY_COMP_F,
@@ -121,12 +119,12 @@ architecture rtl of fpnew_top is
                                                 DIVSQRT => (others  => LATENCY_DIVSQRT),
                                                 NONCOMP => (others => LATENCY_NONCOMP),
                                                 CONV    => (others => LATENCY_CONV),
-                                                others  => (others  => 0));
+                                                others  => (others => 0));
 
-  constant UNITTYPES  : opGroupFmtUnitTypes_t := (ADDMUL  => (others => PARALLEL),
-                                                  DIVSQRT => (others => NONE),
-                                                  NONCOMP => (others => PARALLEL),
-                                                  CONV    => (others => MERGED));
+  constant UNITTYPES : opGroupFmtUnitTypes_t := (ADDMUL  => (others => unitType_t'val(TYPE_ADDMUL)),
+                                                 DIVSQRT => (others => unitType_t'val(TYPE_DIVSQRT)),
+                                                 NONCOMP => (others => unitType_t'val(TYPE_NONCOMP)),
+                                                 CONV    => (others => unitType_t'val(TYPE_CONV)));
 
   -----------------------------------------------------------------------------
   -- Signal Declarations
@@ -136,7 +134,7 @@ architecture rtl of fpnew_top is
 
 begin  -- architecture rtl
 
-  i_fpnew: fpnew
+  i_fpnew : fpnew
     generic map (
       FORMATS    => FORMATS,
       INTFORMATS => INTFORMATS,
@@ -159,6 +157,7 @@ begin  -- architecture rtl
       FpFmt2_SI      => to_fpFmt(FpFmt2_SI),
       IntFmt_SI      => to_intFmt(IntFmt_SI),
       Tag_DI         => Tag_DI,
+      PrecCtl_SI     => PrecCtl_SI,
       InValid_SI     => InValid_SI,
       InReady_SO     => InReady_SO,
       Flush_SI       => Flush_SI,
@@ -174,58 +173,58 @@ begin  -- architecture rtl
 end architecture rtl;
 
 
-configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity fpnew_lib.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32 to FP16ALT  => true,
-                                   others  => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => true,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32 to FP16ALT  => true,
+--                                   others  => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => true,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV64FDXf16_Xf16alt_Xf8;
 
-configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity fpnew_lib.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32 to FP16ALT  => true,
-                                   others  => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => false,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32 to FP16ALT  => true,
+--                                   others  => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => false,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV32FDXf16_Xf16alt_Xf8;
 
-configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8 of fpnew_top is
+--configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8 of fpnew_top is
 
-  for rtl
-    for all : fpnew
-      use entity fpnew_lib.fpnew
-        generic map (
-          FORMATS => (Active   => (FP32             => true,
-                                   FP64             => false,
-                                   FP16 to FP16ALT  => true,
-                                   others           => false),
-                      Encoding => DEFAULTENCODING),
-          INTFORMATS => (Active => (W      => true,
-                                    D      => false,
-                                    others => false),
-                         Length => INTFMTLENGTHS));
-    end for;
-  end for;
+--  for rtl
+--    for all : fpnew
+--      use entity work.fpnew
+--        generic map (
+--          FORMATS => (Active   => (FP32             => true,
+--                                   FP64             => false,
+--                                   FP16 to FP16ALT  => true,
+--                                   others           => false),
+--                      Encoding => DEFAULTENCODING),
+--          INTFORMATS => (Active => (W      => true,
+--                                    D      => false,
+--                                    others => false),
+--                         Length => INTFMTLENGTHS));
+--    end for;
+--  end for;
 
-end configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8;
+--end configuration cfg_fpnew_RV32FXf16_Xf16alt_Xf8;
