@@ -345,11 +345,6 @@ begin
   -- Output of slice is vectorial if the output vectorial tag is set (lane 0)
   ResultVectorial_S <= LaneTags_S(0)(TAG_WIDTH);
 
-  -- Restore the destination format width
-  ResultFpFmt_S    <= to_fpFmt(LaneTags_S(0)(FMTBITS+TAG_WIDTH downto TAG_WIDTH+1));
-  ResultIntFmt_S   <= to_intFmt(LaneTags_S(0)(IFMTBITS+TAG_WIDTH downto TAG_WIDTH+1));
-  IsResultFmtInt_S <= LaneTags_S(0)(TAGINT_WIDTH-1);
-
   -- Target for vectorial casts needs to follow the pipeline
   i_target_pipe : fp_pipe
     generic map (
