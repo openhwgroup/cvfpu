@@ -315,7 +315,7 @@ begin  -- architecture rtl
 
 
   p_finalAdjustPrepare : process (all) is
-    variable MantShamtInt_S : natural;
+    variable MantShamtInt_S : integer;
   begin  -- process p_finalAdjust
 
     -- Default assignments

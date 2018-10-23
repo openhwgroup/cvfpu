@@ -201,8 +201,9 @@ begin  -- architecture rtl
 
     -- Zero-extend subtree index to shared subindex width
     p_subtreeIdx : process (all) is
-      variable LeftIdx_S : std_logic_vector(LeftOutIdx_S'range) := (others => '0');
+      variable LeftIdx_S : std_logic_vector(SUBIDX_WIDTH-1 downto 0);
     begin
+      LeftIdx_S := (others => '0')
       LeftIdx_S(NarrowIdx_S'range) := NarrowIdx_S;
 
       LeftOutIdx_S <= LeftIdx_S;
@@ -272,8 +273,9 @@ begin  -- architecture rtl
 
     -- Zero-extend subtree index to shared subindex width
     p_subtreeIdx : process (all) is
-      variable RightIdx_S : std_logic_vector(RightOutIdx_S'range) := (others => '0');
+      variable RightIdx_S : std_logic_vector(SUBIDX_WIDTH-1 downto 0);
     begin
+      RightIdx_S := (others => '0')
       RightIdx_S(NarrowIdx_S'range) := NarrowIdx_S;
 
       RightOutIdx_S <= RightIdx_S;
