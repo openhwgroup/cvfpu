@@ -333,7 +333,7 @@ begin  -- architecture rtl
         Result := VecResult;
         Status := VecStatus;
       -- Scalars
-      else
+      elsif NUMDSTENTRIES > 0 then
         Result(0) := DstResults_D(0);
         Status(0) := LaneStatus_D(0);
       end if;
