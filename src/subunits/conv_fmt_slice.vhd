@@ -256,94 +256,98 @@ begin  -- architecture rtl
       variable CPKStatus, VecStatus, Status : statusArray_t(0 to NUMDSTENTRIES-1);
     begin  -- process p_assembleResult
 
-      -- Default assignments
-      Result    := (others => (others => not LaneZext_S(0)));
-      CPKResult := (others => (others => not LaneZext_S(0)));
-      VecResult := (others => (others => not LaneZext_S(0)));
-      CPKOffset := 0;
-      Status    := (others => (others => '0'));
-      CPKStatus := (others => (others => '0'));
-      VecStatus := (others => (others => '0'));
+      if NUMDSTENTRIES > 0 then
 
-      -- CPK
-      if GENVECTORS and NUMDSTENTRIES>1 then
-        -- inserts two entries depending on offset: A=0, B=2, C=4, D=6
-        if NUMDSTENTRIES > 2 then
-          CPKOffset := CPKOffset + 2*to_integer(OpMod_SI);
-        end if;
-        if NUMDSTENTRIES > 4 then
-          CPKOffset := CPKOffset + 4*to_integer(Op_SI = CPKCD);
-        end if;
+        -- Default assignments
+        Result    := (others => (others => not LaneZext_S(0)));
+        CPKResult := (others => (others => not LaneZext_S(0)));
+        VecResult := (others => (others => not LaneZext_S(0)));
+        CPKOffset := 0;
+        Status    := (others => (others => '0'));
+        CPKStatus := (others => (others => '0'));
+        VecStatus := (others => (others => '0'));
 
-        for i in 0 to NUMDSTENTRIES-1 loop
-          -- CPK merges into C_DI
-          CPKResult(i) := C_DI((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH);
-        end loop;  -- i
+        -- CPK
+        if GENVECTORS and NUMDSTENTRIES>1 then
+          -- inserts two entries depending on offset: A=0, B=2, C=4, D=6
+          if NUMDSTENTRIES > 2 then
+            CPKOffset := CPKOffset + 2*to_integer(OpMod_SI);
+          end if;
+          if NUMDSTENTRIES > 4 then
+            CPKOffset := CPKOffset + 4*to_integer(Op_SI = CPKCD);
+          end if;
 
-        -- CPK insertions
-        CPKResult(CPKOffset) := DstResults_D(0);
-        CPKStatus(0)         := LaneStatus_D(0);
-        if NUMDSTENTRIES > 1 then
-          CPKResult(CPKOffset+1) := DstResults_D(1);
-          CPKStatus(1)           := LaneStatus_D(1);
-        end if;
-      end if;
-
-      -- Vectors
-      if GENVECTORS then
-        for i in 0 to NUMDSTENTRIES-1 loop
-          -- Vectorial casts merge into B_DI
-          VecResult(i) := B_DI((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH);
-        end loop;
-
-        -- upcasts have fewer entries in dst than in src
-        if ISUPCAST then
           for i in 0 to NUMDSTENTRIES-1 loop
-            if IsUpperVecCast_S then
-              VecResult(i) := DstResults_D(i+NUMSRCENTRIES/2);
-              VecStatus(i) := LaneStatus_D(i+NUMSRCENTRIES/2);
-            else
+            -- CPK merges into C_DI
+            CPKResult(i) := C_DI((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH);
+          end loop;  -- i
+
+          -- CPK insertions
+          CPKResult(CPKOffset) := DstResults_D(0);
+          CPKStatus(0)         := LaneStatus_D(0);
+          if NUMDSTENTRIES > 1 then
+            CPKResult(CPKOffset+1) := DstResults_D(1);
+            CPKStatus(1)           := LaneStatus_D(1);
+          end if;
+        end if;
+
+        -- Vectors
+        if GENVECTORS then
+          for i in 0 to NUMDSTENTRIES-1 loop
+            -- Vectorial casts merge into B_DI
+            VecResult(i) := B_DI((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH);
+          end loop;
+
+          -- upcasts have fewer entries in dst than in src
+          if ISUPCAST then
+            for i in 0 to NUMDSTENTRIES-1 loop
+              if IsUpperVecCast_S then
+                VecResult(i) := DstResults_D(i+NUMSRCENTRIES/2);
+                VecStatus(i) := LaneStatus_D(i+NUMSRCENTRIES/2);
+              else
+                VecResult(i) := DstResults_D(i);
+                VecStatus(i) := LaneStatus_D(i);
+              end if;
+            end loop;  -- i
+          -- downcasts have more entries in dst than in src
+          elsif ISDOWNCAST then
+            for i in 0 to NUMSRCENTRIES-1 loop
+              if IsUpperVecCast_S then
+                VecResult(i+NUMDSTENTRIES/2) := DstResults_D(i);
+              else
+                VecResult(i) := DstResults_D(i);
+              end if;
+              VecStatus(i) := LaneStatus_D(i);
+            end loop;
+          -- samecasts don't have upper cast
+          else
+            for i in 0 to NUMDSTENTRIES-1 loop
               VecResult(i) := DstResults_D(i);
               VecStatus(i) := LaneStatus_D(i);
-            end if;
-          end loop;  -- i
-        -- downcasts have more entries in dst than in src
-        elsif ISDOWNCAST then
-          for i in 0 to NUMSRCENTRIES-1 loop
-            if IsUpperVecCast_S then
-              VecResult(i+NUMDSTENTRIES/2) := DstResults_D(i);
-            else
-              VecResult(i) := DstResults_D(i);
-            end if;
-            VecStatus(i) := LaneStatus_D(i);
-          end loop;
-        -- samecasts don't have upper cast
-        else
-          for i in 0 to NUMDSTENTRIES-1 loop
-            VecResult(i) := DstResults_D(i);
-            VecStatus(i) := LaneStatus_D(i);
-          end loop;  -- i
+            end loop;  -- i
+          end if;
         end if;
+
+        if IsCPKOp_S then
+          Result := CPKResult;
+          Status := CPKStatus;
+        elsif VectorialOp_S = '1' then
+          Result := VecResult;
+          Status := VecStatus;
+        -- Scalars
+        else
+          Result(0) := DstResults_D(0);
+          Status(0) := LaneStatus_D(0);
+        end if;
+
+        -- pack to dest vector
+        for i in 0 to NUMDSTENTRIES-1 loop
+          FmtResults_D(fmt)((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH) <= Result(i);
+        end loop;  -- i
+
+        FmtStatus_D(fmt) <= combined_status(Status);
+
       end if;
-
-      if IsCPKOp_S then
-        Result := CPKResult;
-        Status := CPKStatus;
-      elsif VectorialOp_S = '1' then
-        Result := VecResult;
-        Status := VecStatus;
-      -- Scalars
-      elsif NUMDSTENTRIES > 0 then
-        Result(0) := DstResults_D(0);
-        Status(0) := LaneStatus_D(0);
-      end if;
-
-      -- pack to dest vector
-      for i in 0 to NUMDSTENTRIES-1 loop
-        FmtResults_D(fmt)((i+1)*DSTFMT_WIDTH-1 downto i*DSTFMT_WIDTH) <= Result(i);
-      end loop;  -- i
-
-      FmtStatus_D(fmt) <= combined_status(Status);
 
     end process p_assembleResult;
 

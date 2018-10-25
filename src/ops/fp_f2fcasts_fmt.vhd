@@ -83,15 +83,15 @@ architecture rtl of fp_f2fcasts_fmt is
   -----------------------------------------------------------------------------
 
   -- Merger of the two formats
-  constant SUPERFMT : fpFmtEncoding_t := (ExpBits => maximum(SRCENCODING.ExpBits, DSTENCODING.ExpBits),
-                                             ManBits => maximum(SRCENCODING.ManBits, DSTENCODING.ManBits));
+  constant SUPERFMT : fpFmtEncoding_t := (ExpBits => maximum_t(SRCENCODING.ExpBits, DSTENCODING.ExpBits),
+                                          ManBits => maximum_t(SRCENCODING.ManBits, DSTENCODING.ManBits));
 
   -- Mantissa also holds implicit bit
   constant MANTWIDTH : natural := SUPERFMT.ManBits+1;
 
   -- Make exponent wide enough to hold internal exponents or readjustment
   -- shift amount in signed form
-  constant EXPWIDTH : natural := maximum(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
+  constant EXPWIDTH : natural := maximum_t(SUPERFMT.ExpBits+1, clog2(MANTWIDTH)+1);
 
 
   -----------------------------------------------------------------------------

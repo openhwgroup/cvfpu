@@ -69,7 +69,7 @@ architecture rtl of fp_arbiter is
   constant NUM_RIGHT : natural := NUM_INPUTS - NUM_LEFT;
 
   -- To avoid null slices, make sure subindices have at least one element
-  constant SUBIDX_WIDTH : natural := maximum(1,clog2(NUM_INPUTS)-1);
+  constant SUBIDX_WIDTH : natural := maximum_t(1,clog2(NUM_INPUTS)-1);
 
   -----------------------------------------------------------------------------
   -- Signal Declarations

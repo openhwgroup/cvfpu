@@ -90,7 +90,7 @@ architecture rtl of fp_f2icasts_fmt is
   constant INTWIDTH : natural := MAXWIDTH(INTFORMATS);
 
   -- Mantissa needs to be wide enough to hold implicit bit and integer width
-  constant MANTWIDTH : natural := maximum(SRCENCODING.ManBits+1, INTWIDTH);
+  constant MANTWIDTH : natural := maximum_t(SRCENCODING.ManBits+1, INTWIDTH);
 
   -- Make exponent wide enough to hold signed exponents
   constant EXPWIDTH : natural := SRCENCODING.ExpBits+1;
@@ -245,7 +245,9 @@ begin  -- architecture rtl
 
           SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0);
           -- Sign-extend integer result as per RISC-V ISA 2.3draft
-          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+          if INTWIDTH > INTFORMATS.Length(ifmt) then
+            SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+          end if;
 
         end if;
 
@@ -299,7 +301,9 @@ begin  -- architecture rtl
         -- mantissa
         IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= ShiftedMant_S(INTFORMATS.Length(ifmt)+SRCENCODING.ManBits+1 downto SRCENCODING.ManBits+2);
         -- Sign-extend integer result as per RISC-V ISA 2.3draft
-        IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+        if (INTWIDTH > INTFORMATS.Length(ifmt)) then
+          IntFmtFinalMant_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => IntFmtFinalMant_D(ifmt)(INTFORMATS.Length(ifmt)-1));
+        end if;
 
       end if;
     end loop;
@@ -319,8 +323,8 @@ begin  -- architecture rtl
   -- Round the result
   i_fp_rounding : fp_rounding
     generic map (
-      EXP_BITS => INTWIDTH,
-      MAN_BITS => 0)
+      EXP_BITS => INTWIDTH-1,
+      MAN_BITS => 1)
     port map (
       ResultAbs_DI     => FinalMant_D,
       ResultSign_DI    => Sign_D,

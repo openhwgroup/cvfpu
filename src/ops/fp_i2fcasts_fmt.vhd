@@ -87,11 +87,11 @@ architecture rtl of fp_i2fcasts_fmt is
   constant INTWIDTH : natural := MAXWIDTH(INTFORMATS);
 
   -- Mantissa needs to be wide enough to hold mantissa or integer width
-  constant MANTWIDTH : natural := maximum(DSTENCODING.ManBits, INTWIDTH);
+  constant MANTWIDTH : natural := maximum_t(DSTENCODING.ManBits, INTWIDTH);
 
   -- Make exponent wide enough to hold signed exponents or readjustment shift
   -- amount in signed form
-  constant EXPWIDTH : natural := maximum(DSTENCODING.ExpBits+1, clog2(MANTWIDTH)+1);
+  constant EXPWIDTH : natural := maximum_t(DSTENCODING.ExpBits+1, clog2(MANTWIDTH)+1);
 
 
   -----------------------------------------------------------------------------
@@ -184,8 +184,10 @@ begin  -- architecture rtl
         IntFmtInputs_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)
           <= A_DI(INTFORMATS.Length(ifmt)-1 downto 0);
 
-        IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
-          <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
+        if INTWIDTH > INTFORMATS.Length(ifmt) then
+          IntFmtInputs_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt))
+            <= (others => A_DI(INTFORMATS.Length(ifmt)-1) and not OpMod_SI);
+        end if;
 
       end if;
     end loop;

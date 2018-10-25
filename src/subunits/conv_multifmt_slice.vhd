@@ -107,7 +107,7 @@ architecture multi_inst of conv_multifmt_slice is
 
   constant FMTBITS      : natural := clog2(fpFmt_t'pos(fpFmt_t'high));
   constant IFMTBITS     : natural := clog2(intFmt_t'pos(intFmt_t'high));
-  constant FMTSLVBITS   : natural := maximum(FMTBITS, IFMTBITS);
+  constant FMTSLVBITS   : natural := maximum_t(FMTBITS, IFMTBITS);
   constant TAGINT_WIDTH : natural := TAG_WIDTH+FMTSLVBITS+1;
   constant VECTAG_WIDTH : natural := 3;  -- cpk flag + 2 shift option
   ---------------------------------------------------------------------------
