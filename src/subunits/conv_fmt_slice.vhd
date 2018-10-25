@@ -93,8 +93,8 @@ architecture rtl of conv_fmt_slice is
 
   -- The number of parallel lanes the slice can hold
   constant NUMSRCENTRIES : natural := SLICE_WIDTH/SRCFMT_WIDTH;
-  constant NUMSRCLANES : natural := maximum(NUMSRCENTRIES,
-                                            2*to_integer(CPKFORMATS(SRCFMT)));
+  constant NUMSRCLANES : natural := maximum_t(NUMSRCENTRIES,
+                                              2*to_integer(CPKFORMATS(SRCFMT)));
 
   -----------------------------------------------------------------------------
   -- Type Definitions
