@@ -41,7 +41,7 @@ entity fpnew_top is
     RVD     : boolean := false;         -- Enables FP64 format
     Xf16    : boolean := true;          -- Enables FP16 format
     Xf16alt : boolean := true;          -- Enables FP16alt format
-    Xf8     : boolean := true;          -- Enables FP8 format
+    Xf8     : boolean := false;         -- Enables FP8 format
     Xfvec   : boolean := true;          -- Generates vector for enabled formats
 
     -- Unit types for operation groups
