@@ -248,17 +248,17 @@ begin  -- architecture parallel_paths
   Result_D <= F2IResult_D when F2IOutValid_S = '1' else
               I2FResult_D when I2FOutValid_S = '1' else
               F2FResult_D when F2FOutValid_S = '1' else
-              (others => '-');
+              (others => '0');
 
   Status_D <= F2IOutStatus_D when F2IOutValid_S = '1' else
               I2FOutStatus_D when I2FOutValid_S = '1' else
               F2FOutStatus_D when F2FOutValid_S = '1' else
-              (others => '-');
+              (others => '0');
 
   Zext_S <= F2IZext_S when F2IOutValid_S = '1' else
             I2FZext_S when I2FOutValid_S = '1' else
             F2FZext_S when F2FOutValid_S = '1' else
-            '-';
+            '0';
 
   TagInt_D   <= Zext_S & Tag_DI;
   OutValid_S <= F2IOutValid_S or I2FOutValid_S or F2FOutValid_S;

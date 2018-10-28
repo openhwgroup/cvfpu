@@ -252,7 +252,7 @@ begin  -- architecture rtl
     extract_active_logic(ArbInValid_S, FmtOutValid_S, FORMATS);
 
     -- Input side output comes from used formats. set others don't care
-    FmtOutReady_S <= (others => '-');
+    FmtOutReady_S <= (others => '0');
     inject_active_logic(FmtOutReady_S, ArbInReady_S, FORMATS);
 
   end process p_arbInputSide;

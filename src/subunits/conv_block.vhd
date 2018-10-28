@@ -292,10 +292,10 @@ begin  -- architecture rtl
         FmtInReady_S(fmt) <= FmtInReady_S(firstMergedFormat(UNITTYPES, FORMATS));
 
         -- Disable output
-        FmtOutResult_D(fmt) <= (others => '-');  -- don't care
-        FmtOutStatus_D(fmt) <= (others => '-');  -- don't care
-        FmtOutTags_D(fmt)   <= (others => '-');  -- dont' care
-        FmtOutZext_S(fmt)   <= '-';              -- don't care
+        FmtOutResult_D(fmt) <= (others => '0');  -- don't care
+        FmtOutStatus_D(fmt) <= (others => '0');  -- don't care
+        FmtOutTags_D(fmt)   <= (others => '0');  -- dont' care
+        FmtOutZext_S(fmt)   <= '0';              -- don't care
         FmtOutValid_S(fmt)  <= '0';              -- disabled
 
       end generate g_mergedOpsUnused;
@@ -309,10 +309,10 @@ begin  -- architecture rtl
         FmtInReady_S(fmt) <= '0';
 
         -- Disable output
-        FmtOutResult_D(fmt) <= (others => '-');  -- don't care
-        FmtOutStatus_D(fmt) <= (others => '-');  -- don't care
-        FmtOutTags_D(fmt)   <= (others => '-');  -- dont' care
-        FmtOutZext_S(fmt)   <= '-';              -- don't care
+        FmtOutResult_D(fmt) <= (others => '0');  -- don't care
+        FmtOutStatus_D(fmt) <= (others => '0');  -- don't care
+        FmtOutTags_D(fmt)   <= (others => '0');  -- dont' care
+        FmtOutZext_S(fmt)   <= '0';              -- don't care
         FmtOutValid_S(fmt)  <= '0';              -- disabled
 
       end generate g_disabledOps;
@@ -392,7 +392,7 @@ begin  -- architecture rtl
     extract_active_logic(ArbInValid_S, FmtOutValid_S, FORMATS);
 
     -- Input side output comes from used formats. set others don't care
-    FmtOutReady_S <= (others => '-');
+    FmtOutReady_S <= (others => '0');
     inject_active_logic(FmtOutReady_S, ArbInReady_S, FORMATS);
 
   end process p_arbInputSide;
