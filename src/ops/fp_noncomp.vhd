@@ -386,7 +386,7 @@ begin  -- architecture rtl
 
     -- otherwise no valid op and optimize away
     else
-      ResArray_D(MINMAX) <= (others => '-');
+      ResArray_D(MINMAX) <= (others => '0');
 
     end if;
   end process p_minMax;
@@ -437,7 +437,7 @@ begin  -- architecture rtl
 
     -- otherwise no valid op and optimize away
     else
-      ResArray_D(CMP) <= (others => '-');
+      ResArray_D(CMP) <= (others => '0');
 
     end if;
   end process p_cmp;

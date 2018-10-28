@@ -118,7 +118,7 @@ begin  -- architecture condincr
     '1' when RoundMode_SI = RMM else
 
     -- All other cases are illegal and we can optimize away
-    '-';
+    '0';
 
   -- Change the final sign in case of true zero result rounding
   ResSignRnd_D <= '1' when (ResZero_SI and EffSub_SI and RoundMode_SI = RDN) else

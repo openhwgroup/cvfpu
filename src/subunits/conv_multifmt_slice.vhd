@@ -189,7 +189,7 @@ begin
   with Op_SI select DstFmtSlv_S <=
     std_logic_vector(resize(unsigned(to_slv(IntFmt_SI)), DstFmtSlv_S'length)) when F2I,
     std_logic_vector(resize(unsigned(to_slv(FpFmt_SI)), DstFmtSlv_S'length))  when F2F | CPKAB | CPKCD | I2F,
-    (others => '-')                                                           when others;  -- don't care
+    (others => '0')                                                           when others;  -- don't care
 
   IsDstFmtInt_S <= '1' when Op_SI = F2I else '0';
 

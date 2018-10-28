@@ -279,13 +279,13 @@ begin  -- architecture rtl
 
       -- Unused operations -> OPTIMIZE AWAY
       when others =>
-        A_D <= (others => '-');
-        B_D <= (others => '-');
-        C_D <= (others => '-');
+        A_D <= (others => '0');
+        B_D <= (others => '0');
+        C_D <= (others => '0');
 
-        ABox_S <= '-';
-        BBox_S <= '-';
-        CBox_S <= '-';
+        ABox_S <= '0';
+        BBox_S <= '0';
+        CBox_S <= '0';
 
     end case;
 
