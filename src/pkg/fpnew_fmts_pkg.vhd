@@ -153,10 +153,10 @@ package fpnew_fmts_pkg is
   --! | INT32      |  W    | Word        | 32 bit
   --! | INT64      |  D    | Double-Word | 64 bit
   type intFmt_t is (INT8, INT16, INT32, INT64);
-  alias B is INT8[return intFmt_t];
-  alias H is INT16[return intFmt_t];
-  alias W is INT32[return intFmt_t];
-  alias D is INT64[return intFmt_t];
+--  alias B is INT8[return intFmt_t];
+--  alias H is INT16[return intFmt_t];
+--  alias W is INT32[return intFmt_t];
+--  alias D is INT64[return intFmt_t];
 
   --! @brief Array of naturals for each integer format
   --! @details Array of NATURAL that holds a value for each integer format from
@@ -195,8 +195,8 @@ package fpnew_fmts_pkg is
 
   --! @brief Predefined integer format lengths
   --! @details Holds the lengths of each predefined entry of intFmt_t
-  constant INTFMTLENGTHS : intFmtNaturals_t := (B => 8, H => 16,
-                                                W => 32, D => 64);
+  constant INTFMTLENGTHS : intFmtNaturals_t := (INT8 => 8, INT16 => 16,
+                                                INT32 => 32, INT64 => 64);
 
   --===========================================================================
   -- FP Format-Dependent Helper Functions
@@ -218,30 +218,9 @@ package fpnew_fmts_pkg is
   --! @brief Maximum encoded exponent value for FP format from encoding
   --! @returns The largest encoded exponent for the format encoded in
   --! FPFMTENCODING_T encoding, corresponding to &infin; or NaN
-  --! @retval NATURAL
-  function MAXEXP (constant encoding : fpFmtEncoding_t)
-    return natural;
-
-  --! @brief Maximum encoded exponent value for FP format from encoding
-  --! @returns The largest encoded exponent for the format encoded in
-  --! FPFMTENCODING_T encoding, corresponding to &infin; or NaN
   --! @retval UNSIGNED(encoding.ExpBits-1 downto 0)
   function MAXEXP (constant encoding : fpFmtEncoding_t)
     return unsigned;
-
-  --! @brief Maximum encoded exponent value for FP format from encoding
-  --! @returns The largest encoded exponent for the format encoded in
-  --! FPFMTENCODING_T encoding, corresponding to &infin; or NaN
-  --! @retval SIGNED(encoding.ExpBits downto 0)
-  function MAXEXP (constant encoding : fpFmtEncoding_t)
-    return signed;
-
-  --! @brief Maximum encoded exponent value for FP format from configuration
-  --! @returns The largest encoded exponent for the format in FPFMT_T fmt under
-  --! configuration ACTIVEFORMATS_T config, corresponding to &infin; or NaN
-  --! @retval NATURAL
-  function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
-    return natural;
 
   --! @brief Maximum encoded exponent value for FP format from configuration
   --! @returns The largest encoded exponent for the format in FPFMT_T fmt under
@@ -249,13 +228,6 @@ package fpnew_fmts_pkg is
   --! @retval UNSIGNED(config.Encoding(fmt).ExpBits-1 downto 0)
   function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
     return unsigned;
-
-  --! @brief Maximum encoded exponent value for FP format from configuration
-  --! @returns The largest encoded exponent for the format in FPFMT_T fmt under
-  --! configuration ACTIVEFORMATS_T config, corresponding to &infin; or NaN
-  --! @retval SIGNED(config.Encoding(fmt).ExpBits downto 0)
-  function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
-    return signed;
 
   --! @brief Smallest FP format width of active formats from configuration
   --! @returns The width of the narrowest active format given in record
@@ -549,14 +521,6 @@ package body fpnew_fmts_pkg is
   -----------------------------------------------------------------------------
 
   function MAXEXP (constant encoding : fpFmtEncoding_t)
-    return natural is
-  begin  -- function MAXEXP
-    return MAXEXP(encoding.ExpBits);
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
-
-  function MAXEXP (constant encoding : fpFmtEncoding_t)
     return unsigned is
   begin  -- function MAXEXP
     return MAXEXP(encoding.ExpBits);
@@ -564,32 +528,8 @@ package body fpnew_fmts_pkg is
 
   -----------------------------------------------------------------------------
 
-  function MAXEXP (constant encoding : fpFmtEncoding_t)
-    return signed is
-  begin  -- function MAXEXP
-    return MAXEXP(encoding.ExpBits);
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
-
-  function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
-    return natural is
-  begin  -- function MAXEXP
-    return MAXEXP(config.Encoding(fmt));
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
-
   function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
     return unsigned is
-  begin  -- function MAXEXP
-    return MAXEXP(config.Encoding(fmt));
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
-
-  function MAXEXP (constant fmt : fpFmt_t; constant config : activeFormats_t)
-    return signed is
   begin  -- function MAXEXP
     return MAXEXP(config.Encoding(fmt));
   end function MAXEXP;

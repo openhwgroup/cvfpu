@@ -77,7 +77,7 @@ architecture rtl of fp_noncomp is
   -----------------------------------------------------------------------------
   -- Constants
   -----------------------------------------------------------------------------
-  constant MAXEXP : natural := MAXEXP(EXP_BITS);
+  constant MAXEXP : unsigned(EXP_BITS-1 downto 0) := MAXEXP(EXP_BITS);
 
   -- The quiet bit index is the topmost bit of the mantissa of a NaN value
   constant QUIETBIT : natural := MAN_BITS-1;

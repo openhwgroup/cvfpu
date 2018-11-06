@@ -193,8 +193,8 @@ begin  -- architecture rtl
 
       -- Classify input
       InputMantZero_S(fmt) <= unsigned(A_DI(FORMATS.Encoding(fmt).ManBits-1 downto 0)) = 0;
-      InputInf_S(fmt)      <= (FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and InputMantZero_S(fmt);
-      InputNan_S(fmt)      <= ((FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt))) or ABox_SI(fmt) = '0';
+      InputInf_S(fmt)      <= (FmtInputExp_D(fmt) = signed("0" & MAXEXP(fmt, FORMATS))) and InputMantZero_S(fmt);
+      InputNan_S(fmt)      <= ((FmtInputExp_D(fmt) = signed("0" & MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt))) or ABox_SI(fmt) = '0';
       InputZero_S(fmt)     <= (FmtInputExp_D(fmt) = 0) and InputMantZero_S(fmt);
       InputNormal_S(fmt)   <= FmtInputExp_D(fmt) /= 0;
 

@@ -182,8 +182,8 @@ begin  -- architecture rtl
 
   -- Classify input
   InputMantZero_S <= unsigned(A_DI(SRCENCODING.ManBits-1 downto 0)) = 0;
-  InputInf_S      <= (InputExp_D = signed'(MAXEXP(SRCENCODING.ExpBits))) and InputMantZero_S;
-  InputNan_S      <= ((InputExp_D = signed'(MAXEXP(SRCENCODING.ExpBits))) and (not InputMantZero_S)) or ABox_SI = '0';
+  InputInf_S      <= (InputExp_D = signed("0" & MAXEXP(SRCENCODING.ExpBits))) and InputMantZero_S;
+  InputNan_S      <= ((InputExp_D = signed("0" & MAXEXP(SRCENCODING.ExpBits))) and (not InputMantZero_S)) or ABox_SI = '0';
   InputZero_S     <= (InputExp_D = 0) and InputMantZero_S;
   InputNormal_S   <= InputExp_D /= 0;
 
@@ -221,40 +221,36 @@ begin  -- architecture rtl
                       others => '0');
 
 
-  -- Special Case Handling
-  p_specialCases : process(all)
-    variable SpecialResultInt_D : intFmtResults_t;
-  begin  -- process p_specialCases
-
-    for ifmt in intFmt_t loop
-      if INTFORMATS.Active(ifmt) then
-
+  g_ifmt : for ifmt in intFmt_t generate 
+  begin
+      -- Special Case Handling
+      p_specialCases : process(all)
+        variable SpecialResultInt_D : std_logic_vector(Z_DO'range);
+      begin  -- process p_specialCases
         -- default assignment
         SpecialResult_D(ifmt) <= (others => '0');
-
-        if (SpecialRes_S) then
-          -- By default overflow to positive max, which is 2**len or 2**(len-1)
-          -- MSB one in case of unsigned ops
-          SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-2 downto 0) := (others => '1');
-          SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1) := OpMod_SI;
-
-          -- if we have a negative special case except for nans (OF or neg INF or unsigned), tie to -max or 0
-          if (not InputNan_S and Sign_D = '1') then
-            SpecialResultInt_D(ifmt) := not SpecialResultInt_D(ifmt);
-          end if;
-
-          SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0);
-          -- Sign-extend integer result as per RISC-V ISA 2.3draft
-          SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1));
-
+        SpecialResultInt_D    := (others => '0');
+        
+        if INTFORMATS.Active(ifmt) then
+            if (SpecialRes_S) then
+              -- By default overflow to positive max, which is 2**len or 2**(len-1)
+              -- MSB one in case of unsigned ops
+              SpecialResultInt_D(INTFORMATS.Length(ifmt)-2 downto 0) := (others => '1');
+              SpecialResultInt_D(INTFORMATS.Length(ifmt)-1) := OpMod_SI;
+    
+              -- if we have a negative special case except for nans (OF or neg INF or unsigned), tie to -max or 0
+              if (not InputNan_S and Sign_D = '1') then
+                SpecialResultInt_D := not SpecialResultInt_D;
+              end if;
+    
+              SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= SpecialResultInt_D(INTFORMATS.Length(ifmt)-1 downto 0);
+              -- Sign-extend integer result as per RISC-V ISA 2.3draft
+              SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(INTFORMATS.Length(ifmt)-1));
+    
+            end if;
         end if;
-
-      end if;
-
-    end loop;  -- ifmt
-
-  end process;
-
+      end process;
+    end generate g_ifmt;
 
   -- Shift into binary representation
   p_finalAdjustPrepare : process (all) is
