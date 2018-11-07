@@ -86,7 +86,7 @@ architecture rtl of fp_fma is
   -----------------------------------------------------------------------------
   -- Constants
   -----------------------------------------------------------------------------
-  constant MAXEXP : natural := MAXEXP(EXP_BITS);
+  constant MAXEXP : unsigned(EXP_BITS-1 downto 0) := MAXEXP(EXP_BITS);
 
   constant WIDTH : natural := EXP_BITS+MAN_BITS+1;
 
@@ -215,7 +215,7 @@ begin  -- architecture rtl
 
   -- Largest normal has an exponent of MAXEXP-1 and all ones mantissa
   MAXNORMAL(EXP_BITS+MAN_BITS-1 downto MAN_BITS)
-    <= std_logic_vector(to_unsigned(MAXEXP-1, EXP_BITS));
+    <= std_logic_vector(MAXEXP-1);
   MAXNORMAL(MAN_BITS-1 downto 0) <= (others => '1');
 
 

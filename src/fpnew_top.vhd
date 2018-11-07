@@ -105,8 +105,8 @@ architecture rtl of fpnew_top is
                                          Encoding => DEFAULTENCODING);
 
 
-  constant INTFORMATS : activeIntFormats_t := (Active            => (W => true,
-                                                          D      => RV64,
+  constant INTFORMATS : activeIntFormats_t := (Active            => (INT32 => true,
+                                                          INT64      => RV64,
                                                           others => Xfvec),
                                                Length => INTFMTLENGTHS);
 

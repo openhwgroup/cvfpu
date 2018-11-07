@@ -243,10 +243,10 @@ begin  -- architecture rtl
     MantPreshift_D <= std_logic_vector(resize(unsigned(InternalMant_D), MantPreshift_D'length) sll MANTWIDTH);
 
     -- Check for exponent overflow and clip
-    if (BiasedExp_D >= natural'(MAXEXP(DSTENCODING))) then
+    if (BiasedExp_D >= signed("0" & MAXEXP(DSTENCODING))) then
       -- set up largest normal number, MAXEXP of superformat is still MAXEXP if
       -- clipped to shorter exponent width -> such smart
-      FinalExp_D      <= to_signed(MAXEXP(DSTENCODING), EXPWIDTH)-1;
+      FinalExp_D      <= resize(signed("0" & MAXEXP(DSTENCODING)), FinalExp_D'length) - 1;
       MantPreshift_D  <= (others => '1');
       OFBeforeRound_S <= true;
 
