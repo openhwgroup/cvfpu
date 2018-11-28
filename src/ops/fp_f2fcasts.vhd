@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-22
--- Last update: 2018-04-18
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -27,12 +27,12 @@
 -- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_fmts_pkg.all;
-use fpnew_lib.fpnew_comps_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_fmts_pkg.all;
+use work.fpnew_comps_pkg.all;
 
 --! @brief Floating-Point Conversion Unit
 --! @details Parametric floating-point conversion unit for floating-point to
@@ -191,8 +191,8 @@ begin  -- architecture rtl
 
       -- Classify input
       InputMantZero_S(fmt) <= unsigned(A_DI(FORMATS.Encoding(fmt).ManBits-1 downto 0)) = 0;
-      InputInf_S(fmt)      <= (FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and InputMantZero_S(fmt);
-      InputNan_S(fmt)      <= ((FmtInputExp_D(fmt) = signed'(MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt))) or ABox_SI(fmt) = '0';
+      InputInf_S(fmt)      <= (FmtInputExp_D(fmt) = signed("0" & MAXEXP(fmt, FORMATS))) and InputMantZero_S(fmt);
+      InputNan_S(fmt)      <= ((FmtInputExp_D(fmt) = signed("0" & MAXEXP(fmt, FORMATS))) and (not InputMantZero_S(fmt))) or ABox_SI(fmt) = '0';
       SigNan_S(fmt)        <= InputNan_S(fmt) and ABox_SI(fmt) = '1' and A_DI(FORMATS.Encoding(fmt).ManBits-1) = '0';
       InputZero_S(fmt)     <= (FmtInputExp_D(fmt) = 0) and InputMantZero_S(fmt);
       InputNormal_S(fmt)   <= FmtInputExp_D(fmt) /= 0;
@@ -331,9 +331,9 @@ begin  -- architecture rtl
     OFBeforeRound_S <= false;
 
     -- Check for exponent overflow and adjust mantissa accordingly
-    if (DestExp_D >= to_signed(MAXEXP(DstFmt_S, FORMATS), EXPWIDTH)) or InputInf_S(SrcFmt_S) then
+    if (DestExp_D >= signed("0" & MAXEXP(DstFmt_S, FORMATS))) or InputInf_S(SrcFmt_S) then
       -- set up largest normal number
-      FinalExp_D      <= to_signed(MAXEXP(SUPERFMT), EXPWIDTH)-1;
+      FinalExp_D      <= signed("0" & MAXEXP(SUPERFMT))-1;
       MantPreshift_D  <= (others => '1');
       OFBeforeRound_S <= true;
 

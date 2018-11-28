@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-22
--- Last update: 2018-04-18
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -163,8 +163,8 @@ begin  -- architecture rtl
 
   -- Classify input
   InputMantZero_S <= unsigned(A_DI(SRCENCODING.ManBits-1 downto 0)) = 0;
-  InputInf_S      <= (InputExp_D = signed'(MAXEXP(SRCENCODING))) and InputMantZero_S;
-  InputNan_S      <= ((InputExp_D = signed'(MAXEXP(SRCENCODING))) and (not InputMantZero_S)) or ABox_SI = '0';
+  InputInf_S      <= (InputExp_D = signed("0" & MAXEXP(SRCENCODING))) and InputMantZero_S;
+  InputNan_S      <= ((InputExp_D = signed("0" & MAXEXP(SRCENCODING))) and (not InputMantZero_S)) or ABox_SI = '0';
   SigNan_S        <= InputNan_S and ABox_SI = '1' and A_DI(SRCENCODING.ManBits-1) = '0';
   InputZero_S     <= (InputExp_D = 0) and InputMantZero_S;
   InputNormal_S   <= InputExp_D /= 0;
@@ -273,9 +273,9 @@ begin  -- architecture rtl
     OFBeforeRound_S <= false;
 
     -- Check for exponent overflow and adjust mantissa accordingly
-    if (DestExp_D >= to_signed(MAXEXP(DSTENCODING), EXPWIDTH)) or InputInf_S then
+    if (DestExp_D >= signed("0" & MAXEXP(DSTENCODING))) or InputInf_S then
       -- set up largest normal number
-      FinalExp_D      <= to_signed(MAXEXP(SUPERFMT), EXPWIDTH)-1;
+      FinalExp_D      <= signed("0" & MAXEXP(SUPERFMT))-1;
       MantPreshift_D  <= (others => '1');
       OFBeforeRound_S <= true;
 

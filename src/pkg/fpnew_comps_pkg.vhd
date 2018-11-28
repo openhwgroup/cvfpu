@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-20
--- Last update: 2018-10-10
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -24,11 +24,11 @@
 -- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_fmts_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_fmts_pkg.all;
 
 
 --! @brief Component Package for TransPrecision Floating-Point Units

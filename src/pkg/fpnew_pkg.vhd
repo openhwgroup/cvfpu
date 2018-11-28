@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-08
--- Last update: 2018-06-20
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -281,8 +281,6 @@ package fpnew_pkg is
   --! @returns The largest encoded exponent for the FP format, corresponding to
   --! &infin; or NaN
   --! @retval NATURAL
-  function MAXEXP (constant EXP_BITS : natural)
-    return natural;
 
   --! @brief Maximum encoded exponent value for generic FP format
   --! @returns The largest encoded exponent for the FP format, corresponding to
@@ -295,9 +293,7 @@ package fpnew_pkg is
   --! @returns The largest encoded exponent for the FP format, corresponding to
   --! &infin; or NaN
   --! @retval SIGNED(EXP_BITS downto 0)
-  function MAXEXP (constant EXP_BITS : natural)
-    return signed;
-
+  
   --! @brief Infinity bit-pattern for FP format
   --! @returns Positive infinity for the FP format
   --! @retval STD_LOGIC_VECTOR(EXP_BITS+MAN_BITS downto 0)
@@ -603,14 +599,6 @@ package body fpnew_pkg is
   -----------------------------------------------------------------------------
 
   function MAXEXP (constant EXP_BITS : natural)
-    return natural is
-  begin  -- function MAXEXP
-    return 2**(EXP_BITS)-1;
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
-
-  function MAXEXP (constant EXP_BITS : natural)
     return unsigned is
     variable res : unsigned(EXP_BITS-1 downto 0);
   begin  -- function MAXEXP
@@ -620,16 +608,6 @@ package body fpnew_pkg is
 
   -----------------------------------------------------------------------------
 
-  function MAXEXP (constant EXP_BITS : natural)
-    return signed is
-    variable res : signed(EXP_BITS downto 0);
-  begin  -- function MAXEXP
-    res(res'high)            := '0';
-    res(res'high-1 downto 0) := (others => '1');
-    return res;
-  end function MAXEXP;
-
-  -----------------------------------------------------------------------------
 
   function INF (constant EXP_BITS : natural; constant MAN_BITS : natural)
     return std_logic_vector is
@@ -683,7 +661,7 @@ package body fpnew_pkg is
   begin  -- function MAXNORMAL
     -- Largest normal has an exponent of MAXEXP-1 and all ones mantissa
     res(EXP_BITS+MAN_BITS-1 downto MAN_BITS)
-      := std_logic_vector(to_unsigned(MAXEXP(EXP_BITS)-1, EXP_BITS));
+      := std_logic_vector(resize(MAXEXP(EXP_BITS) - 1, EXP_BITS));
     res(MAN_BITS-1 downto 0) := (others => '1');
     return res;
   end function MAXNORMAL;

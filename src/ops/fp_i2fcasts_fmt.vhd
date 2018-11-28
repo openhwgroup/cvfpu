@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-22
--- Last update: 2018-04-08
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -31,12 +31,12 @@
 -- University of Bologna.
 -------------------------------------------------------------------------------
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_fmts_pkg.all;
-use fpnew_lib.fpnew_comps_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_fmts_pkg.all;
+use work.fpnew_comps_pkg.all;
 
 --! @brief Floating-Point Conversion Unit
 --! @details Parametric floating-point conversion unit for floating-point to
@@ -245,10 +245,10 @@ begin  -- architecture rtl
     MantPreshift_D <= std_logic_vector(resize(unsigned(InternalMant_D), MantPreshift_D'length) sll MANTWIDTH);
 
     -- Check for exponent overflow and clip
-    if (BiasedExp_D >= natural'(MAXEXP(DSTENCODING))) then
+    if (BiasedExp_D >= signed("0" & MAXEXP(DSTENCODING))) then
       -- set up largest normal number, MAXEXP of superformat is still MAXEXP if
       -- clipped to shorter exponent width -> such smart
-      FinalExp_D      <= to_signed(MAXEXP(DSTENCODING), EXPWIDTH)-1;
+      FinalExp_D      <= resize(signed("0" & MAXEXP(DSTENCODING)), FinalExp_D'length) - 1;
       MantPreshift_D  <= (others => '1');
       OFBeforeRound_S <= true;
 

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-03-22
--- Last update: 2018-04-18
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -31,12 +31,12 @@
 -- University of Bologna.
 -------------------------------------------------------------------------------
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_fmts_pkg.all;
-use fpnew_lib.fpnew_comps_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_fmts_pkg.all;
+use work.fpnew_comps_pkg.all;
 
 --! @brief Floating-Point Conversion Unit
 --! @details Parametric floating-point conversion unit for floating-point to
@@ -182,8 +182,8 @@ begin  -- architecture rtl
 
   -- Classify input
   InputMantZero_S <= unsigned(A_DI(SRCENCODING.ManBits-1 downto 0)) = 0;
-  InputInf_S      <= (InputExp_D = signed'(MAXEXP(SRCENCODING.ExpBits))) and InputMantZero_S;
-  InputNan_S      <= ((InputExp_D = signed'(MAXEXP(SRCENCODING.ExpBits))) and (not InputMantZero_S)) or ABox_SI = '0';
+  InputInf_S      <= (InputExp_D = signed("0" & MAXEXP(SRCENCODING.ExpBits))) and InputMantZero_S;
+  InputNan_S      <= ((InputExp_D = signed("0" & MAXEXP(SRCENCODING.ExpBits))) and (not InputMantZero_S)) or ABox_SI = '0';
   InputZero_S     <= (InputExp_D = 0) and InputMantZero_S;
   InputNormal_S   <= InputExp_D /= 0;
 
@@ -221,41 +221,38 @@ begin  -- architecture rtl
                       others => '0');
 
 
-  -- Special Case Handling
-  p_specialCases : process(all)
-    variable SpecialResultInt_D : intFmtResults_t;
-  begin  -- process p_specialCases
-
-    for ifmt in intFmt_t loop
-      if INTFORMATS.Active(ifmt) then
+  g_ifmt : for ifmt in intFmt_t generate
+  begin
+      -- Special Case Handling
+      p_specialCases : process(all)
+        variable SpecialResultInt_D : std_logic_vector(Z_DO'range);
+      begin  -- process p_specialCases
 
         -- default assignment
         SpecialResult_D(ifmt) <= (others => '0');
 
-        if (SpecialRes_S) then
-          -- By default overflow to positive max, which is 2**len or 2**(len-1)
-          -- MSB one in case of unsigned ops
-          SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-2 downto 0) := (others => '1');
-          SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1) := OpMod_SI;
+        SpecialResultInt_D    := (others => '0');
 
-          -- if we have a negative special case except for nans (OF or neg INF or unsigned), tie to -max or 0
-          if (not InputNan_S and Sign_D = '1') then
-            SpecialResultInt_D(ifmt) := not SpecialResultInt_D(ifmt);
-          end if;
+        if INTFORMATS.Active(ifmt) then
+            if (SpecialRes_S) then
+              -- By default overflow to positive max, which is 2**len or 2**(len-1)
+              -- MSB one in case of unsigned ops
+              SpecialResultInt_D(INTFORMATS.Length(ifmt)-2 downto 0) := (others => '1');
+              SpecialResultInt_D(INTFORMATS.Length(ifmt)-1) := OpMod_SI;
 
-          SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0);
-          -- Sign-extend integer result as per RISC-V ISA 2.3draft
-          if INTWIDTH > INTFORMATS.Length(ifmt) then
-            SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(ifmt)(INTFORMATS.Length(ifmt)-1));
-          end if;
+              -- if we have a negative special case except for nans (OF or neg INF or unsigned), tie to -max or 0
+              if (not InputNan_S and Sign_D = '1') then
+                SpecialResultInt_D := not SpecialResultInt_D;
+              end if;
 
+              SpecialResult_D(ifmt)(INTFORMATS.Length(ifmt)-1 downto 0)        <= SpecialResultInt_D(INTFORMATS.Length(ifmt)-1 downto 0);
+              -- Sign-extend integer result as per RISC-V ISA 2.3draft
+              SpecialResult_D(ifmt)(INTWIDTH-1 downto INTFORMATS.Length(ifmt)) <= (others => SpecialResultInt_D(INTFORMATS.Length(ifmt)-1));
+            end if;
         end if;
 
-      end if;
-
-    end loop;  -- ifmt
-
-  end process;
+      end process;
+    end generate g_ifmt;
 
 
   -- Shift into binary representation

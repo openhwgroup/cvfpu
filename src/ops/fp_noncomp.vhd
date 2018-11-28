@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-02-14
--- Last update: 2018-04-18
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -28,11 +28,11 @@
 -- specific language governing permissions and limitations under the License.
 -------------------------------------------------------------------------------
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_comps_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_comps_pkg.all;
 
 
 entity fp_noncomp is
@@ -77,7 +77,7 @@ architecture rtl of fp_noncomp is
   -----------------------------------------------------------------------------
   -- Constants
   -----------------------------------------------------------------------------
-  constant MAXEXP : natural := MAXEXP(EXP_BITS);
+  constant MAXEXP : unsigned(EXP_BITS-1 downto 0) := MAXEXP(EXP_BITS);
 
   -- The quiet bit index is the topmost bit of the mantissa of a NaN value
   constant QUIETBIT : natural := MAN_BITS-1;

@@ -6,7 +6,7 @@
 -- Author     : Stefan Mach  <smach@iis.ee.ethz.ch>
 -- Company    : Integrated Systems Laboratory, ETH Zurich
 -- Created    : 2018-02-14
--- Last update: 2018-04-18
+-- Last update: 2018-11-08
 -- Platform   : ModelSim (simulation), Synopsys (synthesis)
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -33,11 +33,11 @@
 -------------------------------------------------------------------------------
 
 
-library IEEE, fpnew_lib;
+library IEEE, work;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-use fpnew_lib.fpnew_pkg.all;
-use fpnew_lib.fpnew_comps_pkg.all;
+use work.fpnew_pkg.all;
+use work.fpnew_comps_pkg.all;
 
 --! @brief Floating-Point Fused Multiply-Add Unit
 --! @details IEEE 754-compliant, parametric floating-point fused multiply-add
@@ -86,7 +86,7 @@ architecture rtl of fp_fma is
   -----------------------------------------------------------------------------
   -- Constants
   -----------------------------------------------------------------------------
-  constant MAXEXP : natural := MAXEXP(EXP_BITS);
+  constant MAXEXP : unsigned(EXP_BITS-1 downto 0) := MAXEXP(EXP_BITS);
 
   constant WIDTH : natural := EXP_BITS+MAN_BITS+1;
 
@@ -215,7 +215,7 @@ begin  -- architecture rtl
 
   -- Largest normal has an exponent of MAXEXP-1 and all ones mantissa
   MAXNORMAL(EXP_BITS+MAN_BITS-1 downto MAN_BITS)
-    <= std_logic_vector(to_unsigned(MAXEXP-1, EXP_BITS));
+    <= std_logic_vector(MAXEXP-1);
   MAXNORMAL(MAN_BITS-1 downto 0) <= (others => '1');
 
 
