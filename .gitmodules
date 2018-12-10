@@ -1,0 +1,6 @@
+[submodule "src-sv/common_cells"]
+	path = src-sv/common_cells
+	url = https://github.com/pulp-platform/common_cells.git
+[submodule "src-sv/fpu_div_sqrt_mvp"]
+	path = src-sv/fpu_div_sqrt_mvp
+	url = https://github.com/pulp-platform/fpu_div_sqrt_mvp.git
