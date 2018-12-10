@@ -95,8 +95,15 @@ module fpnew_top #(
     localparam int unsigned NUM_OPS = fpnew_pkg::num_operands(fpnew_pkg::opgroup_e'(opgrp));
 
     logic in_valid;
+    logic [0:NUM_FORMATS-1][0:NUM_OPS-1] input_boxed;
 
     assign in_valid = in_valid_i & (fpnew_pkg::get_opgroup(op_i) == opgrp);
+
+    // slice out input boxing
+    always_comb begin : slice_inputs
+      for (int unsigned fmt = 0; fmt < NUM_FORMATS; fmt++)
+        input_boxed[fmt] = is_boxed[fmt][0:NUM_OPS-1];
+    end
 
     fpnew_opgroup_block #(
       .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp) ),
@@ -112,7 +119,7 @@ module fpnew_top #(
       .clk_i,
       .rst_ni,
       .operands_i      ( operands_i[0:NUM_OPS-1] ),
-      .is_boxed_i      ( is_boxed[0:NUM_FORMATS-1][0:NUM_OPS-1]                ),
+      .is_boxed_i      ( input_boxed             ),
       .rnd_mode_i,
       .op_i,
       .op_mod_i,

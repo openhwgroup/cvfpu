@@ -29,8 +29,8 @@ module fpnew_opgroup_block #(
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup)
 ) (
-  input logic                               clk_i,
-  input logic                               rst_ni,
+  input logic                                     clk_i,
+  input logic                                     rst_ni,
   // Input signals
   input logic [0:NUM_OPERANDS-1][Width-1:0]       operands_i,
   input logic [0:NUM_FORMATS-1][0:NUM_OPERANDS-1] is_boxed_i,
@@ -43,19 +43,19 @@ module fpnew_opgroup_block #(
   input logic                                     vectorial_op_i,
   input TagType                                   tag_i,
   // Input Handshake
-  input  logic                              in_valid_i,
-  output logic                              in_ready_o,
-  input  logic                              flush_i,
+  input  logic                                    in_valid_i,
+  output logic                                    in_ready_o,
+  input  logic                                    flush_i,
   // Output signals
-  output logic [Width-1:0]                  result_o,
-  output fpnew_pkg::status_t                status_o,
-  output logic                              extension_bit_o,
-  output TagType                            tag_o,
+  output logic [Width-1:0]                        result_o,
+  output fpnew_pkg::status_t                      status_o,
+  output logic                                    extension_bit_o,
+  output TagType                                  tag_o,
   // Output handshake
-  output logic                              out_valid_o,
-  input  logic                              out_ready_i,
+  output logic                                    out_valid_o,
+  input  logic                                    out_ready_i,
   // Indication of valid data in flight
-  output logic                              busy_o
+  output logic                                    busy_o
 );
 
   // ----------------
@@ -81,10 +81,15 @@ module fpnew_opgroup_block #(
   // Generate Parallel Slices
   // -------------------------
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_parallel_slices
-    logic in_valid;
+    // Some constants for this format
+    localparam logic ANY_MERGED = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
+    localparam logic IS_FIRST_MERGED =
+        fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes);
 
     // Generate slice only if format enabled
     if (FpFmtMask[fmt] && (FmtUnitTypes[fmt] == fpnew_pkg::PARALLEL)) begin : active_format
+
+      logic in_valid;
 
       assign in_valid = in_valid_i & (fp_fmt_i == fmt); // enable selected format
 
@@ -100,6 +105,7 @@ module fpnew_opgroup_block #(
         .clk_i,
         .rst_ni,
         .operands_i     ( operands_i               ),
+        .is_boxed_i     ( is_boxed_i[fmt]          ),
         .rnd_mode_i,
         .op_i,
         .op_mod_i,
@@ -117,8 +123,7 @@ module fpnew_opgroup_block #(
         .busy_o         ( fmt_busy[fmt]            )
       );
     // If the format wants to use merged ops, tie off the dangling ones not used here
-    end else if (FpFmtMask[fmt] && fpnew_pkg::any_enabled_multi(FmtUnitTypes) &&
-        !fpnew_pkg::is_first_enabled_multi(fmt, FmtUnitTypes)) begin : merged_unused
+    end else if (FpFmtMask[fmt] && ANY_MERGED && !IS_FIRST_MERGED) begin : merged_unused
 
       // Ready is split up into formats
       assign fmt_in_ready[fmt]  = fmt_in_ready[fpnew_pkg::get_first_enabled_multi(FmtUnitTypes)];

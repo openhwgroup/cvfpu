@@ -25,7 +25,7 @@ module fpnew_opgroup_fmt_slice #(
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                     TagType       = logic,
   // Do not change
-  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
+  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup)
 ) (
   input logic                               clk_i,
   input logic                               rst_ni,
@@ -78,13 +78,14 @@ module fpnew_opgroup_fmt_slice #(
   // Generate Lanes
   // ---------------
   for (genvar lane = 0; lane < int'(NUM_LANES); lane++) begin : gen_num_lanes
+    logic [FP_WIDTH-1:0] local_result; // lane-local results
+
     // Generate instances only if needed, lane 0 always generated
     if ((lane == 0) || EnableVectors) begin : active_lane
       logic in_valid, out_valid, out_ready; // lane-local handshake
 
       logic [0:NUM_OPERANDS-1][FP_WIDTH-1:0] local_operands;          // lane-local oprands
-      logic                                  input_boxed;
-      logic [FP_WIDTH-1:0]                   op_result, local_result; // lane-local results
+      logic [FP_WIDTH-1:0]                   op_result; // lane-local results
       fpnew_pkg::status_t                    op_status;
 
       assign in_valid = in_valid_i & ((lane == 0) | vectorial_op); // upper lanes only for vectors
@@ -92,7 +93,6 @@ module fpnew_opgroup_fmt_slice #(
       always_comb begin : prepare_input
         for (int i = 0; i < int'(NUM_OPERANDS); i++) begin
           local_operands[i] = operands_i[i][(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH];
-          input_boxed       = ((i == 0) & ~vectorial_op) ? is_boxed_i[i] : 1'b1;
         end
       end
 
@@ -107,8 +107,8 @@ module fpnew_opgroup_fmt_slice #(
         ) i_fma (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands       ),
-          .is_boxed_i      ( input_boxed          ),
+          .operands_i      ( local_operands               ),
+          .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
@@ -136,8 +136,8 @@ module fpnew_opgroup_fmt_slice #(
         // ) i_divsqrt (
         //   .clk_i,
         //   .rst_ni,
-        //   .operands_i      ( local_operands       ),
-        //   .is_boxed_i      ( input_boxed          ),
+        //   .operands_i      ( local_operands               ),
+        //   .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
         //   .rnd_mode_i,
         //   .op_i,
         //   .op_mod_i,
@@ -165,8 +165,8 @@ module fpnew_opgroup_fmt_slice #(
         ) i_noncomp (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands       ),
-          .is_boxed_i      ( input_boxed          ),
+          .operands_i      ( local_operands               ),
+          .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
           .rnd_mode_i,
           .op_i,
           .op_mod_i,

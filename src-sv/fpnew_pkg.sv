@@ -240,8 +240,8 @@ package fpnew_pkg;
     res = '0;
     for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
       if (cfg[fmt]) begin // only active format
-        res.exp_bits = maximum(res.exp_bits, exp_bits(fp_format_e'(fmt)));
-        res.man_bits = maximum(res.man_bits, man_bits(fp_format_e'(fmt)));
+        res.exp_bits = unsigned'(maximum(res.exp_bits, exp_bits(fp_format_e'(fmt))));
+        res.man_bits = unsigned'(maximum(res.man_bits, man_bits(fp_format_e'(fmt))));
       end
     return res;
   endfunction
@@ -359,7 +359,7 @@ package fpnew_pkg;
 
 
 
-  function automatic fp_format_e any_enabled_multi(fmt_unit_types_t types);
+  function automatic logic any_enabled_multi(fmt_unit_types_t types);
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (types[i] == MERGED)
         return 1'b1;
@@ -376,7 +376,7 @@ package fpnew_pkg;
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (types[i] == MERGED)
         return fp_format_e'(i);
-      return 0;
+      return fp_format_e'(0);
   endfunction
 
 endpackage
