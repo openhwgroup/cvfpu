@@ -99,8 +99,8 @@ package fpnew_pkg;
   localparam int unsigned NUM_OPGROUPS = 4;
 
   // Each FP operation belongs to an operation group
-  typedef enum logic [2:0] {
-    ADDMUL, DIVSQRT, NONCOMP, CONV, CLASS
+  typedef enum logic [1:0] {
+    ADDMUL, DIVSQRT, NONCOMP, CONV
   } opgroup_e;
 
   localparam int unsigned OP_WIDTH = 4;
@@ -108,9 +108,8 @@ package fpnew_pkg;
   typedef enum logic [OP_WIDTH-1:0] {
     FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     DIV, SQRT,                   // DIVSQRT operation group
-    SGNJ, MINMAX, CMP,           // NONCOMP operation group
-    F2F, F2I, I2F, CPKAB, CPKCD, // CONV operation group
-    CLASSIFY                     // CLASS opreation group
+    SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
+    F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
   } operation_e;
 
 
@@ -183,6 +182,69 @@ package fpnew_pkg;
   // Array of unit types indexed by format
   typedef unit_type_t [0:NUM_FP_FORMATS-1] fmt_unit_types_t;
 
+  // Array of format-specific unit types by opgroup
+  typedef fmt_unit_types_t [0:NUM_OPGROUPS-1] opgrp_fmt_unit_types_t;
+  // same with unsigned
+  typedef fmt_unsigned_t [0:NUM_OPGROUPS-1] opgrp_fmt_unsigned_t;
+
+  // FPU configuration: features
+  typedef struct packed {
+    int unsigned Width;
+    logic        EnableVectors;
+    logic        EnableNanBox;
+    fmt_logic_t  FpFmtMask;
+    ifmt_logic_t IntFmtMask;
+  } fpu_features_t;
+
+  localparam fpu_features_t RV64D = '{
+    Width:         64,
+    EnableVectors: 1'b0,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b11000,
+    IntFmtMask:    4'b0011
+  };
+
+  localparam fpu_features_t RV32F = '{
+    Width:         32,
+    EnableVectors: 1'b0,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b10000,
+    IntFmtMask:    4'b0010
+  };
+
+  localparam fpu_features_t RV64D_Xsflt = '{
+    Width:         64,
+    EnableVectors: 1'b1,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b11111,
+    IntFmtMask:    4'b1111
+  };
+
+  localparam fpu_features_t RV32F_Xsflt = '{
+    Width:         32,
+    EnableVectors: 1'b1,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b10111,
+    IntFmtMask:    4'b1110
+  };
+
+
+  // FPU configuraion: implementation
+  typedef struct packed {
+    opgrp_fmt_unsigned_t   PipeRegs;
+    opgrp_fmt_unit_types_t UnitTypes;
+    pipe_config_t          PipeConfig;
+  } fpu_implementation_t;
+
+  localparam fpu_implementation_t DEFAULT_NOREGS = '{
+    PipeRegs:   '{default: 0},
+    UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
+                  '{default: MERGED},   // DIVSQRT
+                  '{default: PARALLEL}, // NONCOMP
+                  '{default: MERGED}},  // CONV
+    PipeConfig: AFTER
+  };
+
   // -------------------------
   // General helper functions
   // -------------------------
@@ -249,8 +311,8 @@ package fpnew_pkg;
   // Helper functions for INT formats and values
   // -------------------------------------------
   // Returns the width of an INT format
-  function automatic int unsigned int_width(int_format_e fmt);
-    return INT_WIDTH[fmt];
+  function automatic int unsigned int_width(int_format_e ifmt);
+    return INT_WIDTH[ifmt];
   endfunction
 
   // Returns the widest INT format present
@@ -268,11 +330,11 @@ package fpnew_pkg;
   // Returns the operation group of the given operation
   function automatic opgroup_e get_opgroup(operation_e op);
     unique case (op) inside
-      [FMADD:MUL]: return ADDMUL;
-      [DIV:SQRT]:  return DIVSQRT;
-      [SGNJ:CMP]:  return NONCOMP;
-      [F2F:CPKCD]: return CONV;
-      default:     return CLASS;
+      [FMADD:MUL]:     return ADDMUL;
+      [DIV:SQRT]:      return DIVSQRT;
+      [SGNJ:CLASSIFY]: return NONCOMP;
+      [F2F:CPKCD]:     return CONV;
+      default:         return NONCOMP;
     endcase
   endfunction
 
@@ -283,7 +345,6 @@ package fpnew_pkg;
       DIVSQRT: return 2;
       NONCOMP: return 2;
       CONV:    return 3; // vectorial casts use 3 operands
-      CLASS:   return 1;
       default: return 0;
     endcase
   endfunction

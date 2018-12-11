@@ -15,23 +15,18 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_top #(
-  parameter int unsigned                Width         = 64,
   // FPU configuration
-  parameter logic                       EnableVectors = 1'b1,
-  parameter logic                       EnableNanBox  = 1'b1,
-  parameter fpnew_pkg::fmt_logic_t      FpFmtMask     = '1,
-  parameter fpnew_pkg::ifmt_logic_t     IntFmtMask    = '1,
-  parameter fpnew_pkg::fmt_unsigned_t   FmtPipeRegs   = '{default: 0},
-  parameter fpnew_pkg::fmt_unit_types_t FmtUnitTypes  = '{default: fpnew_pkg::PARALLEL},
-  parameter fpnew_pkg::pipe_config_t    PipeConfig    = fpnew_pkg::BEFORE,
-  parameter type                        TagType       = logic,
+  parameter fpnew_pkg::fpu_features_t       Features      = fpnew_pkg::RV64D_Xsflt,
+  parameter fpnew_pkg::fpu_implementation_t Implementaion = fpnew_pkg::DEFAULT_NOREGS,
+  parameter type                            TagType       = logic,
   // Do not change
+  localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
 ) (
   input logic                               clk_i,
   input logic                               rst_ni,
   // Input signals
-  input logic [0:NUM_OPERANDS-1][Width-1:0] operands_i,
+  input logic [0:NUM_OPERANDS-1][WIDTH-1:0] operands_i,
   input fpnew_pkg::roundmode_e              rnd_mode_i,
   input fpnew_pkg::operation_e              op_i,
   input logic                               op_mod_i,
@@ -45,7 +40,7 @@ module fpnew_top #(
   output logic                              in_ready_o,
   input  logic                              flush_i,
   // Output signals
-  output logic [Width-1:0]                  result_o,
+  output logic [WIDTH-1:0]                  result_o,
   output fpnew_pkg::status_t                status_o,
   output TagType                            tag_o,
   // Output handshake
@@ -62,7 +57,7 @@ module fpnew_top #(
   // Type Definition
   // ----------------
   typedef struct packed {
-    logic [Width-1:0]   result;
+    logic [WIDTH-1:0]   result;
     fpnew_pkg::status_t status;
     TagType             tag;
   } output_t;
@@ -78,13 +73,18 @@ module fpnew_top #(
   // -----------
   assign in_ready_o = in_valid_i & opgrp_in_ready[fpnew_pkg::get_opgroup(op_i)];
 
-  // NaN box check
-  for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : nanbox_check
+  // NaN-boxing check
+  for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_nanbox_check
     localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
-    for (genvar op = 0; op < int'(NUM_OPERANDS); op++) begin : operands
-      assign is_boxed[fmt][op] = (EnableNanBox && !vectorial_op_i && (FP_WIDTH < Width))
-                                 ? operands_i[op][Width-1:FP_WIDTH] == '0
-                                 : 1'b1;
+    // NaN boxing is only generated if it's enabled and needed
+    if (Features.EnableNanBox && (FP_WIDTH < WIDTH)) begin : check
+      for (genvar op = 0; op < int'(NUM_OPERANDS); op++) begin : operands
+        assign is_boxed[fmt][op] = (!vectorial_op_i)
+                                   ? operands_i[op][WIDTH-1:FP_WIDTH] == '1
+                                   : 1'b1;
+      end
+    end else begin : no_check
+      assign is_boxed[fmt] = '1;
     end
   end
 
@@ -106,15 +106,15 @@ module fpnew_top #(
     end
 
     fpnew_opgroup_block #(
-      .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp) ),
-      .Width         ( Width                        ),
-      .EnableVectors ( EnableVectors                ),
-      .FpFmtMask     ( FpFmtMask                    ),
-      .IntFmtMask    ( IntFmtMask                   ),
-      .FmtPipeRegs   ( FmtPipeRegs                  ),
-      .FmtUnitTypes  ( FmtUnitTypes                 ),
-      .PipeConfig    ( PipeConfig                   ),
-      .TagType       ( TagType                      )
+      .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp)   ),
+      .Width         ( WIDTH                          ),
+      .EnableVectors ( Features.EnableVectors         ),
+      .FpFmtMask     ( Features.FpFmtMask             ),
+      .IntFmtMask    ( Features.IntFmtMask            ),
+      .FmtPipeRegs   ( Implementaion.PipeRegs[opgrp]  ),
+      .FmtUnitTypes  ( Implementaion.UnitTypes[opgrp] ),
+      .PipeConfig    ( Implementaion.PipeConfig       ),
+      .TagType       ( TagType                        )
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,
