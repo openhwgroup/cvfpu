@@ -398,7 +398,7 @@ module fpnew_fma #(
       // Normal result (biased exponent > 0 and not a zero)
       if ((exponent_product - leading_zero_count_sgn + 1 > 0) && !lzc_zeroes) begin
         // Undo initial product shift, remove the counted zeroes
-        norm_shamt          = PRECISION_BITS + 1 + leading_zero_count;
+        norm_shamt          = PRECISION_BITS + 2 + leading_zero_count;
         normalized_exponent = exponent_product - leading_zero_count_sgn + 1; // account for shift
       // Subnormal result
       end else begin
