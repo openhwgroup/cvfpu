@@ -600,7 +600,8 @@ module fpnew_cast_multi #(
     fpnew_pipe_out #(
       .Width       ( WIDTH       ),
       .NumPipeRegs ( NumPipeRegs ),
-      .TagType     ( TagType     )
+      .TagType     ( TagType     ),
+      .AuxType     ( AuxType     )
     ) i_output_pipe (
       .clk_i,
       .rst_ni,
