@@ -134,7 +134,7 @@ module fpnew_opgroup_block #(
       assign fmt_outputs[fmt]  = 'X;
 
     // Tie off disabled formats
-    end else begin : disable_format
+    end else if (!FpFmtMask[fmt] || (FmtUnitTypes[fmt] == fpnew_pkg::DISABLED)) begin : disable_fmt
       assign fmt_in_ready[fmt]  = 1'b0; // don't accept operations
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
@@ -176,16 +176,16 @@ module fpnew_opgroup_block #(
       .int_fmt_i,
       .vectorial_op_i,
       .tag_i,
-      .in_valid_i     ( in_valid                 ),
-      .in_ready_o     ( fmt_in_ready[FMT]        ),
+      .in_valid_i      ( in_valid                 ),
+      .in_ready_o      ( fmt_in_ready[FMT]        ),
       .flush_i,
-      .result_o       ( fmt_outputs[FMT].result  ),
-      .status_o       ( fmt_outputs[FMT].status  ),
-      .extension_bit_o( fmt_outputs[FMT].ext_bit ),
-      .tag_o          ( fmt_outputs[FMT].tag     ),
-      .out_valid_o    ( fmt_out_valid[FMT]       ),
-      .out_ready_i    ( fmt_out_ready[FMT]       ),
-      .busy_o         ( fmt_busy[FMT]            )
+      .result_o        ( fmt_outputs[FMT].result  ),
+      .status_o        ( fmt_outputs[FMT].status  ),
+      .extension_bit_o ( fmt_outputs[FMT].ext_bit ),
+      .tag_o           ( fmt_outputs[FMT].tag     ),
+      .out_valid_o     ( fmt_out_valid[FMT]       ),
+      .out_ready_i     ( fmt_out_ready[FMT]       ),
+      .busy_o          ( fmt_busy[FMT]            )
     );
 
   end
