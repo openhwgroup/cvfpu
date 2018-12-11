@@ -19,7 +19,7 @@ module fpnew_noncomp #(
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic
+  parameter type                     AuxType     = logic,
 
   localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat) // do not change
 ) (
