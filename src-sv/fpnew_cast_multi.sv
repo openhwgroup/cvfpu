@@ -197,9 +197,11 @@ module fpnew_cast_multi #(
       // Compensation for the difference in mantissa widths used for leading-zero count
       assign fmt_shift_compensation[fmt] = signed'(INT_MAN_WIDTH - 1 - MAN_BITS);
     end else begin : inactive_format
-      assign fmt_sign[fmt]     = 'x; // propagate don't care (format disabled)
-      assign fmt_exponent[fmt] = 'X; // propagate don't care (format disabled)
-      assign fmt_mantissa[fmt] = 'X; // propagate don't care (format disabled)
+      assign info_q[fmt]                 = 'X; // propagate don't care (format disabled)
+      assign fmt_sign[fmt]               = 'x; // propagate don't care (format disabled)
+      assign fmt_exponent[fmt]           = 'X; // propagate don't care (format disabled)
+      assign fmt_mantissa[fmt]           = 'X; // propagate don't care (format disabled)
+      assign fmt_shift_compensation[fmt] = 'X; // propagate don't care (format disabled)
     end
   end
 

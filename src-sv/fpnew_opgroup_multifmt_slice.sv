@@ -118,7 +118,9 @@ module fpnew_opgroup_multifmt_slice #(
   assign conv_aux_d = {dst_vec_op, dst_is_cpk, dst_fmt_is_int};
 
   // CONV passes one operand for assembly after the unit: opC for cpk, opB for others
-  assign conv_target_d = dst_is_cpk ? operands_i[2] : operands_i[1];
+  if (OpGroup == fpnew_pkg::CONV) begin : conv_target
+    assign conv_target_d = dst_is_cpk ? operands_i[2] : operands_i[1];
+  end
 
   // For 2-operand units, prepare boxing info
   logic [0:NUM_FORMATS-1]      is_boxed_1op;
