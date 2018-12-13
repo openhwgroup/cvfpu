@@ -19,7 +19,6 @@ module fpnew_opgroup_fmt_slice #(
   parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::FP32,
   // FPU configuration
   parameter int unsigned             Width         = 32,
-  parameter logic                    EnableNanBoxing = 1'b1,
   parameter logic                    EnableVectors = 1'b1,
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
@@ -219,7 +218,13 @@ module fpnew_opgroup_fmt_slice #(
 
   assign out_valid_o                      = lane_out_valid[0]; // don't care about upper ones
 
-  // If needed, extend the result to the full width and collapse the status
+
+  // Extend result if wider than what is filled by lanes
+  if (Width > NUM_LANES*FP_WIDTH) begin : extend_result
+    assign result_o[Width-1:NUM_LANES*FP_WIDTH] = '{default: extension_bit_o};
+  end
+
+  // Collapse the lane status
   always_comb begin : output_processing
     // Collapse the status
     automatic fpnew_pkg::status_t temp_status;
@@ -227,9 +232,5 @@ module fpnew_opgroup_fmt_slice #(
     for (int i = 0; i < int'(NUM_LANES); i++)
       temp_status |= lane_status[i];
     status_o = temp_status;
-    // Extend result if wider than what is filled by lanes
-    if (Width > NUM_LANES*FP_WIDTH) begin
-      result_o[Width-1:NUM_LANES*FP_WIDTH] = '{default: extension_bit_o};
-    end
   end
 endmodule

@@ -208,14 +208,14 @@ module fpnew_cast_multi #(
     // Set up some constants
     localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
 
-    always_comb begin : sign_ext_input
-      if (IntFmtConfig[ifmt]) begin // only active formats
+    if (IntFmtConfig[ifmt]) begin : active_format // only active formats
+      always_comb begin : sign_ext_input
         // sign-extend value only if it's signed
         ifmt_input_val[ifmt]                = '{default: operands_q[INT_WIDTH-1] & ~op_mod_q};
         ifmt_input_val[ifmt][INT_WIDTH-1:0] = operands_q[INT_WIDTH-1:0];
-      end else begin
-        ifmt_input_val[ifmt] = 'X; // don't care about disabled formats
       end
+    end else begin : inactive_format
+      assign ifmt_input_val[ifmt] = 'X; // don't care about disabled formats
     end
   end
 
@@ -384,11 +384,12 @@ module fpnew_cast_multi #(
     localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
     localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
 
-    always_comb begin : assemble_result
-      if (FpFmtConfig[fmt])
+    if (FpFmtConfig[fmt]) begin : active_format
+      always_comb begin : assemble_result
         fmt_pre_round_abs[fmt] = {final_exp[EXP_BITS-1:0], final_mant[MAN_BITS-1:0]}; // 0-extend
-      else
-        fmt_pre_round_abs[fmt] = 'X;
+      end
+    end else begin : inactive_format
+      assign fmt_pre_round_abs[fmt] = 'X;
     end
   end
 
@@ -397,14 +398,14 @@ module fpnew_cast_multi #(
     // Set up some constants
     localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
 
-    always_comb begin : assemble_result
-      if (IntFmtConfig[ifmt]) begin
+    if (IntFmtConfig[ifmt]) begin : active_format
+      always_comb begin : assemble_result
         // sign-extend reusult
         ifmt_pre_round_abs[ifmt]                = '{default: final_int[INT_WIDTH-1]};
         ifmt_pre_round_abs[ifmt][INT_WIDTH-1:0] = final_int[INT_WIDTH-1:0];
-      end else begin
-        ifmt_pre_round_abs[ifmt] = 'X;
       end
+    end else begin : inactive_format
+      assign ifmt_pre_round_abs[ifmt] = 'X;
     end
   end
 
@@ -428,13 +429,13 @@ module fpnew_cast_multi #(
 
   // Detect overflows and inject sign
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_sign_inject
-    always_comb begin : post_process
-      // Set up some constants
-      localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
-      localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
-      localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
+    // Set up some constants
+    localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
 
-      if (FpFmtConfig[fmt]) begin
+    if (FpFmtConfig[fmt]) begin : active_format
+      always_comb begin : post_process
         // detect of / uf
         fmt_uf_after_round[fmt] = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0; // denormal
         fmt_of_after_round[fmt] = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '1; // inf exp.
@@ -444,11 +445,11 @@ module fpnew_cast_multi #(
         fmt_result[fmt][FP_WIDTH-1:0] = src_is_int & mant_is_zero
                                         ? '0
                                         : {rounded_sign, rounded_abs[EXP_BITS+MAN_BITS-1:0]};
-      end else begin
-        fmt_uf_after_round[fmt] = 'X;
-        fmt_of_after_round[fmt] = 'X;
-        fmt_result[fmt]         = 'X;
       end
+    end else begin : inactive_format
+      assign fmt_uf_after_round[fmt] = 'X;
+      assign fmt_of_after_round[fmt] = 'X;
+      assign fmt_result[fmt]         = 'X;
     end
   end
 
@@ -475,9 +476,9 @@ module fpnew_cast_multi #(
     localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
     localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
 
-    always_comb begin : special_results
+    if (FpFmtConfig[fmt]) begin : active_format
+      always_comb begin : special_results
 
-      if (FpFmtConfig[fmt]) begin
         typedef struct packed {
           logic                sign;
           logic [EXP_BITS-1:0] exponent;
@@ -493,9 +494,9 @@ module fpnew_cast_multi #(
         // Initialize special result with ones (NaN-box)
         fmt_special_result[fmt]               = '1;
         fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
-      end else begin
-        fmt_special_result[fmt] = 'X;
       end
+    end else begin : inactive_format
+      assign fmt_special_result[fmt] = 'X;
     end
   end
 
@@ -524,8 +525,8 @@ module fpnew_cast_multi #(
     // Set up some constants
     localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
 
-    always_comb begin : special_results
-      if (IntFmtConfig[ifmt]) begin
+    if (IntFmtConfig[ifmt]) begin : active_format
+      always_comb begin : special_results
         automatic logic [INT_WIDTH-1:0] special_res;
 
         // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
@@ -539,9 +540,9 @@ module fpnew_cast_multi #(
         // Initialize special result with sign-extension
         ifmt_special_result[ifmt]                = '{default: special_res[INT_WIDTH-1]};
         ifmt_special_result[ifmt][INT_WIDTH-1:0] = special_res;
-      end else begin
-        ifmt_special_result[ifmt] = 'X;
       end
+    end else begin : inactive_format
+      assign ifmt_special_result[ifmt] = 'X;
     end
   end
 
