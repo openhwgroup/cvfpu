@@ -174,9 +174,9 @@ package fpnew_pkg;
 
   // Arithmetic units can be arranged in parallel (per format), merged (multi-format) or not at all.
   typedef enum logic [1:0] {
+    DISABLED, // arithmetic units are not generated
     PARALLEL, // arithmetic units are generated in prallel slices, one for each format
-    MERGED,   // arithmetic units are contained within a merged unit holding multiple formats
-    DISABLED  // arithmetic units are not generated
+    MERGED    // arithmetic units are contained within a merged unit holding multiple formats
   } unit_type_t;
 
   // Array of unit types indexed by format
@@ -226,6 +226,14 @@ package fpnew_pkg;
     EnableNanBox:  1'b1,
     FpFmtMask:     5'b10111,
     IntFmtMask:    4'b1110
+  };
+
+  localparam fpu_features_t RV32F_Xf16alt_Xfvec = '{
+    Width:         32,
+    EnableVectors: 1'b1,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b10001,
+    IntFmtMask:    4'b0110
   };
 
 
