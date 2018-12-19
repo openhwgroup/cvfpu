@@ -99,12 +99,12 @@ module fpnew_pipe_out #(
     // Enable register if pipleine ready and a valid data item is present
     assign reg_ena = ready_q[i] & valid_q[i];
 
-    // Generate the pipeline registers within the stages, use enable-registers wihtout reset
-    `FFLNR(result_q[i+1],        result_q[i],        reg_ena, clk_i)
-    `FFLNR(status_q[i+1],        status_q[i],        reg_ena, clk_i)
-    `FFLNR(extension_bit_q[i+1], extension_bit_q[i], reg_ena, clk_i)
-    `FFLNR(tag_q[i+1],           tag_q[i],           reg_ena, clk_i)
-    `FFLNR(aux_q[i+1],           aux_q[i],           reg_ena, clk_i)
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(result_q[i+1],        result_q[i],        reg_ena, '0)
+    `FFL(status_q[i+1],        status_q[i],        reg_ena, '0)
+    `FFL(extension_bit_q[i+1], extension_bit_q[i], reg_ena, '0)
+    `FFL(tag_q[i+1],           tag_q[i],           reg_ena, '0)
+    `FFL(aux_q[i+1],           aux_q[i],           reg_ena, '0)
   end
 
   // Output stage: bind pipeline outputs to module output. Directly connects to input if no regs.

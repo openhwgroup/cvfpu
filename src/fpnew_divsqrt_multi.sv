@@ -233,10 +233,10 @@ module fpnew_divsqrt_multi #(
   TagType result_tag_q;
   AuxType result_aux_q;
 
-  // Fill the registers everytime a valid operation arrives (load, no reset)
-  `FFLNR(result_is_fp8_q, input_is_fp8, in_valid_q, clk_i)
-  `FFLNR(result_tag_q,    tag_q,        in_valid_q, clk_i)
-  `FFLNR(result_aux_q,    aux_q,        in_valid_q, clk_i)
+  // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
+  `FFL(result_is_fp8_q, input_is_fp8, in_valid_q, '0)
+  `FFL(result_tag_q,    tag_q,        in_valid_q, '0)
+  `FFL(result_aux_q,    aux_q,        in_valid_q, '0)
 
   // -----------------
   // DIVSQRT instance

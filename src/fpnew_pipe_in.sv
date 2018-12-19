@@ -121,17 +121,17 @@ module fpnew_pipe_in #(
     // Enable register if pipleine ready and a valid data item is present
     assign reg_ena = ready_q[i] & valid_q[i];
 
-    // Generate the pipeline registers within the stages, use enable-registers wihtout reset
-    `FFLNR(operands_q[i+1], operands_q[i], reg_ena, clk_i)
-    `FFLNR(is_boxed_q[i+1], is_boxed_q[i], reg_ena, clk_i)
-    `FFLNR(rnd_mode_q[i+1], rnd_mode_q[i], reg_ena, clk_i)
-    `FFLNR(op_q[i+1],       op_q[i],       reg_ena, clk_i)
-    `FFLNR(op_mod_q[i+1],   op_mod_q[i],   reg_ena, clk_i)
-    `FFLNR(fp_fmt_q[i+1],   fp_fmt_q[i],   reg_ena, clk_i)
-    `FFLNR(fp_fmt2_q[i+1],  fp_fmt2_q[i],  reg_ena, clk_i)
-    `FFLNR(int_fmt_q[i+1],  int_fmt_q[i],  reg_ena, clk_i)
-    `FFLNR(tag_q[i+1],      tag_q[i],      reg_ena, clk_i)
-    `FFLNR(aux_q[i+1],      aux_q[i],      reg_ena, clk_i)
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(operands_q[i+1], operands_q[i], reg_ena, '0)
+    `FFL(is_boxed_q[i+1], is_boxed_q[i], reg_ena, '0)
+    `FFL(rnd_mode_q[i+1], rnd_mode_q[i], reg_ena, '0)
+    `FFL(op_q[i+1],       op_q[i],       reg_ena, '0)
+    `FFL(op_mod_q[i+1],   op_mod_q[i],   reg_ena, '0)
+    `FFL(fp_fmt_q[i+1],   fp_fmt_q[i],   reg_ena, '0)
+    `FFL(fp_fmt2_q[i+1],  fp_fmt2_q[i],  reg_ena, '0)
+    `FFL(int_fmt_q[i+1],  int_fmt_q[i],  reg_ena, '0)
+    `FFL(tag_q[i+1],      tag_q[i],      reg_ena, '0)
+    `FFL(aux_q[i+1],      aux_q[i],      reg_ena, '0)
   end
 
   // Output stage: bind pipeline outputs to module output. Directly connects to input if no regs.
