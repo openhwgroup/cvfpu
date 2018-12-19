@@ -148,7 +148,7 @@ module fpnew_divsqrt_multi #(
   // ------------
   // Control FSM
   // ------------
-  logic in_valid, in_ready;     // input handshake with upstream
+  logic in_ready;               // input handshake with upstream
   logic div_valid, sqrt_valid;  // input signalling with unit
   logic unit_ready, unit_done;  // status signals from unit instance
   logic out_valid, out_ready;   // output handshake with downstream
@@ -161,11 +161,9 @@ module fpnew_divsqrt_multi #(
   // Upstream ready comes from sanitization FSM
   assign in_ready_q = in_ready;
 
-  // Valids are gated by the FSM ready
-  assign div_valid  = in_valid_q & (op_q == fpnew_pkg::DIV)  & in_ready & ~flush_i;
-  assign sqrt_valid = in_valid_q & (op_q == fpnew_pkg::SQRT) & in_ready & ~flush_i;
-
-  assign in_valid = div_valid | sqrt_valid;
+  // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
+  assign div_valid  = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign sqrt_valid = in_valid_q & (op_q != fpnew_pkg::DIV) & in_ready & ~flush_i;
 
   // FSM to safely apply and receive data from DIVSQRT unit
   always_comb begin : flag_fsm
@@ -180,7 +178,7 @@ module fpnew_divsqrt_multi #(
       // Waiting for work
       IDLE: begin
         in_ready = 1'b1; // we're ready
-        if (in_valid && unit_ready) begin // New work arrives
+        if (in_valid_q && unit_ready) begin // New work arrives
           state_d = BUSY; // go into processing state
         end
       end
@@ -192,7 +190,7 @@ module fpnew_divsqrt_multi #(
           // If downstream accepts our result
           if (out_ready) begin
             state_d = IDLE; // we anticipate going back to idling..
-            if (in_valid && unit_ready) begin // ..unless new work comes in
+            if (in_valid_q && unit_ready) begin // ..unless new work comes in
               in_ready = 1'b1; // we acknowledge the instruction
               state_d  = BUSY; // and stay busy with it
             end
@@ -210,7 +208,7 @@ module fpnew_divsqrt_multi #(
         // If the result is accepted by downstream
         if (out_ready) begin
           state_d = IDLE; // go back to idle..
-          if (in_valid && unit_ready) begin // ..unless new work comes in
+          if (in_valid_q && unit_ready) begin // ..unless new work comes in
             in_ready = 1'b1; // acknowledge the new transaction
             state_d  = BUSY; // will be busy with the next instruction
           end
@@ -236,9 +234,9 @@ module fpnew_divsqrt_multi #(
   AuxType result_aux_q;
 
   // Fill the registers everytime a valid operation arrives (load, no reset)
-  `FFLNR(result_is_fp8_q, input_is_fp8, in_valid, clk_i)
-  `FFLNR(result_tag_q,    tag_q,        in_valid, clk_i)
-  `FFLNR(result_aux_q,    aux_q,        in_valid, clk_i)
+  `FFLNR(result_is_fp8_q, input_is_fp8, in_valid_q, clk_i)
+  `FFLNR(result_tag_q,    tag_q,        in_valid_q, clk_i)
+  `FFLNR(result_aux_q,    aux_q,        in_valid_q, clk_i)
 
   // -----------------
   // DIVSQRT instance
