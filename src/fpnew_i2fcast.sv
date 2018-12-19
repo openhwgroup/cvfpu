@@ -20,7 +20,7 @@ module fpnew_i2fcast #(
   parameter int unsigned             NumPipeRegs  = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig   = fpnew_pkg::BEFORE,
   parameter type                     TagType      = logic,
-  parameter type                     AuxType      = logic
+  parameter type                     AuxType      = logic,
 
   localparam int unsigned SRC_WIDTH = fpnew_pkg::max_int_width(IntFmtConfig), // do not change
   localparam int unsigned DST_WIDTH = fpnew_pkg::fp_width(DstFpFormat)  // do not change
