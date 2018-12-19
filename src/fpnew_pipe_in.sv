@@ -14,7 +14,7 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
-`include "register_defines.svh"
+`include "registers.svh"
 
 module fpnew_pipe_in #(
   parameter int unsigned Width         = 32,
