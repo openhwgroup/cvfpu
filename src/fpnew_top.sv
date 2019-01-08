@@ -97,7 +97,7 @@ module fpnew_top #(
     logic in_valid;
     logic [0:NUM_FORMATS-1][0:NUM_OPS-1] input_boxed;
 
-    assign in_valid = in_valid_i & (fpnew_pkg::get_opgroup(op_i) == opgrp);
+    assign in_valid = in_valid_i & (fpnew_pkg::get_opgroup(op_i) == fpnew_pkg::opgroup_e'(opgrp));
 
     // slice out input boxing
     always_comb begin : slice_inputs
