@@ -438,7 +438,7 @@ package fpnew_pkg;
   function automatic logic is_first_enabled_multi(fp_format_e fmt, fmt_unit_types_t types);
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (types[i] == MERGED)
-        return (i == fmt);
+        return (fp_format_e'(i) == fmt);
   endfunction
 
   function automatic fp_format_e get_first_enabled_multi(fmt_unit_types_t types);

@@ -124,12 +124,12 @@ module fpnew_pipe_in #(
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(operands_q[i+1], operands_q[i], reg_ena, '0)
     `FFL(is_boxed_q[i+1], is_boxed_q[i], reg_ena, '0)
-    `FFL(rnd_mode_q[i+1], rnd_mode_q[i], reg_ena, '0)
-    `FFL(op_q[i+1],       op_q[i],       reg_ena, '0)
+    `FFL(rnd_mode_q[i+1], rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
+    `FFL(op_q[i+1],       op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(op_mod_q[i+1],   op_mod_q[i],   reg_ena, '0)
-    `FFL(fp_fmt_q[i+1],   fp_fmt_q[i],   reg_ena, '0)
-    `FFL(fp_fmt2_q[i+1],  fp_fmt2_q[i],  reg_ena, '0)
-    `FFL(int_fmt_q[i+1],  int_fmt_q[i],  reg_ena, '0)
+    `FFL(fp_fmt_q[i+1],   fp_fmt_q[i],   reg_ena, fpnew_pkg::FP32)
+    `FFL(fp_fmt2_q[i+1],  fp_fmt2_q[i],  reg_ena, fpnew_pkg::FP32)
+    `FFL(int_fmt_q[i+1],  int_fmt_q[i],  reg_ena, fpnew_pkg::INT8)
     `FFL(tag_q[i+1],      tag_q[i],      reg_ena, '0)
     `FFL(aux_q[i+1],      aux_q[i],      reg_ena, '0)
   end
