@@ -37,8 +37,8 @@ module fpnew_opgroup_block #(
   input fpnew_pkg::roundmode_e                    rnd_mode_i,
   input fpnew_pkg::operation_e                    op_i,
   input logic                                     op_mod_i,
-  input fpnew_pkg::fp_format_e                    fp_fmt_i,
-  input fpnew_pkg::fp_format_e                    fp_fmt2_i,
+  input fpnew_pkg::fp_format_e                    src_fmt_i,
+  input fpnew_pkg::fp_format_e                    dst_fmt_i,
   input fpnew_pkg::int_format_e                   int_fmt_i,
   input logic                                     vectorial_op_i,
   input TagType                                   tag_i,
@@ -75,7 +75,7 @@ module fpnew_opgroup_block #(
   // -----------
   // Input Side
   // -----------
-  assign in_ready_o = in_valid_i & fmt_in_ready[fp_fmt_i]; // Ready is given by selected format
+  assign in_ready_o = in_valid_i & fmt_in_ready[dst_fmt_i]; // Ready is given by selected format
 
   // -------------------------
   // Generate Parallel Slices
@@ -91,7 +91,7 @@ module fpnew_opgroup_block #(
 
       logic in_valid;
 
-      assign in_valid = in_valid_i & (fp_fmt_i == fmt); // enable selected format
+      assign in_valid = in_valid_i & (dst_fmt_i == fmt); // enable selected format
 
       fpnew_opgroup_fmt_slice #(
         .OpGroup       ( OpGroup          ),
@@ -152,7 +152,7 @@ module fpnew_opgroup_block #(
 
     logic in_valid;
 
-    assign in_valid = in_valid_i & (FmtUnitTypes[fp_fmt_i] == fpnew_pkg::MERGED);
+    assign in_valid = in_valid_i & (FmtUnitTypes[dst_fmt_i] == fpnew_pkg::MERGED);
 
     fpnew_opgroup_multifmt_slice #(
       .OpGroup       ( OpGroup          ),
@@ -171,8 +171,8 @@ module fpnew_opgroup_block #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i,
-      .fp_fmt_i,
-      .fp_fmt2_i,
+      .src_fmt_i,
+      .dst_fmt_i,
       .int_fmt_i,
       .vectorial_op_i,
       .tag_i,

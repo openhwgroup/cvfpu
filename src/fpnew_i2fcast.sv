@@ -101,8 +101,8 @@ module fpnew_i2fcast #(
       .rnd_mode_i,
       .op_i           ( fpnew_pkg::FMADD ), // unused
       .op_mod_i,
-      .fp_fmt_i       ( fpnew_pkg::FP32  ), // unused
-      .fp_fmt2_i      ( fpnew_pkg::FP32  ), // unused
+      .src_fmt_i      ( fpnew_pkg::FP32  ), // unused
+      .dst_fmt_i      ( fpnew_pkg::FP32  ), // unused
       .int_fmt_i,
       .tag_i,
       .aux_i,
@@ -114,8 +114,8 @@ module fpnew_i2fcast #(
       .rnd_mode_o     ( rnd_mode_q   ),
       .op_o           ( /* unused */ ),
       .op_mod_o       ( op_mod_q     ),
-      .fp_fmt_o       ( /* unused */ ),
-      .fp_fmt2_o      ( /* unused */ ),
+      .src_fmt_o      ( /* unused */ ),
+      .dst_fmt_o      ( /* unused */ ),
       .int_fmt_o      ( int_fmt_q    ),
       .tag_o,
       .aux_o,

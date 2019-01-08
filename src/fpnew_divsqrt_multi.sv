@@ -34,7 +34,7 @@ module fpnew_divsqrt_multi #(
   input  logic [0:NUM_FORMATS-1][0:1] is_boxed_i, // 2 operands
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
   input  fpnew_pkg::operation_e       op_i,
-  input  fpnew_pkg::fp_format_e       fp_fmt_i,
+  input  fpnew_pkg::fp_format_e       dst_fmt_i,
   input  TagType                      tag_i,
   input  AuxType                      aux_i,
   // Input Handshake
@@ -63,7 +63,7 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::roundmode_e       rnd_mode_q;
   fpnew_pkg::operation_e       op_q;
   logic                        op_mod_q;
-  fpnew_pkg::fp_format_e       fp_fmt_q;
+  fpnew_pkg::fp_format_e       dst_fmt_q;
   TagType                      tag_q;
   AuxType                      aux_q;
   logic                        in_valid_q, in_ready_q;
@@ -85,8 +85,8 @@ module fpnew_divsqrt_multi #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i    ( 1'b0            ), // unused
-      .fp_fmt_i,
-      .fp_fmt2_i   ( fpnew_pkg::FP32 ), // unused
+      .src_fmt_i   ( fpnew_pkg::FP32 ), // unused
+      .dst_fmt_i,
       .int_fmt_i   ( fpnew_pkg::INT8 ), // unused,
       .tag_i,
       .aux_i,
@@ -98,8 +98,8 @@ module fpnew_divsqrt_multi #(
       .rnd_mode_o  ( rnd_mode_q      ),
       .op_o        ( op_q            ),
       .op_mod_o    ( /* unused */    ),
-      .fp_fmt_o    ( fp_fmt_q        ),
-      .fp_fmt2_o   ( /* unused */    ),
+      .src_fmt_o   ( /* unused */    ),
+      .dst_fmt_o   ( dst_fmt_q       ),
       .int_fmt_o   ( /* unused */    ),
       .tag_o       ( tag_q           ),
       .aux_o       ( aux_q           ),
@@ -113,7 +113,7 @@ module fpnew_divsqrt_multi #(
     assign is_boxed_q = is_boxed_i;
     assign rnd_mode_q = rnd_mode_i;
     assign op_q       = op_i;
-    assign fp_fmt_q   = fp_fmt_i;
+    assign dst_fmt_q  = dst_fmt_i;
     assign tag_q      = tag_i;
     assign aux_q      = aux_i;
     assign in_valid_q = in_valid_i;
@@ -129,7 +129,7 @@ module fpnew_divsqrt_multi #(
 
   // Translate fpnew formats into divsqrt formats
   always_comb begin : translate_fmt
-    unique case (fp_fmt_q)
+    unique case (dst_fmt_q)
       fpnew_pkg::FP32:    divsqrt_fmt = 2'b00;
       fpnew_pkg::FP64:    divsqrt_fmt = 2'b01;
       fpnew_pkg::FP16:    divsqrt_fmt = 2'b10;
@@ -138,7 +138,7 @@ module fpnew_divsqrt_multi #(
     endcase
 
     // Only if FP8 is enabled
-    input_is_fp8 = FpFmtConfig[fpnew_pkg::FP8] & (fp_fmt_q == fpnew_pkg::FP8);
+    input_is_fp8 = FpFmtConfig[fpnew_pkg::FP8] & (dst_fmt_q == fpnew_pkg::FP8);
 
     // If FP8 is supported, map it to an FP16 value
     divsqrt_operands[0] = input_is_fp8 ? operands_q[0] << 8 : operands_q[0];

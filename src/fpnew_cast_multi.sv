@@ -35,8 +35,8 @@ module fpnew_cast_multi #(
   input  fpnew_pkg::roundmode_e  rnd_mode_i,
   input  fpnew_pkg::operation_e  op_i,
   input  logic                   op_mod_i,
-  input  fpnew_pkg::fp_format_e  fp_fmt_i,  // Destination format
-  input  fpnew_pkg::fp_format_e  fp_fmt2_i, // Source format
+  input  fpnew_pkg::fp_format_e  src_fmt_i,
+  input  fpnew_pkg::fp_format_e  dst_fmt_i,
   input  fpnew_pkg::int_format_e int_fmt_i,
   input  TagType                 tag_i,
   input  AuxType                 aux_i,
@@ -88,8 +88,8 @@ module fpnew_cast_multi #(
   fpnew_pkg::roundmode_e  rnd_mode_q;
   fpnew_pkg::operation_e  op_q;
   logic                   op_mod_q;
-  fpnew_pkg::fp_format_e  fp_fmt_q;
-  fpnew_pkg::fp_format_e  fp_fmt2_q;
+  fpnew_pkg::fp_format_e  src_fmt_q;
+  fpnew_pkg::fp_format_e  dst_fmt_q;
   fpnew_pkg::int_format_e int_fmt_q;
 
   // Generate pipeline at input if needed
@@ -109,8 +109,8 @@ module fpnew_cast_multi #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i,
-      .fp_fmt_i,
-      .fp_fmt2_i,
+      .src_fmt_i,
+      .dst_fmt_i,
       .int_fmt_i,
       .tag_i,
       .aux_i,
@@ -122,8 +122,8 @@ module fpnew_cast_multi #(
       .rnd_mode_o     ( rnd_mode_q   ),
       .op_o           ( op_q         ),
       .op_mod_o       ( op_mod_q     ),
-      .fp_fmt_o       ( fp_fmt_q     ),
-      .fp_fmt2_o      ( fp_fmt2_q    ),
+      .src_fmt_o      ( src_fmt_q    ),
+      .dst_fmt_o      ( dst_fmt_q    ),
       .int_fmt_o      ( int_fmt_q    ),
       .tag_o,
       .aux_o,
@@ -138,8 +138,8 @@ module fpnew_cast_multi #(
     assign rnd_mode_q = rnd_mode_i;
     assign op_q       = op_i;
     assign op_mod_q   = op_mod_i;
-    assign fp_fmt_q   = fp_fmt_i;
-    assign fp_fmt2_q  = fp_fmt2_i;
+    assign src_fmt_q  = src_fmt_i;
+    assign dst_fmt_q  = dst_fmt_i;
     assign int_fmt_q  = int_fmt_i;
   end
 
@@ -227,7 +227,7 @@ module fpnew_cast_multi #(
   assign int_mantissa = int_sign ? unsigned'(-int_value) : int_value; // get magnitude of negative
 
   // select mantissa with source format
-  assign encoded_mant = src_is_int ? int_mantissa : fmt_mantissa[fp_fmt2_q];
+  assign encoded_mant = src_is_int ? int_mantissa : fmt_mantissa[src_fmt_q];
 
   // --------------
   // Normalization
@@ -237,10 +237,10 @@ module fpnew_cast_multi #(
   logic signed [INT_EXP_WIDTH-1:0] src_subnormal; // src is subnormal
   logic signed [INT_EXP_WIDTH-1:0] src_offset;    // src offset within mantissa
 
-  assign src_bias      = signed'(fpnew_pkg::bias(fp_fmt2_q));
-  assign src_exp       = fmt_exponent[fp_fmt2_q];
-  assign src_subnormal = signed'({1'b0, info_q[fp_fmt2_q].is_subnormal});
-  assign src_offset    = fmt_shift_compensation[fp_fmt2_q];
+  assign src_bias      = signed'(fpnew_pkg::bias(src_fmt_q));
+  assign src_exp       = fmt_exponent[src_fmt_q];
+  assign src_subnormal = signed'({1'b0, info_q[src_fmt_q].is_subnormal});
+  assign src_offset    = fmt_shift_compensation[src_fmt_q];
 
   logic                            input_sign;   // input sign
   logic signed [INT_EXP_WIDTH-1:0] input_exp;    // unbiased true exponent
@@ -266,7 +266,7 @@ module fpnew_cast_multi #(
   assign renorm_shamt_sgn = signed'({1'b0, renorm_shamt});
 
   // Get the sign from the proper source
-  assign input_sign = src_is_int ? int_sign : fmt_sign[fp_fmt2_q];
+  assign input_sign = src_is_int ? int_sign : fmt_sign[src_fmt_q];
   // Realign input mantissa, append zeroes if destination is wider
   assign input_mant = encoded_mant << renorm_shamt;
   // Unbias exponent and compensate for shift
@@ -283,7 +283,7 @@ module fpnew_cast_multi #(
   logic        [INT_EXP_WIDTH-1:0] final_exp;        // after eventual adjustments
 
   logic signed [INT_EXP_WIDTH-1:0] dst_bias;      // dst format bias
-  assign dst_bias = signed'(fpnew_pkg::bias(fp_fmt_q));
+  assign dst_bias = signed'(fpnew_pkg::bias(dst_fmt_q));
 
   logic [2*INT_MAN_WIDTH:0]  preshift_mant;    // mantissa before final shift
   logic [2*INT_MAN_WIDTH:0]  destination_mant; // mantissa from shifter, with rnd
@@ -303,7 +303,7 @@ module fpnew_cast_multi #(
     // Default assignment
     final_exp       = unsigned'(destination_exp); // take exponent as is, only look at lower bits
     preshift_mant   = '0;  // initialize mantissa container with zeroes
-    denorm_shamt    = SUPER_MAN_BITS - fpnew_pkg::man_bits(fp_fmt_q); // right of mantissa
+    denorm_shamt    = SUPER_MAN_BITS - fpnew_pkg::man_bits(dst_fmt_q); // right of mantissa
     of_before_round = 1'b0;
     uf_before_round = 1'b0;
 
@@ -326,19 +326,19 @@ module fpnew_cast_multi #(
     // Handle FP over-/underflows
     end else begin
       // Overflow or infinities (for proper rounding)
-      if ((destination_exp >= 2**fpnew_pkg::exp_bits(fp_fmt_q)-1) || info_q[fp_fmt2_q].is_inf) begin
-        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(fp_fmt_q)-2); // largest normal value
+      if ((destination_exp >= 2**fpnew_pkg::exp_bits(dst_fmt_q)-1) || info_q[src_fmt_q].is_inf) begin
+        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
       // Denormalize underflowing values
-      end else if (destination_exp < 1 && destination_exp >= -fpnew_pkg::man_bits(fp_fmt_q)) begin
+      end else if (destination_exp < 1 && destination_exp >= -fpnew_pkg::man_bits(dst_fmt_q)) begin
         final_exp       = '0; // denormal result
         denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp); // adjust right shifting
         uf_before_round = 1'b1;
       // Limit the shift to retain sticky bits
-      end else if (destination_exp < -signed'(fpnew_pkg::man_bits(fp_fmt_q))) begin
+      end else if (destination_exp < -signed'(fpnew_pkg::man_bits(dst_fmt_q))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 1 + fpnew_pkg::man_bits(fp_fmt_q)); // to sticky
+        denorm_shamt    = unsigned'(denorm_shamt + 1 + fpnew_pkg::man_bits(dst_fmt_q)); // to sticky
         uf_before_round = 1'b1;
       end
     end
@@ -412,7 +412,7 @@ module fpnew_cast_multi #(
   end
 
   // Select output with destination format and operation
-  assign pre_round_abs = dst_is_int ? ifmt_pre_round_abs[int_fmt_q] : fmt_pre_round_abs[fp_fmt_q];
+  assign pre_round_abs = dst_is_int ? ifmt_pre_round_abs[int_fmt_q] : fmt_pre_round_abs[dst_fmt_q];
 
   fpnew_rounding #(
     .AbsWidth ( WIDTH )
@@ -456,8 +456,8 @@ module fpnew_cast_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[fp_fmt_q] & ~rounded_res_zero; // zero is not underflow
-  assign of_after_round = fmt_of_after_round[fp_fmt_q];
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q] & ~rounded_res_zero; // zero is not underflow
+  assign of_after_round = fmt_of_after_round[dst_fmt_q];
 
   // Negative integer result needs to be brought into two's complement
   assign rounded_int_res = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
@@ -503,15 +503,15 @@ module fpnew_cast_multi #(
   end
 
   // Detect special case from source format, I2F casts don't produce a special result
-  assign fp_result_is_special = ~src_is_int & (info_q[fp_fmt2_q].is_zero |
-                                               info_q[fp_fmt2_q].is_nan |
-                                               ~info_q[fp_fmt2_q].is_boxed);
+  assign fp_result_is_special = ~src_is_int & (info_q[src_fmt_q].is_zero |
+                                               info_q[src_fmt_q].is_nan |
+                                               ~info_q[src_fmt_q].is_boxed);
 
   // Signalling input NaNs raise invalid flag, otherwise no flags set
-  assign fp_special_status = '{NV: info_q[fp_fmt2_q].is_signalling, default: 1'b0};
+  assign fp_special_status = '{NV: info_q[src_fmt_q].is_signalling, default: 1'b0};
 
   // Assemble result according to destination format
-  assign fp_special_result = fmt_special_result[fp_fmt_q]; // destination format
+  assign fp_special_result = fmt_special_result[dst_fmt_q]; // destination format
 
   // --------------------------
   // INT Special case handling
@@ -536,7 +536,7 @@ module fpnew_cast_multi #(
         special_res[INT_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
 
         // Negative special case (except for nans) tie to -max or 0
-        if (fmt_sign[fp_fmt2_q] && !info_q[fp_fmt2_q].is_nan)
+        if (fmt_sign[src_fmt_q] && !info_q[src_fmt_q].is_nan)
           special_res = ~special_res;
 
         // Initialize special result with sign-extension
@@ -549,9 +549,9 @@ module fpnew_cast_multi #(
   end
 
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
-  assign int_result_is_special = info_q[fp_fmt2_q].is_nan | info_q[fp_fmt2_q].is_inf |
-                                 of_before_round | ~info_q[fp_fmt2_q].is_boxed |
-                                 (fmt_sign[fp_fmt2_q] & op_mod_q & rounded_res_zero);
+  assign int_result_is_special = info_q[src_fmt_q].is_nan | info_q[src_fmt_q].is_inf |
+                                 of_before_round | ~info_q[src_fmt_q].is_boxed |
+                                 (fmt_sign[src_fmt_q] & op_mod_q & rounded_res_zero);
 
   // All integer special cases are invalid
   assign int_special_status = '{NV: 1'b1, default: 1'b0};
@@ -578,7 +578,7 @@ module fpnew_cast_multi #(
   };
   assign int_regular_status = '{NX: (| int_round_sticky_bits), default: 1'b0};
 
-  assign fp_result  = fp_result_is_special  ? fp_special_result  : fmt_result[fp_fmt_q];
+  assign fp_result  = fp_result_is_special  ? fp_special_result  : fmt_result[dst_fmt_q];
   assign fp_status  = fp_result_is_special  ? fp_special_status  : fp_regular_status;
   assign int_result = int_result_is_special ? int_special_result : rounded_int_res;
   assign int_status = int_result_is_special ? int_special_status : int_regular_status;
