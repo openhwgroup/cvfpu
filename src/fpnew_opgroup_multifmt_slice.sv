@@ -36,8 +36,8 @@ module fpnew_opgroup_multifmt_slice #(
   input fpnew_pkg::roundmode_e                    rnd_mode_i,
   input fpnew_pkg::operation_e                    op_i,
   input logic                                     op_mod_i,
-  input fpnew_pkg::fp_format_e                    fp_fmt_i,  // destination format for F2F casts
-  input  fpnew_pkg::fp_format_e                   fp_fmt2_i, // source format for F2F casts
+  input fpnew_pkg::fp_format_e                    src_fmt_i,
+  input fpnew_pkg::fp_format_e                    dst_fmt_i,
   input fpnew_pkg::int_format_e                   int_fmt_i,
   input logic                                     vectorial_op_i,
   input TagType                                   tag_i,
@@ -107,11 +107,11 @@ module fpnew_opgroup_multifmt_slice #(
                                                           op_i == fpnew_pkg::CPKCD);
   assign dst_vec_op     = (OpGroup == fpnew_pkg::CONV) & {(op_i == fpnew_pkg::CPKCD), op_mod_i};
 
-  assign is_up_cast   = (fpnew_pkg::fp_width(fp_fmt_i) > fpnew_pkg::fp_width(fp_fmt2_i));
-  assign is_down_cast = (fpnew_pkg::fp_width(fp_fmt_i) < fpnew_pkg::fp_width(fp_fmt2_i));
+  assign is_up_cast   = (fpnew_pkg::fp_width(dst_fmt_i) > fpnew_pkg::fp_width(src_fmt_i));
+  assign is_down_cast = (fpnew_pkg::fp_width(dst_fmt_i) < fpnew_pkg::fp_width(src_fmt_i));
 
   // The destination format is the int format for F2I casts
-  assign dst_fmt    = dst_fmt_is_int ? int_fmt_i : fp_fmt_i;
+  assign dst_fmt    = dst_fmt_is_int ? int_fmt_i : dst_fmt_i;
 
   // The data sent along consists of the vectorial flag and format bits
   assign aux_data   = {vectorial_op, dst_fmt};
@@ -172,31 +172,26 @@ module fpnew_opgroup_multifmt_slice #(
       // Slice out the operands for this lane, upper bits are ignored in the unit
       always_comb begin : prepare_input
         for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
-          local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(fp_fmt_i);
+          local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
         end
 
-        // override operand 0 for conversions
+        // override operand 0 for some conversions
         if (OpGroup == fpnew_pkg::CONV) begin
           // Source is an integer
           if (op_i == fpnew_pkg::I2F) begin
             local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::int_width(int_fmt_i);
-          // F2F casts
+          // vectorial F2F up casts
           end else if (op_i == fpnew_pkg::F2F) begin
             if (vectorial_op && op_mod_i && is_up_cast) begin // up cast with upper half
-              local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::fp_width(fp_fmt2_i) +
+              local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::fp_width(src_fmt_i) +
                                                    MAX_FP_WIDTH/2;
-            end else begin // regular using src format
-              local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::fp_width(fp_fmt2_i);
             end
           // CPK
           end else if (dst_is_cpk) begin
             if (lane == 1) begin
               local_operands[0] = operands_i[1][LANE_WIDTH-1:0]; // using opB as second argument
-            end else begin // regular using src format
-              local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::fp_width(fp_fmt2_i);
             end
           end
-          // F2I covered by default
         end
       end
 
@@ -217,7 +212,7 @@ module fpnew_opgroup_multifmt_slice #(
           .is_boxed_i      ( is_boxed_2op        ), // 2 operands
           .rnd_mode_i,
           .op_i,
-          .fp_fmt_i,
+          .dst_fmt_i,
           .tag_i,
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
@@ -250,8 +245,8 @@ module fpnew_opgroup_multifmt_slice #(
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
-          .fp_fmt_i,
-          .fp_fmt2_i,
+          .src_fmt_i,
+          .dst_fmt_i,
           .int_fmt_i,
           .tag_i,
           .aux_i           ( aux_data            ),

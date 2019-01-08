@@ -32,8 +32,8 @@ module fpnew_pipe_in #(
   input  fpnew_pkg::roundmode_e                  rnd_mode_i,
   input  fpnew_pkg::operation_e                  op_i,
   input  logic                                   op_mod_i,
-  input  fpnew_pkg::fp_format_e                  fp_fmt_i,
-  input  fpnew_pkg::fp_format_e                  fp_fmt2_i,
+  input  fpnew_pkg::fp_format_e                  src_fmt_i,
+  input  fpnew_pkg::fp_format_e                  dst_fmt_i,
   input  fpnew_pkg::int_format_e                 int_fmt_i,
   input  TagType                                 tag_i,
   input  AuxType                                 aux_i,
@@ -47,8 +47,8 @@ module fpnew_pipe_in #(
   output fpnew_pkg::roundmode_e                  rnd_mode_o,
   output fpnew_pkg::operation_e                  op_o,
   output logic                                   op_mod_o,
-  output fpnew_pkg::fp_format_e                  fp_fmt_o,
-  output fpnew_pkg::fp_format_e                  fp_fmt2_o,
+  output fpnew_pkg::fp_format_e                  src_fmt_o,
+  output fpnew_pkg::fp_format_e                  dst_fmt_o,
   output fpnew_pkg::int_format_e                 int_fmt_o,
   output TagType                                 tag_o,
   output AuxType                                 aux_o,
@@ -65,8 +65,8 @@ module fpnew_pipe_in #(
   fpnew_pkg::roundmode_e [0:NumPipeRegs]                 rnd_mode_q;
   fpnew_pkg::operation_e [0:NumPipeRegs]                 op_q;
   logic [0:NumPipeRegs]                                  op_mod_q;
-  fpnew_pkg::fp_format_e [0:NumPipeRegs]                 fp_fmt_q;
-  fpnew_pkg::fp_format_e [0:NumPipeRegs]                 fp_fmt2_q;
+  fpnew_pkg::fp_format_e [0:NumPipeRegs]                 src_fmt_q;
+  fpnew_pkg::fp_format_e [0:NumPipeRegs]                 dst_fmt_q;
   fpnew_pkg::int_format_e [0:NumPipeRegs]                int_fmt_q;
   TagType [0:NumPipeRegs]                                tag_q;
   AuxType [0:NumPipeRegs]                                aux_q;
@@ -79,8 +79,8 @@ module fpnew_pipe_in #(
   assign rnd_mode_q[0] = rnd_mode_i;
   assign op_q[0]       = op_i;
   assign op_mod_q[0]   = op_mod_i;
-  assign fp_fmt_q[0]   = fp_fmt_i;
-  assign fp_fmt2_q[0]  = fp_fmt2_i;
+  assign src_fmt_q[0]  = src_fmt_i;
+  assign dst_fmt_q[0]  = dst_fmt_i;
   assign int_fmt_q[0]  = int_fmt_i;
   assign tag_q[0]      = tag_i;
   assign aux_q[0]      = aux_i;
@@ -127,8 +127,8 @@ module fpnew_pipe_in #(
     `FFL(rnd_mode_q[i+1], rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
     `FFL(op_q[i+1],       op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(op_mod_q[i+1],   op_mod_q[i],   reg_ena, '0)
-    `FFL(fp_fmt_q[i+1],   fp_fmt_q[i],   reg_ena, fpnew_pkg::FP32)
-    `FFL(fp_fmt2_q[i+1],  fp_fmt2_q[i],  reg_ena, fpnew_pkg::FP32)
+    `FFL(src_fmt_q[i+1],  src_fmt_q[i],  reg_ena, fpnew_pkg::FP32)
+    `FFL(dst_fmt_q[i+1],  dst_fmt_q[i],  reg_ena, fpnew_pkg::FP32)
     `FFL(int_fmt_q[i+1],  int_fmt_q[i],  reg_ena, fpnew_pkg::INT8)
     `FFL(tag_q[i+1],      tag_q[i],      reg_ena, '0)
     `FFL(aux_q[i+1],      aux_q[i],      reg_ena, '0)
@@ -140,8 +140,8 @@ module fpnew_pipe_in #(
   assign rnd_mode_o  = rnd_mode_q[NumPipeRegs];
   assign op_o        = op_q[NumPipeRegs];
   assign op_mod_o    = op_mod_q[NumPipeRegs];
-  assign fp_fmt_o    = fp_fmt_q[NumPipeRegs];
-  assign fp_fmt2_o   = fp_fmt2_q[NumPipeRegs];
+  assign dst_fmt_o   = dst_fmt_q[NumPipeRegs];
+  assign src_fmt_o   = src_fmt_q[NumPipeRegs];
   assign int_fmt_o   = int_fmt_q[NumPipeRegs];
   assign tag_o       = tag_q[NumPipeRegs];
   assign aux_o       = aux_q[NumPipeRegs];
