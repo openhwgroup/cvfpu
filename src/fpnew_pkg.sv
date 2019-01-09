@@ -34,17 +34,17 @@ package fpnew_pkg;
     int unsigned man_bits;
   } fp_encoding_t;
 
-  // vv EDIT FROM HERE TO ADD MORE FORMATS vv
-
-  localparam int unsigned NUM_FP_FORMATS = 5;
+  localparam int unsigned NUM_FP_FORMATS = 5; // change me to add formats
+  localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 
   // FP formats
-  typedef enum logic [$clog2(NUM_FP_FORMATS)-1:0] {
+  typedef enum logic [FP_FORMAT_BITS-1:0] {
     FP32    = 'd0,
     FP64    = 'd1,
     FP16    = 'd2,
     FP8     = 'd3,
     FP16ALT = 'd4
+    // add new formats here
   } fp_format_e;
 
   // Encodings for supported FP formats
@@ -54,8 +54,8 @@ package fpnew_pkg;
     '{5,  10}, // IEEE binary16 (half)
     '{5,  2},  // custom binary8
     '{8,  7}   // custom binary16alt
+    // add new formats here
   };
-  // ^^ TO HERE ^^
 
   typedef logic [0:NUM_FP_FORMATS-1]       fmt_logic_t;    // Logic indexed by FP format (for masks)
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
@@ -73,14 +73,16 @@ package fpnew_pkg;
   // | INT64      | 64 bit |
   // *NOTE:* Add new formats only at the end of the enumeration for backwards compatibilty!
 
-  localparam int unsigned NUM_INT_FORMATS = 4;
+  localparam int unsigned NUM_INT_FORMATS = 4; // change me to add formats
+  localparam int unsigned INT_FORMAT_BITS = $clog2(NUM_INT_FORMATS);
 
   // Int formats
-  typedef enum logic [$clog2(NUM_INT_FORMATS)-1:0] {
+  typedef enum logic [INT_FORMAT_BITS-1:0] {
     INT8,
     INT16,
     INT32,
     INT64
+    // add new formats here
   } int_format_e;
 
   // Widths of supported int formats
@@ -89,6 +91,7 @@ package fpnew_pkg;
     16, // INT16
     32, // INT32
     64  // INT64
+    // add new formats here
   };
 
   typedef logic [0:NUM_INT_FORMATS-1] ifmt_logic_t; // Logic indexed by INT format (for masks)
