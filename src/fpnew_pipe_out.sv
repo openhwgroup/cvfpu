@@ -52,7 +52,7 @@ module fpnew_pipe_out #(
   fpnew_pkg::status_t [0:NumPipeRegs] status_q;
   logic [0:NumPipeRegs]               extension_bit_q;
   TagType [0:NumPipeRegs]             tag_q;
-  TagType [0:NumPipeRegs]             aux_q;
+  AuxType [0:NumPipeRegs]             aux_q;
   logic [0:NumPipeRegs]               valid_q;
   logic [0:NumPipeRegs]               ready_q;
 
