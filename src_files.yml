@@ -1,4 +1,7 @@
 fpnew:
+  incdirs: [
+    ../common_cells/include/common_cells,
+  ]
   files: [
     src/fpnew_pkg.sv,
     src/fpnew_cast_multi.sv,
