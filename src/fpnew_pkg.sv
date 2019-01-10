@@ -106,9 +106,9 @@ package fpnew_pkg;
     ADDMUL, DIVSQRT, NONCOMP, CONV
   } opgroup_e;
 
-  localparam int unsigned OP_WIDTH = 4;
+  localparam int unsigned OP_BITS = 4;
 
-  typedef enum logic [OP_WIDTH-1:0] {
+  typedef enum logic [OP_BITS-1:0] {
     FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
