@@ -211,18 +211,12 @@ module fpnew_opgroup_fmt_slice #(
   // ------------
   assign result_is_vector = lane_vectorial[0];
 
-  assign result_o[NUM_LANES*FP_WIDTH-1:0] = slice_result;
+  assign result_o                         = {{(Width-NUM_LANES*FP_WIDTH){1'b0}}, slice_result};
   assign extension_bit_o                  = lane_ext_bit[0]; // don't care about upper ones
   assign tag_o                            = lane_tags[0];    // don't care about upper ones
   assign busy_o                           = (| lane_busy);
 
   assign out_valid_o                      = lane_out_valid[0]; // don't care about upper ones
-
-
-  // Extend result if wider than what is filled by lanes
-  if (Width > NUM_LANES*FP_WIDTH) begin : extend_result
-    assign result_o[Width-1:NUM_LANES*FP_WIDTH] = '{default: extension_bit_o};
-  end
 
   // Collapse the lane status
   always_comb begin : output_processing
