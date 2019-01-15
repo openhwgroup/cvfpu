@@ -82,9 +82,8 @@ module fpnew_opgroup_block #(
   // -------------------------
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_parallel_slices
     // Some constants for this format
-    localparam logic ANY_MERGED = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
-    localparam logic IS_FIRST_MERGED =
-        fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes);
+    localparam logic ANY_MERGED      = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
+    localparam logic IS_FIRST_MERGED = fpnew_pkg::is_first_enabled_multi(fmt, FmtUnitTypes);
 
     // Generate slice only if format enabled
     if (FpFmtMask[fmt] && (FmtUnitTypes[fmt] == fpnew_pkg::PARALLEL)) begin : active_format

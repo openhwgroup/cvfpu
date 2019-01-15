@@ -85,14 +85,15 @@ package fpnew_pkg;
     // add new formats here
   } int_format_e;
 
-  // Widths of supported int formats
-  localparam int unsigned INT_WIDTH[NUM_INT_FORMATS] = '{
-     8, // INT8
-    16, // INT16
-    32, // INT32
-    64  // INT64
-    // add new formats here
-  };
+  // Returns the width of an INT format by index
+  function automatic int unsigned int_width(int_format_e ifmt);
+    unique case (ifmt)
+      INT8:  return 8;
+      INT16: return 16;
+      INT32: return 32;
+      INT64: return 64;
+    endcase
+  endfunction
 
   typedef logic [0:NUM_INT_FORMATS-1] ifmt_logic_t; // Logic indexed by INT format (for masks)
 
@@ -114,7 +115,6 @@ package fpnew_pkg;
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
     F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
   } operation_e;
-
 
   // -------------------
   // RISC-V FP-SPECIFIC
@@ -167,7 +167,6 @@ package fpnew_pkg;
   // ------------------
   // FPU configuration
   // ------------------
-
   // Pipelining registers can be inserted (at elaboration time) into operational units
   typedef enum logic [1:0] {
     BEFORE, // registers are inserted at the inputs of the unit
@@ -318,20 +317,16 @@ package fpnew_pkg;
       end
     return res;
   endfunction
+
   // -------------------------------------------
   // Helper functions for INT formats and values
   // -------------------------------------------
-  // Returns the width of an INT format
-  function automatic int unsigned int_width(int_format_e ifmt);
-    return INT_WIDTH[ifmt];
-  endfunction
-
   // Returns the widest INT format present
   function automatic int unsigned max_int_width(ifmt_logic_t cfg);
     automatic int unsigned res = 0;
-    for (int unsigned i = 0; i < NUM_INT_FORMATS; i++)
-      if (cfg[i])
-        res = unsigned'(maximum(res, INT_WIDTH[i]));
+    for (int ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin
+      if (cfg[ifmt]) res = maximum(res, int_width(int_format_e'(ifmt)));
+    end
     return res;
   endfunction
 
@@ -394,8 +389,8 @@ package fpnew_pkg;
     for (int unsigned ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++)
       for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
         // Mask active int formats with the width of the float formats
-        res[ifmt] |= icfg[ifmt] && lanefmts[fmt] &&
-                     (fp_width(fp_format_e'(fmt)) == int_width(int_format_e'(ifmt)));
+        if ((fp_width(fp_format_e'(fmt)) == int_width(int_format_e'(ifmt))))
+          res[ifmt] |= icfg[ifmt] && lanefmts[fmt];
     return res;
   endfunction
 
@@ -439,9 +434,10 @@ package fpnew_pkg;
   endfunction
 
   function automatic logic is_first_enabled_multi(fp_format_e fmt, fmt_unit_types_t types);
-    for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
-      if (types[i] == MERGED)
-        return (fp_format_e'(i) == fmt);
+    for (int unsigned i = 0; i < NUM_FP_FORMATS; i++) begin
+      if (types[i] == MERGED) return (fp_format_e'(i) == fmt);
+    end
+    return 1'b0;
   endfunction
 
   function automatic fp_format_e get_first_enabled_multi(fmt_unit_types_t types);
