@@ -254,7 +254,7 @@ module fpnew_i2fcast #(
       .effective_subtraction_i ( 1'b0              ), // no operation happened
       .abs_rounded_o           ( rounded_abs       ),
       .sign_o                  ( rounded_sign      ),
-      .zero_o                  ( /* unused */      )
+      .exact_zero_o            ( /* unused */      )
     );
 
   end else begin : no_rounding
