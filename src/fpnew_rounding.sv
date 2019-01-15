@@ -15,7 +15,7 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_rounding #(
-  parameter int unsigned AbsWidth // Width of the abolute value, without sign bit
+  parameter int unsigned AbsWidth=2 // Width of the abolute value, without sign bit
 ) (
   // Input value
   input logic [AbsWidth-1:0]   abs_value_i,             // absolute value without sign
