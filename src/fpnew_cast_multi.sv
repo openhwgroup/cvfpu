@@ -304,14 +304,14 @@ module fpnew_cast_multi #(
     // Handle INT casts
     if (dst_is_int) begin
       // By default right shift mantissa to be an integer
-      denorm_shamt = unsigned'(WIDTH - 1 - input_exp);
+      denorm_shamt = unsigned'(MAX_INT_WIDTH - 1 - input_exp);
       // overflow: when converting to unsigned the range is larger by one
       if (input_exp >= signed'(fpnew_pkg::int_width(int_fmt_q) - 1 + op_mod_q)) begin
         denorm_shamt    = '0; // prevent shifting
         of_before_round = 1'b1;
       // underflow
       end else if (input_exp < -1) begin
-        denorm_shamt    = WIDTH + 1; // all bits go to the sticky
+        denorm_shamt    = MAX_INT_WIDTH + 1; // all bits go to the sticky
         uf_before_round = 1'b1;
       end
     // Handle FP over-/underflows
@@ -366,9 +366,10 @@ module fpnew_cast_multi #(
 
   logic             rounded_sign;
   logic [WIDTH-1:0] rounded_abs; // absolute value of result after rounding
-  logic             rounded_res_zero;
+  logic             result_true_zero;
 
   logic [WIDTH-1:0] rounded_int_res; // after possible inversion
+  logic             rounded_int_res_zero; // after rounding
 
 
   // Pack exponent and mantissa into proper rounding form
@@ -415,7 +416,7 @@ module fpnew_cast_multi #(
     .effective_subtraction_i ( 1'b0              ), // no operation happened
     .abs_rounded_o           ( rounded_abs       ),
     .sign_o                  ( rounded_sign      ),
-    .exact_zero_o            ( rounded_res_zero  )
+    .exact_zero_o            ( result_true_zero  )
   );
 
   logic [0:NUM_FORMATS-1][WIDTH-1:0] fmt_result;
@@ -447,11 +448,12 @@ module fpnew_cast_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q] & ~rounded_res_zero; // zero is not underflow
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q] & ~result_true_zero; // zero is not UF
   assign of_after_round = fmt_of_after_round[dst_fmt_q];
 
   // Negative integer result needs to be brought into two's complement
-  assign rounded_int_res = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
+  assign rounded_int_res      = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
+  assign rounded_int_res_zero = (rounded_int_res == '0);
 
   // -------------------------
   // FP Special case handling
@@ -538,7 +540,7 @@ module fpnew_cast_multi #(
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
   assign int_result_is_special = info_q[src_fmt_q].is_nan | info_q[src_fmt_q].is_inf |
                                  of_before_round | ~info_q[src_fmt_q].is_boxed |
-                                 (fmt_sign[src_fmt_q] & op_mod_q & rounded_res_zero);
+                                 (fmt_sign[src_fmt_q] & op_mod_q & ~rounded_int_res_zero);
 
   // All integer special cases are invalid
   assign int_special_status = '{NV: 1'b1, default: 1'b0};

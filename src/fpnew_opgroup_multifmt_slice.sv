@@ -58,13 +58,13 @@ module fpnew_opgroup_multifmt_slice #(
 );
 
   localparam int unsigned MAX_FP_WIDTH   = fpnew_pkg::max_fp_width(FpFmtConfig);
-  localparam int unsigned MAX_INT_WIDTH  = fpnew_pkg::max_fp_width(IntFmtConfig);
+  localparam int unsigned MAX_INT_WIDTH  = fpnew_pkg::max_int_width(IntFmtConfig);
   localparam int unsigned NUM_LANES = fpnew_pkg::max_num_lanes(Width, FpFmtConfig, EnableVectors);
   localparam int unsigned NUM_INT_FORMATS = fpnew_pkg::NUM_INT_FORMATS;
   // We will send the format information along with the data
   localparam int unsigned FMT_BITS =
       fpnew_pkg::maximum($clog2(NUM_FORMATS), $clog2(NUM_INT_FORMATS));
-  localparam int unsigned AUX_BITS = FMT_BITS + 1; // also add vectorial info
+  localparam int unsigned AUX_BITS = FMT_BITS + 2; // also add vectorial and integer flags
 
   logic [0:NUM_LANES-1] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
   logic                 vectorial_op;
@@ -74,7 +74,7 @@ module fpnew_opgroup_multifmt_slice #(
   // additional flags for CONV
   logic       dst_fmt_is_int, dst_is_cpk;
   logic [1:0] dst_vec_op; // info for vectorial results (for packing)
-  logic [3:0] conv_aux_d, conv_aux_q;
+  logic [2:0] target_aux_d, target_aux_q;
   logic       is_up_cast, is_down_cast;
 
   logic [0:NUM_FORMATS-1][Width-1:0]     fmt_slice_result;
@@ -114,8 +114,8 @@ module fpnew_opgroup_multifmt_slice #(
   assign dst_fmt    = dst_fmt_is_int ? int_fmt_i : dst_fmt_i;
 
   // The data sent along consists of the vectorial flag and format bits
-  assign aux_data   = {vectorial_op, dst_fmt};
-  assign conv_aux_d = {dst_vec_op, dst_is_cpk, dst_fmt_is_int};
+  assign aux_data      = {dst_fmt_is_int, vectorial_op, dst_fmt};
+  assign target_aux_d  = {dst_vec_op, dst_is_cpk};
 
   // CONV passes one operand for assembly after the unit: opC for cpk, opB for others
   if (OpGroup == fpnew_pkg::CONV) begin : conv_target
@@ -148,7 +148,7 @@ module fpnew_opgroup_multifmt_slice #(
     // Cast-specific parameters
     localparam fpnew_pkg::fmt_logic_t CONV_FORMATS =
         fpnew_pkg::get_conv_lane_formats(Width, FpFmtConfig, LANE);
-    localparam fpnew_pkg::fmt_logic_t CONV_INT_FORMATS =
+    localparam fpnew_pkg::ifmt_logic_t CONV_INT_FORMATS =
         fpnew_pkg::get_conv_lane_int_formats(Width, FpFmtConfig, IntFmtConfig, LANE);
     localparam int unsigned CONV_WIDTH = fpnew_pkg::max_fp_width(CONV_FORMATS);
 
@@ -321,23 +321,23 @@ module fpnew_opgroup_multifmt_slice #(
       .Width       ( Width       ),
       .NumPipeRegs ( NumPipeRegs ),
       .TagType     ( logic       ),
-      .AuxType     ( logic [3:0] )
-    ) i_fpnew_pipe_out (
+      .AuxType     ( logic [2:0] )
+    ) target_pipe (
       .clk_i,
       .rst_ni,
       .result_i        ( conv_target_d ),
       .status_i        ( '0            ), // unused
       .extension_bit_i ( 1'b0          ), // unused
       .tag_i           ( 1'b0          ), // unused
-      .aux_i           ( conv_aux_d    ),
+      .aux_i           ( target_aux_d  ),
       .in_valid_i      ( in_valid      ),
       .in_ready_o      ( /* unused */  ),
       .flush_i,
       .result_o        ( conv_target_q ),
       .status_o        ( /* unused */  ),
       .extension_bit_o ( /* unused */  ),
-      .tag_o           ( /* unused */  ), // TODO: Check connection ! Signal/port not matching : Expecting logic  -- Found TagType
-      .aux_o           ( conv_aux_q    ),
+      .tag_o           ( /* unused */  ),
+      .aux_o           ( target_aux_q  ),
       .out_valid_o     ( /* unused */  ),
       .out_ready_i     ( out_ready     ),
       .busy_o          ( /* unused */  )
@@ -345,16 +345,16 @@ module fpnew_opgroup_multifmt_slice #(
     assign out_ready = out_ready_i & result_is_vector;
 
     // decode the aux data
-    assign {result_vec_op, result_is_cpk, result_fmt_is_int} = conv_aux_q;
+    assign {result_vec_op, result_is_cpk} = target_aux_q;
   end else begin : no_conv
-    assign {result_vec_op, result_is_cpk, result_fmt_is_int} = '0;
+    assign {result_vec_op, result_is_cpk} = '0;
   end
 
 
   // ------------
   // Output Side
   // ------------
-  assign {result_is_vector, result_fmt} = lane_aux[0];
+  assign {result_fmt_is_int, result_is_vector, result_fmt} = lane_aux[0];
 
   assign result_o = result_fmt_is_int
                     ? ifmt_slice_result[result_fmt]
