@@ -424,7 +424,7 @@ module fpnew_cast_multi #(
     .effective_subtraction_i ( 1'b0              ), // no operation happened
     .abs_rounded_o           ( rounded_abs       ),
     .sign_o                  ( rounded_sign      ),
-    .zero_o                  ( rounded_res_zero  )
+    .exact_zero_o            ( rounded_res_zero  )
   );
 
   logic [0:NUM_FORMATS-1][WIDTH-1:0] fmt_result;

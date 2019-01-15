@@ -480,7 +480,7 @@ module fpnew_fma #(
     .effective_subtraction_i ( effective_subtraction ),
     .abs_rounded_o           ( rounded_abs           ),
     .sign_o                  ( rounded_sign          ),
-    .zero_o                  ( result_zero           )
+    .exact_zero_o            ( result_zero           )
   );
 
   // Classification after rounding

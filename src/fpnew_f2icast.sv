@@ -244,7 +244,7 @@ module fpnew_f2icast #(
     .effective_subtraction_i ( 1'b0              ), // no operation happened
     .abs_rounded_o           ( rounded_abs       ),
     .sign_o                  ( rounded_sign      ),
-    .zero_o                  ( res_zero          )
+    .exact_zero_o            ( res_zero          )
   );
 
   // ----------------------
