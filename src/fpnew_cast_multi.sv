@@ -172,15 +172,6 @@ module fpnew_cast_multi #(
     localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
 
     if (FpFmtConfig[fmt]) begin : active_format
-      typedef struct packed {
-        logic                sign;
-        logic [EXP_BITS-1:0] exponent;
-        logic [MAN_BITS-1:0] mantissa;
-      } src_fp_t;
-
-      src_fp_t input_float;
-      assign   input_float = operands_q[FP_WIDTH-1:0];
-
       // Classify input
       fpnew_classifier #(
         .FpFormat    ( fpnew_pkg::fp_format_e'(fmt) ),
@@ -191,9 +182,9 @@ module fpnew_cast_multi #(
         .info_o     ( info_q[fmt]              )
       );
 
-      assign fmt_sign[fmt]     = input_float.sign;
-      assign fmt_exponent[fmt] = signed'({1'b0, input_float.exponent});
-      assign fmt_mantissa[fmt] = {info_q[fmt].is_normal, input_float.mantissa}; // implicit zero pad
+      assign fmt_sign[fmt]     = operands_q[FP_WIDTH-1];
+      assign fmt_exponent[fmt] = signed'({1'b0, operands_q[MAN_BITS+:EXP_BITS]});
+      assign fmt_mantissa[fmt] = {info_q[fmt].is_normal, operands_q[MAN_BITS-1:0]}; // zero pad
       // Compensation for the difference in mantissa widths used for leading-zero count
       assign fmt_shift_compensation[fmt] = signed'(INT_MAN_WIDTH - 1 - MAN_BITS);
     end else begin : inactive_format
@@ -478,20 +469,16 @@ module fpnew_cast_multi #(
     localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
     localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
 
+    localparam logic [EXP_BITS-1:0] QNAN_EXPONENT = '1;
+    localparam logic [MAN_BITS-1:0] QNAN_MANTISSA = 2**(MAN_BITS-1);
+
     if (FpFmtConfig[fmt]) begin : active_format
       always_comb begin : special_results
-
-        typedef struct packed {
-          logic                sign;
-          logic [EXP_BITS-1:0] exponent;
-          logic [MAN_BITS-1:0] mantissa;
-        } dst_fp_t;
-
-        dst_fp_t special_res;
+        logic [FP_WIDTH-1:0] special_res;
 
         special_res = info_q[fmt].is_zero
-                      ? '{sign: fmt_sign[fmt], exponent: '0, mantissa: '0} // signed zero
-                      : '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // qNaN
+                      ? {>> {fmt_sign[fmt], '0}} // signed zero
+                      : {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
 
         // Initialize special result with ones (NaN-box)
         fmt_special_result[fmt]               = '1;
