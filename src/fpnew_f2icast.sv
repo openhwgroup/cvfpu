@@ -328,9 +328,11 @@ module fpnew_f2icast #(
     ) i_output_pipe (
       .clk_i,
       .rst_ni,
-      .result_i        ( result_d      ),
-      .status_i        ( status_d      ),
-      .extension_bit_i ( extension_bit ),
+      .result_i        ( result_d        ),
+      .status_i        ( status_d        ),
+      .extension_bit_i ( extension_bit   ),
+      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
+      .is_class_i      ( 1'b0            ), // unused
       .tag_i,
       .aux_i,
       .in_valid_i,
@@ -339,6 +341,8 @@ module fpnew_f2icast #(
       .result_o,
       .status_o,
       .extension_bit_o,
+      .class_mask_o    ( /* unused */  ),
+      .is_class_o      ( /* unused */  ),
       .tag_o,
       .aux_o,
       .out_valid_o,

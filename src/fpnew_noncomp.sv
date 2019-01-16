@@ -41,6 +41,8 @@ module fpnew_noncomp #(
   output logic [WIDTH-1:0]         result_o,
   output fpnew_pkg::status_t       status_o,
   output logic                     extension_bit_o,
+  output fpnew_pkg::classmask_e    class_mask_o,
+  output logic                     is_class_o,
   output TagType                   tag_o,
   output AuxType                   aux_o,
   // Output handshake
@@ -270,12 +272,38 @@ module fpnew_noncomp #(
 
   assign cmp_extension_bit = 1'b0; // Comparisons always produce booleans in integer registers
 
+  // ---------------
+  // Classification
+  // ---------------
+  fpnew_pkg::status_t    class_status;
+  logic                  class_extension_bit;
+  fpnew_pkg::classmask_e class_mask_d; // the result is actually here
+
+  // Classification - always return the classification mask on the dedicated port
+  always_comb begin : classify
+    if (info_a.is_normal) begin
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGNORM    : fpnew_pkg::POSNORM;
+    end else if (info_a.is_subnormal) begin
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGSUBNORM : fpnew_pkg::POSSUBNORM;
+    end else if (info_a.is_zero) begin
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGZERO    : fpnew_pkg::POSZERO;
+    end else if (info_a.is_inf) begin
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGINF     : fpnew_pkg::POSINF;
+    end else if (info_a.is_nan) begin
+      class_mask_d = info_a.is_signalling ? fpnew_pkg::SNAN       : fpnew_pkg::QNAN;
+    end
+  end
+
+  assign class_status        = '0;   // classification does not set flags
+  assign class_extension_bit = 1'b0; // classification always produces results in integer registers
+
   // -----------------
   // Result selection
   // -----------------
-  fp_t                result_d;
-  fpnew_pkg::status_t status_d;
-  logic               extension_bit_d;
+  fp_t                   result_d;
+  fpnew_pkg::status_t    status_d;
+  logic                  extension_bit_d;
+  logic                  is_class_d;
 
   // Select result
   always_comb begin : select_result
@@ -295,6 +323,11 @@ module fpnew_noncomp #(
         status_d        = cmp_status;
         extension_bit_d = cmp_extension_bit;
       end
+      fpnew_pkg::CLASSIFY: begin
+        result_d        = 'X; // unused
+        status_d        = class_status;
+        extension_bit_d = class_extension_bit;
+      end
       default: begin
         result_d        = 'X; // propaagate X
         status_d        = 'X; // propaagate X
@@ -302,6 +335,8 @@ module fpnew_noncomp #(
       end
     endcase
   end
+
+  assign is_class_d = (op_q == fpnew_pkg::CLASSIFY);
 
   // ----------------
   // Output Pipeline
@@ -318,6 +353,8 @@ module fpnew_noncomp #(
       .result_i        ( result_d        ),
       .status_i        ( status_d        ),
       .extension_bit_i ( extension_bit_d ),
+      .class_mask_i    ( class_mask_d    ),
+      .is_class_i      ( is_class_d      ),
       .tag_i,
       .aux_i,
       .in_valid_i,
@@ -326,6 +363,8 @@ module fpnew_noncomp #(
       .result_o,
       .status_o,
       .extension_bit_o,
+      .class_mask_o,
+      .is_class_o,
       .tag_o,
       .aux_o,
       .out_valid_o,
@@ -337,6 +376,8 @@ module fpnew_noncomp #(
     assign result_o        = result_d;
     assign status_o        = status_d;
     assign extension_bit_o = extension_bit_d;
+    assign class_mask_o    = class_mask_d;
+    assign is_class_o      = is_class_d;
   end
 
 endmodule

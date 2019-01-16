@@ -41,45 +41,53 @@ module fpnew_pipe_out #(
   parameter type         TagType       = logic,
   parameter type         AuxType       = logic
 ) (
-  input  logic               clk_i,
-  input  logic               rst_ni,
+  input  logic                  clk_i,
+  input  logic                  rst_ni,
   // Input signals
-  input  logic [Width-1:0]   result_i,
-  input  fpnew_pkg::status_t status_i,
-  input  logic               extension_bit_i,
-  input  TagType             tag_i,
-  input  AuxType             aux_i,
+  input  logic [Width-1:0]      result_i,
+  input  fpnew_pkg::status_t    status_i,
+  input  logic                  extension_bit_i,
+  input  fpnew_pkg::classmask_e class_mask_i,
+  input  logic                  is_class_i,
+  input  TagType                tag_i,
+  input  AuxType                aux_i,
   // Input Handshake
-  input  logic               in_valid_i,
-  output logic               in_ready_o,
-  input  logic               flush_i,
+  input  logic                  in_valid_i,
+  output logic                  in_ready_o,
+  input  logic                  flush_i,
   // Output signals
-  output logic [Width-1:0]   result_o,
-  output fpnew_pkg::status_t status_o,
-  output logic               extension_bit_o,
-  output TagType             tag_o,
-  output AuxType             aux_o,
+  output logic [Width-1:0]      result_o,
+  output fpnew_pkg::status_t    status_o,
+  output logic                  extension_bit_o,
+  output fpnew_pkg::classmask_e class_mask_o,
+  output logic                  is_class_o,
+  output TagType                tag_o,
+  output AuxType                aux_o,
   // Output Handshake
-  output logic               out_valid_o,
-  input  logic               out_ready_i,
+  output logic                  out_valid_o,
+  input  logic                  out_ready_i,
   // Status signal
-  output logic               busy_o
+  output logic                  busy_o
 );
 
   // Input signals for the next stage (= output signals of the previous stage)
-  logic               [NumPipeRegs:0][Width-1:0] result_d;
-  fpnew_pkg::status_t [NumPipeRegs:0]            status_d;
-  logic               [NumPipeRegs:0]            extension_bit_d;
-  TagType             [NumPipeRegs:0]            tag_d;
-  AuxType             [NumPipeRegs:0]            aux_d;
-  logic               [NumPipeRegs:0]            valid_d;
+  logic                  [NumPipeRegs:0][Width-1:0] result_d;
+  fpnew_pkg::status_t    [NumPipeRegs:0]            status_d;
+  logic                  [NumPipeRegs:0]            extension_bit_d;
+  fpnew_pkg::classmask_e [NumPipeRegs:0]            class_mask_d;
+  logic                  [NumPipeRegs:0]            is_class_d;
+  TagType                [NumPipeRegs:0]            tag_d;
+  AuxType                [NumPipeRegs:0]            aux_d;
+  logic                  [NumPipeRegs:0]            valid_d;
   // Ready signal is combinatorial for all stages
-  logic               [NumPipeRegs:0]            stage_ready;
+  logic                  [NumPipeRegs:0]            stage_ready;
 
   // Input stage: First element of pipeline is taken from inputs
   assign result_d[0]        = result_i;
   assign status_d[0]        = status_i;
   assign extension_bit_d[0] = extension_bit_i;
+  assign class_mask_d[0]    = class_mask_i;
+  assign is_class_d[0]      = is_class_i;
   assign tag_d[0]           = tag_i;
   assign aux_d[0]           = aux_i;
   assign valid_d[0]         = in_valid_i;
@@ -90,12 +98,14 @@ module fpnew_pipe_out #(
   // Generate the pipeline stages in case they are needed
   if (NumPipeRegs > 0) begin : gen_pipeline
     // Pipelined versions of signals for later stages
-    logic               [NumPipeRegs-1:0][Width-1:0] result_q;
-    fpnew_pkg::status_t [NumPipeRegs-1:0]            status_q;
-    logic               [NumPipeRegs-1:0]            extension_bit_q;
-    TagType             [NumPipeRegs-1:0]            tag_q;
-    AuxType             [NumPipeRegs-1:0]            aux_q;
-    logic               [NumPipeRegs-1:0]            valid_q;
+    logic                  [NumPipeRegs-1:0][Width-1:0] result_q;
+    fpnew_pkg::status_t    [NumPipeRegs-1:0]            status_q;
+    logic                  [NumPipeRegs-1:0]            extension_bit_q;
+    fpnew_pkg::classmask_e [NumPipeRegs-1:0]            class_mask_q;
+    logic                  [NumPipeRegs-1:0]            is_class_q;
+    TagType                [NumPipeRegs-1:0]            tag_q;
+    AuxType                [NumPipeRegs-1:0]            aux_q;
+    logic                  [NumPipeRegs-1:0]            valid_q;
 
     for (genvar i = 0; i < NumPipeRegs; i++) begin : pipeline_stages
       // Internal register enable for this stage -> creates gated registers if supported in synth
@@ -105,6 +115,8 @@ module fpnew_pipe_out #(
       assign result_d[i+1]        = result_q[i];
       assign status_d[i+1]        = status_q[i];
       assign extension_bit_d[i+1] = extension_bit_q[i];
+      assign class_mask_d[i+1]    = class_mask_q[i];
+      assign is_class_d[i+1]      = is_class_q[i];
       assign tag_d[i+1]           = tag_q[i];
       assign aux_d[i+1]           = aux_q[i];
       assign valid_d[i+1]         = valid_q[i];
@@ -124,6 +136,8 @@ module fpnew_pipe_out #(
       `FFL(result_q[i],        result_d[i],        reg_ena, '0)
       `FFL(status_q[i],        status_d[i],        reg_ena, '0)
       `FFL(extension_bit_q[i], extension_bit_d[i], reg_ena, '0)
+      `FFL(class_mask_q[i],    class_mask_d[i],    reg_ena, fpnew_pkg::QNAN)
+      `FFL(is_class_q[i],      is_class_d[i],      reg_ena, '0)
       `FFL(tag_q[i],           tag_d[i],           reg_ena, '0)
       `FFL(aux_q[i],           aux_d[i],           reg_ena, '0)
     end
@@ -133,6 +147,8 @@ module fpnew_pipe_out #(
   assign result_o        = result_d[NumPipeRegs];
   assign status_o        = status_d[NumPipeRegs];
   assign extension_bit_o = extension_bit_d[NumPipeRegs];
+  assign class_mask_o    = class_mask_d[NumPipeRegs];
+  assign is_class_o      = is_class_d[NumPipeRegs];
   assign tag_o           = tag_d[NumPipeRegs];
   assign aux_o           = aux_d[NumPipeRegs];
   assign out_valid_o     = valid_d[NumPipeRegs];

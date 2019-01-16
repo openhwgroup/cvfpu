@@ -291,17 +291,21 @@ module fpnew_divsqrt_multi #(
     ) i_output_pipe (
       .clk_i,
       .rst_ni,
-      .result_i        ( result_d      ),
-      .status_i        ( status_d      ),
-      .extension_bit_i ( 1'b1          ), // always NaN-box
-      .tag_i           ( result_tag_q  ),
-      .aux_i           ( result_aux_q  ),
-      .in_valid_i      ( out_valid     ),
-      .in_ready_o      ( out_ready     ),
+      .result_i        ( result_d        ),
+      .status_i        ( status_d        ),
+      .extension_bit_i ( 1'b1            ), // always NaN-box
+      .tag_i           ( result_tag_q    ),
+      .aux_i           ( result_aux_q    ),
+      .in_valid_i      ( out_valid       ),
+      .in_ready_o      ( out_ready       ),
+      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
+      .is_class_i      ( 1'b0            ), // unused
       .flush_i,
       .result_o,
       .status_o,
       .extension_bit_o,
+      .class_mask_o    ( /* unused */  ),
+      .is_class_o      ( /* unused */  ),
       .tag_o,
       .aux_o,
       .out_valid_o,
