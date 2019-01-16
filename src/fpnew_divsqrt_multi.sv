@@ -30,8 +30,8 @@ module fpnew_divsqrt_multi #(
   input  logic                        clk_i,
   input  logic                        rst_ni,
   // Input signals
-  input  logic [0:1][WIDTH-1:0]       operands_i, // 2 operands
-  input  logic [0:NUM_FORMATS-1][0:1] is_boxed_i, // 2 operands
+  input  logic [1:0][WIDTH-1:0]       operands_i, // 2 operands
+  input  logic [NUM_FORMATS-1:0][1:0] is_boxed_i, // 2 operands
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
   input  fpnew_pkg::operation_e       op_i,
   input  fpnew_pkg::fp_format_e       dst_fmt_i,
@@ -58,8 +58,8 @@ module fpnew_divsqrt_multi #(
   // Input pipeline
   // ---------------
   // Pipelined input signals
-  logic [0:1][WIDTH-1:0]       operands_q;
-  logic [0:NUM_FORMATS-1][0:1] is_boxed_q;
+  logic [1:0][WIDTH-1:0]       operands_q;
+  logic [NUM_FORMATS-1:0][1:0] is_boxed_q;
   fpnew_pkg::roundmode_e       rnd_mode_q;
   fpnew_pkg::operation_e       op_q;
   logic                        op_mod_q;
@@ -124,7 +124,7 @@ module fpnew_divsqrt_multi #(
   // Input processing
   // -----------------
   logic [1:0]       divsqrt_fmt;
-  logic [1:0][63:0] divsqrt_operands; // those are fixed to FP64
+  logic [1:0][63:0] divsqrt_operands; // those are fixed to 64bit
   logic             input_is_fp8;
 
   // Translate fpnew formats into divsqrt formats

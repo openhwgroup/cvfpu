@@ -29,8 +29,8 @@ module fpnew_opgroup_fmt_slice #(
   input logic                               clk_i,
   input logic                               rst_ni,
   // Input signals
-  input logic [0:NUM_OPERANDS-1][Width-1:0] operands_i,
-  input logic [0:NUM_OPERANDS-1]            is_boxed_i,
+  input logic [NUM_OPERANDS-1:0][Width-1:0] operands_i,
+  input logic [NUM_OPERANDS-1:0]            is_boxed_i,
   input fpnew_pkg::roundmode_e              rnd_mode_i,
   input fpnew_pkg::operation_e              op_i,
   input logic                               op_mod_i,
@@ -56,14 +56,15 @@ module fpnew_opgroup_fmt_slice #(
   localparam int unsigned NUM_LANES = fpnew_pkg::num_lanes(Width, FpFormat, EnableVectors);
 
 
-  logic [0:NUM_LANES-1]          lane_in_ready, lane_out_valid; // Handshake signals for the lanes
-  logic                          vectorial_op;
+  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
+  logic                 vectorial_op;
 
-  logic [NUM_LANES*FP_WIDTH-1:0]      slice_result;
-  fpnew_pkg::status_t [0:NUM_LANES-1] lane_status;
-  logic [0:NUM_LANES-1]               lane_ext_bit; // only the first one is actually used
-  TagType [0:NUM_LANES-1]             lane_tags; // only the first one is actually used
-  logic [0:NUM_LANES-1]               lane_vectorial, lane_busy; // dito
+  logic [NUM_LANES*FP_WIDTH-1:0] slice_result;
+
+  fpnew_pkg::status_t [NUM_LANES-1:0] lane_status;
+  logic               [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
+  TagType             [NUM_LANES-1:0] lane_tags; // only the first one is actually used
+  logic               [NUM_LANES-1:0] lane_vectorial, lane_busy; // dito
 
   logic result_is_vector;
 
@@ -83,8 +84,8 @@ module fpnew_opgroup_fmt_slice #(
     if ((lane == 0) || EnableVectors) begin : active_lane
       logic in_valid, out_valid, out_ready; // lane-local handshake
 
-      logic [0:NUM_OPERANDS-1][FP_WIDTH-1:0] local_operands;          // lane-local oprands
-      logic [FP_WIDTH-1:0]                   op_result; // lane-local results
+      logic [NUM_OPERANDS-1:0][FP_WIDTH-1:0] local_operands; // lane-local operands
+      logic [FP_WIDTH-1:0]                   op_result;      // lane-local results
       fpnew_pkg::status_t                    op_status;
 
       assign in_valid = in_valid_i & ((lane == 0) | vectorial_op); // upper lanes only for vectors
@@ -107,7 +108,7 @@ module fpnew_opgroup_fmt_slice #(
           .clk_i,
           .rst_ni,
           .operands_i      ( local_operands               ),
-          .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
+          .is_boxed_i      ( is_boxed_i[NUM_OPERANDS-1:0] ),
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
@@ -136,7 +137,7 @@ module fpnew_opgroup_fmt_slice #(
         //   .clk_i,
         //   .rst_ni,
         //   .operands_i      ( local_operands               ),
-        //   .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
+        //   .is_boxed_i      ( is_boxed_i[NUM_OPERANDS-1:0] ),
         //   .rnd_mode_i,
         //   .op_i,
         //   .op_mod_i,
@@ -165,7 +166,7 @@ module fpnew_opgroup_fmt_slice #(
           .clk_i,
           .rst_ni,
           .operands_i      ( local_operands               ),
-          .is_boxed_i      ( is_boxed_i[0:NUM_OPERANDS-1] ),
+          .is_boxed_i      ( is_boxed_i[NUM_OPERANDS-1:0] ),
           .rnd_mode_i,
           .op_i,
           .op_mod_i,

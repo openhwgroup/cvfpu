@@ -26,7 +26,7 @@ module fpnew_top #(
   input logic                               clk_i,
   input logic                               rst_ni,
   // Input signals
-  input logic [0:NUM_OPERANDS-1][WIDTH-1:0] operands_i,
+  input logic [NUM_OPERANDS-1:0][WIDTH-1:0] operands_i,
   input fpnew_pkg::roundmode_e              rnd_mode_i,
   input fpnew_pkg::operation_e              op_i,
   input logic                               op_mod_i,
@@ -63,10 +63,10 @@ module fpnew_top #(
   } output_t;
 
   // Handshake signals for the blocks
-  logic [0:NUM_OPGROUPS-1] opgrp_in_ready, opgrp_out_valid, opgrp_out_ready, opgrp_ext, opgrp_busy;
-  output_t [0:NUM_OPGROUPS-1] opgrp_outputs;
+  logic [NUM_OPGROUPS-1:0] opgrp_in_ready, opgrp_out_valid, opgrp_out_ready, opgrp_ext, opgrp_busy;
+  output_t [NUM_OPGROUPS-1:0] opgrp_outputs;
 
-  logic [0:NUM_FORMATS-1][0:NUM_OPERANDS-1] is_boxed;
+  logic [NUM_FORMATS-1:0][NUM_OPERANDS-1:0] is_boxed;
 
   // -----------
   // Input Side
@@ -95,14 +95,14 @@ module fpnew_top #(
     localparam int unsigned NUM_OPS = fpnew_pkg::num_operands(fpnew_pkg::opgroup_e'(opgrp));
 
     logic in_valid;
-    logic [0:NUM_FORMATS-1][0:NUM_OPS-1] input_boxed;
+    logic [NUM_FORMATS-1:0][NUM_OPS-1:0] input_boxed;
 
     assign in_valid = in_valid_i & (fpnew_pkg::get_opgroup(op_i) == fpnew_pkg::opgroup_e'(opgrp));
 
     // slice out input boxing
     always_comb begin : slice_inputs
       for (int unsigned fmt = 0; fmt < NUM_FORMATS; fmt++)
-        input_boxed[fmt] = is_boxed[fmt][0:NUM_OPS-1];
+        input_boxed[fmt] = is_boxed[fmt][NUM_OPS-1:0];
     end
 
     fpnew_opgroup_block #(
@@ -118,7 +118,7 @@ module fpnew_top #(
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,
-      .operands_i      ( operands_i[0:NUM_OPS-1] ),
+      .operands_i      ( operands_i[NUM_OPS-1:0] ),
       .is_boxed_i      ( input_boxed             ),
       .rnd_mode_i,
       .op_i,

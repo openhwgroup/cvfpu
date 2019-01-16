@@ -31,8 +31,8 @@ module fpnew_opgroup_multifmt_slice #(
   input logic                                     clk_i,
   input logic                                     rst_ni,
   // Input signals
-  input logic [0:NUM_OPERANDS-1][Width-1:0]       operands_i,
-  input logic [0:NUM_FORMATS-1][0:NUM_OPERANDS-1] is_boxed_i,
+  input logic [NUM_OPERANDS-1:0][Width-1:0]       operands_i,
+  input logic [NUM_FORMATS-1:0][NUM_OPERANDS-1:0] is_boxed_i,
   input fpnew_pkg::roundmode_e                    rnd_mode_i,
   input fpnew_pkg::operation_e                    op_i,
   input logic                                     op_mod_i,
@@ -66,7 +66,7 @@ module fpnew_opgroup_multifmt_slice #(
       fpnew_pkg::maximum($clog2(NUM_FORMATS), $clog2(NUM_INT_FORMATS));
   localparam int unsigned AUX_BITS = FMT_BITS + 2; // also add vectorial and integer flags
 
-  logic [0:NUM_LANES-1] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
+  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
   logic                 vectorial_op;
   logic [FMT_BITS-1:0]  dst_fmt; // destination format to pass along with operation
   logic [AUX_BITS-1:0]  aux_data;
@@ -77,18 +77,18 @@ module fpnew_opgroup_multifmt_slice #(
   logic [2:0] target_aux_d, target_aux_q;
   logic       is_up_cast, is_down_cast;
 
-  logic [0:NUM_FORMATS-1][Width-1:0]     fmt_slice_result;
-  logic [0:NUM_INT_FORMATS-1][Width-1:0] ifmt_slice_result;
+  logic [NUM_FORMATS-1:0][Width-1:0]     fmt_slice_result;
+  logic [NUM_INT_FORMATS-1:0][Width-1:0] ifmt_slice_result;
   logic [Width-1:0]                      conv_slice_result;
 
 
   logic [Width-1:0] conv_target_d, conv_target_q; // vectorial conversions update a register
 
-  fpnew_pkg::status_t [0:NUM_LANES-1] lane_status;
-  logic [0:NUM_LANES-1]               lane_ext_bit; // only the first one is actually used
-  TagType [0:NUM_LANES-1]             lane_tags; // only the first one is actually used
-  logic [0:NUM_LANES-1][AUX_BITS-1:0] lane_aux; // only the first one is actually used
-  logic [0:NUM_LANES-1]               lane_busy; // dito
+  fpnew_pkg::status_t [NUM_LANES-1:0]   lane_status;
+  logic   [NUM_LANES-1:0]               lane_ext_bit; // only the first one is actually used
+  TagType [NUM_LANES-1:0]               lane_tags; // only the first one is actually used
+  logic   [NUM_LANES-1:0][AUX_BITS-1:0] lane_aux; // only the first one is actually used
+  logic   [NUM_LANES-1:0]               lane_busy; // dito
 
   logic                result_is_vector;
   logic [FMT_BITS-1:0] result_fmt;
@@ -123,13 +123,13 @@ module fpnew_opgroup_multifmt_slice #(
   end
 
   // For 2-operand units, prepare boxing info
-  logic [0:NUM_FORMATS-1]      is_boxed_1op;
-  logic [0:NUM_FORMATS-1][0:1] is_boxed_2op;
+  logic [NUM_FORMATS-1:0]      is_boxed_1op;
+  logic [NUM_FORMATS-1:0][1:0] is_boxed_2op;
 
   always_comb begin : boxed_2op
     for (int fmt = 0; fmt < NUM_FORMATS; fmt++) begin
       is_boxed_1op[fmt] = is_boxed_i[fmt][0];
-      is_boxed_2op[fmt] = is_boxed_i[fmt][0:1];
+      is_boxed_2op[fmt] = is_boxed_i[fmt][1:0];
     end
   end
 
@@ -163,7 +163,7 @@ module fpnew_opgroup_multifmt_slice #(
     if ((lane == 0) || EnableVectors) begin : active_lane
       logic in_valid, out_valid, out_ready; // lane-local handshake
 
-      logic [0:NUM_OPERANDS-1][LANE_WIDTH-1:0] local_operands;  // lane-local oprands
+      logic [NUM_OPERANDS-1:0][LANE_WIDTH-1:0] local_operands;  // lane-local oprands
       logic [LANE_WIDTH-1:0]                   op_result;       // lane-local results
       fpnew_pkg::status_t                      op_status;
 
@@ -208,7 +208,7 @@ module fpnew_opgroup_multifmt_slice #(
         ) i_fpnew_divsqrt_multi (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands[0:1] ), // 2 operands
+          .operands_i      ( local_operands[1:0] ), // 2 operands
           .is_boxed_i      ( is_boxed_2op        ), // 2 operands
           .rnd_mode_i,
           .op_i,

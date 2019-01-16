@@ -20,9 +20,9 @@ module fpnew_classifier #(
   // Do not change
   localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat)
 ) (
-  input  logic [0:NumOperands-1][WIDTH-1:0]     operands_i,
-  input  logic [0:NumOperands-1]                is_boxed_i,
-  output fpnew_pkg::fp_info_t [0:NumOperands-1] info_o
+  input  logic                [NumOperands-1:0][WIDTH-1:0] operands_i,
+  input  logic                [NumOperands-1:0]            is_boxed_i,
+  output fpnew_pkg::fp_info_t [NumOperands-1:0] 		    info_o
 );
 
   localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(FpFormat);

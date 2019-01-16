@@ -46,8 +46,8 @@ module fpnew_pipe_in #(
   input  logic                                   clk_i,
   input  logic                                   rst_ni,
   // Input signals
-  input  logic [0:NumOperands-1][Width-1:0]      operands_i,
-  input  logic [0:NumFormats-1][0:NumOperands-1] is_boxed_i,
+  input  logic [NumOperands-1:0][Width-1:0]      operands_i,
+  input  logic [NumFormats-1:0][NumOperands-1:0] is_boxed_i,
   input  fpnew_pkg::roundmode_e                  rnd_mode_i,
   input  fpnew_pkg::operation_e                  op_i,
   input  logic                                   op_mod_i,
@@ -61,8 +61,8 @@ module fpnew_pipe_in #(
   output logic                                   in_ready_o,
   input  logic                                   flush_i,
   // Output signals
-  output logic [0:NumOperands-1][Width-1:0]      operands_o,
-  output logic [0:NumFormats-1][0:NumOperands-1] is_boxed_o,
+  output logic [NumOperands-1:0][Width-1:0]      operands_o,
+  output logic [NumFormats-1:0][NumOperands-1:0] is_boxed_o,
   output fpnew_pkg::roundmode_e                  rnd_mode_o,
   output fpnew_pkg::operation_e                  op_o,
   output logic                                   op_mod_o,
@@ -79,8 +79,8 @@ module fpnew_pipe_in #(
 );
 
   // Input signals for the next stage (= output signals of the previous stage)
-  logic                   [0:NumPipeRegs][0:NumOperands-1][Width-1:0]      operands_d;
-  logic                   [0:NumPipeRegs][0:NumFormats-1][0:NumOperands-1] is_boxed_d;
+  logic                   [0:NumPipeRegs][NumOperands-1:0][Width-1:0]      operands_d;
+  logic                   [0:NumPipeRegs][NumFormats-1:0][NumOperands-1:0] is_boxed_d;
   fpnew_pkg::roundmode_e  [0:NumPipeRegs]                                  rnd_mode_d;
   fpnew_pkg::operation_e  [0:NumPipeRegs]                                  op_d;
   logic                   [0:NumPipeRegs]                                  op_mod_d;
@@ -112,8 +112,8 @@ module fpnew_pipe_in #(
   // Generate the pipeline stages in case they are needed
   if (NumPipeRegs > 0) begin : gen_pipeline
     // Pipelined versions of signals for later stages
-    logic                   [0:NumPipeRegs][0:NumOperands-1][Width-1:0]      operands_q;
-    logic                   [0:NumPipeRegs][0:NumFormats-1][0:NumOperands-1] is_boxed_q;
+    logic                   [0:NumPipeRegs][NumOperands-1:0][Width-1:0]      operands_q;
+    logic                   [0:NumPipeRegs][NumFormats-1:0][NumOperands-1:0] is_boxed_q;
     fpnew_pkg::roundmode_e  [0:NumPipeRegs]                                  rnd_mode_q;
     fpnew_pkg::operation_e  [0:NumPipeRegs]                                  op_q;
     logic                   [0:NumPipeRegs]                                  op_mod_q;

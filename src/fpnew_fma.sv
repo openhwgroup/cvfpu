@@ -26,8 +26,8 @@ module fpnew_fma #(
   input logic                      clk_i,
   input logic                      rst_ni,
   // Input signals
-  input logic [0:2][WIDTH-1:0]     operands_i, // 3 operands
-  input logic [0:2]                is_boxed_i, // 3 operands
+  input logic [2:0][WIDTH-1:0]     operands_i, // 3 operands
+  input logic [2:0]                is_boxed_i, // 3 operands
   input fpnew_pkg::roundmode_e     rnd_mode_i,
   input fpnew_pkg::operation_e     op_i,
   input logic                      op_mod_i,
@@ -81,8 +81,8 @@ module fpnew_fma #(
   // Input pipeline
   // ---------------
   // Pipelined input signals
-  logic [0:2][WIDTH-1:0] operands_q;
-  logic [0:2]            is_boxed_q;
+  logic [2:0][WIDTH-1:0] operands_q;
+  logic [2:0]            is_boxed_q;
   fpnew_pkg::roundmode_e rnd_mode_q;
   fpnew_pkg::operation_e op_q;
   logic                  op_mod_q;
@@ -136,7 +136,7 @@ module fpnew_fma #(
   // -----------------
   // Input processing
   // -----------------
-  fpnew_pkg::fp_info_t [0:2] info_q;
+  fpnew_pkg::fp_info_t [2:0] info_q;
 
   // Classify input
   fpnew_classifier #(
@@ -165,9 +165,13 @@ module fpnew_fma #(
   // \note \c op_mod_i always inverts the sign of the addend.
   always_comb begin : op_select
 
-    // Default assignments
-    {operand_a, operand_b, operand_c} = operands_q;
-    {info_a,    info_b,    info_c}    = info_q;
+    // Default assignments - packing-order-agnostic
+    operand_a = operands_q[0];
+    operand_b = operands_q[1];
+    operand_c = operands_q[2];
+    info_a    = info_q[0];
+    info_b    = info_q[1];
+    info_c    = info_q[2];
 
     // op_mod_i inverts sign of operand C
     operand_c.sign = operand_c.sign ^ op_mod_i;
