@@ -32,8 +32,8 @@ module fpnew_opgroup_block #(
   input logic                                     clk_i,
   input logic                                     rst_ni,
   // Input signals
-  input logic [0:NUM_OPERANDS-1][Width-1:0]       operands_i,
-  input logic [0:NUM_FORMATS-1][0:NUM_OPERANDS-1] is_boxed_i,
+  input logic [NUM_OPERANDS-1:0][Width-1:0]       operands_i,
+  input logic [NUM_FORMATS-1:0][NUM_OPERANDS-1:0] is_boxed_i,
   input fpnew_pkg::roundmode_e                    rnd_mode_i,
   input fpnew_pkg::operation_e                    op_i,
   input logic                                     op_mod_i,
@@ -69,8 +69,8 @@ module fpnew_opgroup_block #(
   } output_t;
 
   // Handshake signals for the slices
-  logic [0:NUM_FORMATS-1] fmt_in_ready, fmt_out_valid, fmt_out_ready, fmt_busy;
-  output_t [0:NUM_FORMATS-1] fmt_outputs;
+  logic [NUM_FORMATS-1:0] fmt_in_ready, fmt_out_valid, fmt_out_ready, fmt_busy;
+  output_t [NUM_FORMATS-1:0] fmt_outputs;
 
   // -----------
   // Input Side
@@ -82,8 +82,9 @@ module fpnew_opgroup_block #(
   // -------------------------
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_parallel_slices
     // Some constants for this format
-    localparam logic ANY_MERGED      = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
-    localparam logic IS_FIRST_MERGED = fpnew_pkg::is_first_enabled_multi(fmt, FmtUnitTypes);
+    localparam logic ANY_MERGED = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
+    localparam logic IS_FIRST_MERGED =
+        fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes);
 
     // Generate slice only if format enabled
     if (FpFmtMask[fmt] && (FmtUnitTypes[fmt] == fpnew_pkg::PARALLEL)) begin : active_format

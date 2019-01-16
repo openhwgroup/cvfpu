@@ -31,7 +31,7 @@ module fpnew_cast_multi #(
   input  logic                   rst_ni,
   // Input signals
   input  logic [WIDTH-1:0]       operands_i, // 1 operand
-  input  logic [0:NUM_FORMATS-1] is_boxed_i, // 1 operand
+  input  logic [NUM_FORMATS-1:0] is_boxed_i, // 1 operand
   input  fpnew_pkg::roundmode_e  rnd_mode_i,
   input  fpnew_pkg::operation_e  op_i,
   input  logic                   op_mod_i,
@@ -84,7 +84,7 @@ module fpnew_cast_multi #(
   // ---------------
   // Pipelined input signals
   logic [WIDTH-1:0]       operands_q;
-  logic [0:NUM_FORMATS-1] is_boxed_q;
+  logic [NUM_FORMATS-1:0] is_boxed_q;
   fpnew_pkg::roundmode_e  rnd_mode_q;
   fpnew_pkg::operation_e  op_q;
   logic                   op_mod_q;
@@ -153,14 +153,14 @@ module fpnew_cast_multi #(
 
   logic [INT_MAN_WIDTH-1:0] encoded_mant; // input mantissa with implicit bit
 
-  logic [0:NUM_FORMATS-1]                           fmt_sign;
-  logic signed [0:NUM_FORMATS-1][INT_EXP_WIDTH-1:0] fmt_exponent;
-  logic [0:NUM_FORMATS-1][INT_MAN_WIDTH-1:0]        fmt_mantissa;
-  logic signed [0:NUM_FORMATS-1][INT_EXP_WIDTH-1:0] fmt_shift_compensation; // for LZC
+  logic        [NUM_FORMATS-1:0]                    fmt_sign;
+  logic signed [NUM_FORMATS-1:0][INT_EXP_WIDTH-1:0] fmt_exponent;
+  logic        [NUM_FORMATS-1:0][INT_MAN_WIDTH-1:0] fmt_mantissa;
+  logic signed [NUM_FORMATS-1:0][INT_EXP_WIDTH-1:0] fmt_shift_compensation; // for LZC
 
-  fpnew_pkg::fp_info_t [0:NUM_FORMATS-1] info_q;
+  fpnew_pkg::fp_info_t [NUM_FORMATS-1:0] info_q;
 
-  logic [0:NUM_INT_FORMATS-1][INT_MAN_WIDTH-1:0] ifmt_input_val;
+  logic [NUM_INT_FORMATS-1:0][INT_MAN_WIDTH-1:0] ifmt_input_val;
   logic                                          int_sign;
   logic [INT_MAN_WIDTH-1:0]                      int_value, int_mantissa;
 
@@ -358,11 +358,11 @@ module fpnew_cast_multi #(
   logic             of_after_round; // overflow
   logic             uf_after_round; // underflow
 
-  logic [0:NUM_FORMATS-1][WIDTH-1:0] fmt_pre_round_abs; // per format
-  logic [0:NUM_FORMATS-1]            fmt_of_after_round;
-  logic [0:NUM_FORMATS-1]            fmt_uf_after_round;
+  logic [NUM_FORMATS-1:0][WIDTH-1:0] fmt_pre_round_abs; // per format
+  logic [NUM_FORMATS-1:0]            fmt_of_after_round;
+  logic [NUM_FORMATS-1:0]            fmt_uf_after_round;
 
-  logic [0:NUM_INT_FORMATS-1][WIDTH-1:0] ifmt_pre_round_abs; // per format
+  logic [NUM_INT_FORMATS-1:0][WIDTH-1:0] ifmt_pre_round_abs; // per format
 
   logic             rounded_sign;
   logic [WIDTH-1:0] rounded_abs; // absolute value of result after rounding
@@ -419,7 +419,7 @@ module fpnew_cast_multi #(
     .exact_zero_o            ( result_true_zero  )
   );
 
-  logic [0:NUM_FORMATS-1][WIDTH-1:0] fmt_result;
+  logic [NUM_FORMATS-1:0][WIDTH-1:0] fmt_result;
 
   // Detect overflows and inject sign
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_sign_inject
@@ -462,7 +462,7 @@ module fpnew_cast_multi #(
   fpnew_pkg::status_t fp_special_status;
   logic               fp_result_is_special;
 
-  logic [0:NUM_FORMATS-1][WIDTH-1:0] fmt_special_result;
+  logic [NUM_FORMATS-1:0][WIDTH-1:0] fmt_special_result;
 
   // Special result construction
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_special_results
@@ -509,7 +509,7 @@ module fpnew_cast_multi #(
   fpnew_pkg::status_t int_special_status;
   logic               int_result_is_special;
 
-  logic [0:NUM_INT_FORMATS-1][WIDTH-1:0] ifmt_special_result;
+  logic [NUM_INT_FORMATS-1:0][WIDTH-1:0] ifmt_special_result;
 
   // Special result construction
   for (genvar ifmt = 0; ifmt < int'(NUM_INT_FORMATS); ifmt++) begin : gen_special_results_int

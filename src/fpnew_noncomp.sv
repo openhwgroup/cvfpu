@@ -26,8 +26,8 @@ module fpnew_noncomp #(
   input logic                  clk_i,
   input logic                  rst_ni,
   // Input signals
-  input logic [0:1][WIDTH-1:0]     operands_i, // 2 operands
-  input logic [0:1]                is_boxed_i, // 2 operands
+  input logic [1:0][WIDTH-1:0]     operands_i, // 2 operands
+  input logic [1:0]                is_boxed_i, // 2 operands
   input fpnew_pkg::roundmode_e     rnd_mode_i,
   input fpnew_pkg::operation_e     op_i,
   input logic                      op_mod_i,
@@ -69,8 +69,8 @@ module fpnew_noncomp #(
   // Input pipeline
   // ---------------
   // Pipelined input signals
-  logic [0:1][WIDTH-1:0]     operands_q;
-  logic [0:1]                is_boxed_q;
+  logic [1:0][WIDTH-1:0]     operands_q;
+  logic [1:0]                is_boxed_q;
   fpnew_pkg::roundmode_e     rnd_mode_q;
   fpnew_pkg::operation_e     op_q;
   logic                      op_mod_q;
@@ -124,7 +124,7 @@ module fpnew_noncomp #(
   // ---------------------
   // Input classification
   // ---------------------
-  fpnew_pkg::fp_info_t [0:1] info_q;
+  fpnew_pkg::fp_info_t [1:0] info_q;
 
   // Classify input
   fpnew_classifier #(
@@ -139,8 +139,11 @@ module fpnew_noncomp #(
   fp_t                 operand_a, operand_b;
   fpnew_pkg::fp_info_t info_a,    info_b;
 
-  assign {operand_a, operand_b} = operands_q;
-  assign {info_a,    info_b}    = info_q;
+   // Packing-order-agnostic assignments
+  assign operand_a = operands_q[0];
+  assign operand_b = operands_q[1];
+  assign info_a    = info_q[0];
+  assign info_b    = info_q[1];
 
   logic any_operand_inf;
   logic any_operand_nan;
