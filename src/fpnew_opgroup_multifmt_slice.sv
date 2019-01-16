@@ -325,22 +325,26 @@ module fpnew_opgroup_multifmt_slice #(
     ) target_pipe (
       .clk_i,
       .rst_ni,
-      .result_i        ( conv_target_d ),
-      .status_i        ( '0            ), // unused
-      .extension_bit_i ( 1'b0          ), // unused
-      .tag_i           ( 1'b0          ), // unused
-      .aux_i           ( target_aux_d  ),
-      .in_valid_i      ( in_valid      ),
-      .in_ready_o      ( /* unused */  ),
+      .result_i        ( conv_target_d   ),
+      .status_i        ( '0              ), // unused
+      .extension_bit_i ( 1'b0            ), // unused
+      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
+      .is_class_i      ( 1'b0            ), // unused
+      .tag_i           ( 1'b0            ), // unused
+      .aux_i           ( target_aux_d    ),
+      .in_valid_i      ( in_valid        ),
+      .in_ready_o      ( /* unused */    ),
       .flush_i,
-      .result_o        ( conv_target_q ),
-      .status_o        ( /* unused */  ),
-      .extension_bit_o ( /* unused */  ),
-      .tag_o           ( /* unused */  ),
-      .aux_o           ( target_aux_q  ),
-      .out_valid_o     ( /* unused */  ),
-      .out_ready_i     ( out_ready     ),
-      .busy_o          ( /* unused */  )
+      .result_o        ( conv_target_q   ),
+      .status_o        ( /* unused */    ),
+      .extension_bit_o ( /* unused */    ),
+      .class_mask_o    ( /* unused */    ),
+      .is_class_o      ( /* unused */    ),
+      .tag_o           ( /* unused */    ),
+      .aux_o           ( target_aux_q    ),
+      .out_valid_o     ( /* unused */    ),
+      .out_ready_i     ( out_ready       ),
+      .busy_o          ( /* unused */    )
     );
     assign out_ready = out_ready_i & result_is_vector;
 

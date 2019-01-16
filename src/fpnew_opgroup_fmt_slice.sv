@@ -60,13 +60,15 @@ module fpnew_opgroup_fmt_slice #(
   logic                 vectorial_op;
 
   logic [NUM_LANES*FP_WIDTH-1:0] slice_result;
+  logic [Width-1:0]              slice_regular_result, slice_class_result, slice_vec_class_result;
 
-  fpnew_pkg::status_t [NUM_LANES-1:0] lane_status;
-  logic               [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
-  TagType             [NUM_LANES-1:0] lane_tags; // only the first one is actually used
-  logic               [NUM_LANES-1:0] lane_vectorial, lane_busy; // dito
+  fpnew_pkg::status_t    [NUM_LANES-1:0] lane_status;
+  logic                  [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
+  fpnew_pkg::classmask_e [NUM_LANES-1:0] lane_class_mask;
+  TagType                [NUM_LANES-1:0] lane_tags; // only the first one is actually used
+  logic                  [NUM_LANES-1:0] lane_vectorial, lane_busy, lane_is_class; // dito
 
-  logic result_is_vector;
+  logic result_is_vector, result_is_class;
 
   // -----------
   // Input Side
@@ -79,6 +81,7 @@ module fpnew_opgroup_fmt_slice #(
   // ---------------
   for (genvar lane = 0; lane < int'(NUM_LANES); lane++) begin : gen_num_lanes
     logic [FP_WIDTH-1:0] local_result; // lane-local results
+    logic                local_sign;
 
     // Generate instances only if needed, lane 0 always generated
     if ((lane == 0) || EnableVectors) begin : active_lane
@@ -126,6 +129,7 @@ module fpnew_opgroup_fmt_slice #(
           .out_ready_i     ( out_ready            ),
           .busy_o          ( lane_busy[lane]      )
         );
+        assign lane_is_class[lane] = 1'b0;
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
         // fpnew_divsqrt #(
         //   .FpFormat   (FpFormat),
@@ -155,6 +159,7 @@ module fpnew_opgroup_fmt_slice #(
         //   .out_ready_i     ( out_ready            ),
         //   .busy_o          ( lane_busy[lane]      )
         // );
+        // assign lane_is_class[lane] = 1'b0;
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
         fpnew_noncomp #(
           .FpFormat   (FpFormat),
@@ -171,24 +176,26 @@ module fpnew_opgroup_fmt_slice #(
           .op_i,
           .op_mod_i,
           .tag_i,
-          .aux_i           ( vectorial_op         ), // Remember whether operation was vectorial
-          .in_valid_i      ( in_valid             ),
-          .in_ready_o      ( lane_in_ready[lane]  ),
+          .aux_i           ( vectorial_op          ), // Remember whether operation was vectorial
+          .in_valid_i      ( in_valid              ),
+          .in_ready_o      ( lane_in_ready[lane]   ),
           .flush_i,
-          .result_o        ( op_result            ),
-          .status_o        ( op_status            ),
-          .extension_bit_o ( lane_ext_bit[lane]   ),
-          .tag_o           ( lane_tags[lane]      ),
-          .aux_o           ( lane_vectorial[lane] ),
-          .out_valid_o     ( out_valid            ),
-          .out_ready_i     ( out_ready            ),
-          .busy_o          ( lane_busy[lane]      )
+          .result_o        ( op_result             ),
+          .status_o        ( op_status             ),
+          .extension_bit_o ( lane_ext_bit[lane]    ),
+          .class_mask_o    ( lane_class_mask[lane] ),
+          .is_class_o      ( lane_is_class[lane]   ),
+          .tag_o           ( lane_tags[lane]       ),
+          .aux_o           ( lane_vectorial[lane]  ),
+          .out_valid_o     ( out_valid             ),
+          .out_ready_i     ( out_ready             ),
+          .busy_o          ( lane_busy[lane]       )
         );
       end // ADD OTHER OPTIONS HERE
 
       // Handshakes are only done if the lane is actually used
       assign out_ready            = out_ready_i & ((lane == 0) | result_is_vector);
-      assign lane_out_valid[lane] = out_valid & ((lane == 0) | result_is_vector);
+      assign lane_out_valid[lane] = out_valid   & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
       assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
@@ -201,23 +208,71 @@ module fpnew_opgroup_fmt_slice #(
       assign local_result         = '{default: lane_ext_bit[0]}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
       assign lane_busy[lane]      = 1'b0;
+      assign lane_is_class[lane]  = 1'b0;
     end
 
     // Insert lane result into slice result
     assign slice_result[(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH] = local_result;
+
+    // Create Classification results
+    if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
+      assign local_sign = (lane_class_mask[lane] == fpnew_pkg::NEGINF ||
+                           lane_class_mask[lane] == fpnew_pkg::NEGNORM ||
+                           lane_class_mask[lane] == fpnew_pkg::NEGSUBNORM ||
+                           lane_class_mask[lane] == fpnew_pkg::NEGZERO);
+      // Write the current block segment
+      assign slice_vec_class_result[(lane+1)*8-1:lane*8] = {
+        local_sign,  // BIT 7
+        ~local_sign, // BIT 6
+        lane_class_mask[lane] == fpnew_pkg::QNAN, // BIT 5
+        lane_class_mask[lane] == fpnew_pkg::SNAN, // BIT 4
+        lane_class_mask[lane] == fpnew_pkg::POSZERO
+            || lane_class_mask[lane] == fpnew_pkg::NEGZERO, // BIT 3
+        lane_class_mask[lane] == fpnew_pkg::POSSUBNORM
+            || lane_class_mask[lane] == fpnew_pkg::NEGSUBNORM, // BIT 2
+        lane_class_mask[lane] == fpnew_pkg::POSNORM
+            || lane_class_mask[lane] == fpnew_pkg::NEGNORM, // BIT 1
+        lane_class_mask[lane] == fpnew_pkg::POSINF
+            || lane_class_mask[lane] == fpnew_pkg::NEGINF // BIT 0
+      };
+    end
   end
 
   // ------------
   // Output Side
   // ------------
   assign result_is_vector = lane_vectorial[0];
+  assign result_is_class  = lane_is_class[0];
 
-  assign result_o                         = {{(Width-NUM_LANES*FP_WIDTH){1'b0}}, slice_result};
-  assign extension_bit_o                  = lane_ext_bit[0]; // don't care about upper ones
-  assign tag_o                            = lane_tags[0];    // don't care about upper ones
-  assign busy_o                           = (| lane_busy);
+  assign slice_regular_result[NUM_LANES*FP_WIDTH-1:0] = slice_result;
 
-  assign out_valid_o                      = lane_out_valid[0]; // don't care about upper ones
+  // Extend result if wider than what is filled by lanes
+  if (Width > NUM_LANES*FP_WIDTH) begin : extend_result
+    assign slice_regular_result[Width-1:NUM_LANES*FP_WIDTH] = '{default: extension_bit_o};
+  end
+
+  // Pack vectorial class blocks if needed
+  always_comb begin : pack_class_blocks
+    localparam VECWIDTH = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
+
+    // Default assignement is zeroes
+    slice_class_result = '0;
+
+    if (result_is_vector) begin
+      slice_class_result[VECWIDTH-1:0] = slice_vec_class_result[VECWIDTH-1:0];
+    end else begin
+      slice_class_result[9:0] = lane_class_mask[0];    // Scalar classification block
+    end
+  end
+
+  // Select the proper result
+  assign result_o = result_is_class ? slice_class_result : slice_regular_result;
+
+  assign extension_bit_o                              = lane_ext_bit[0]; // upper lanes unused
+  assign tag_o                                        = lane_tags[0];    // upper lanes unused
+  assign busy_o                                       = (| lane_busy);
+  assign out_valid_o                                  = lane_out_valid[0]; // upper lanes unused
+
 
   // Collapse the lane status
   always_comb begin : output_processing
