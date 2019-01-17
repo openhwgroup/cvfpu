@@ -244,26 +244,15 @@ module fpnew_opgroup_fmt_slice #(
   assign result_is_vector = lane_vectorial[0];
   assign result_is_class  = lane_is_class[0];
 
-  assign slice_regular_result[NUM_LANES*FP_WIDTH-1:0] = slice_result;
+  assign slice_regular_result = $signed({extension_bit_o, slice_result});
 
-  // Extend result if wider than what is filled by lanes
-  if (Width > NUM_LANES*FP_WIDTH) begin : extend_result
-    assign slice_regular_result[Width-1:NUM_LANES*FP_WIDTH] = '{default: extension_bit_o};
-  end
+  localparam int unsigned CLASS_VEC_BITS = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
 
-  // Pack vectorial class blocks if needed
-  always_comb begin : pack_class_blocks
-    localparam VECWIDTH = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
+  localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
 
-    // Default assignement is zeroes
-    slice_class_result = '0;
-
-    if (result_is_vector) begin
-      slice_class_result[VECWIDTH-1:0] = slice_vec_class_result[VECWIDTH-1:0];
-    end else begin
-      slice_class_result[9:0] = lane_class_mask[0];    // Scalar classification block
-    end
-  end
+  assign slice_class_result = result_is_vector
+                              ? slice_vec_class_result & CLASS_VEC_MASK
+                              : lane_class_mask[0];    // Scalar classification block
 
   // Select the proper result
   assign result_o = result_is_class ? slice_class_result : slice_regular_result;
