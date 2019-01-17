@@ -479,7 +479,7 @@ module fpnew_cast_multi #(
         logic [FP_WIDTH-1:0] special_res;
 
         special_res = info_q[fmt].is_zero
-                      ? {>> {fmt_sign[fmt], '0}} // signed zero
+                      ? fmt_sign[fmt] << FP_WIDTH-1 // signed zero
                       : {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
 
         // Initialize special result with ones (NaN-box)
