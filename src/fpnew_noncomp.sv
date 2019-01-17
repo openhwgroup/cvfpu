@@ -291,6 +291,8 @@ module fpnew_noncomp #(
       class_mask_d = operand_a.sign       ? fpnew_pkg::NEGINF     : fpnew_pkg::POSINF;
     end else if (info_a.is_nan) begin
       class_mask_d = info_a.is_signalling ? fpnew_pkg::SNAN       : fpnew_pkg::QNAN;
+    end else begin
+      class_mask_d = fpnew_pkg::QNAN; // default value
     end
   end
 
