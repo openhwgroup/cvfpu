@@ -350,8 +350,9 @@ module fpnew_fma #(
   // ------
   // Adder
   // ------
-  logic [3*PRECISION_BITS+4:0] sum_raw, sum;  // added one bit for the carry
-  logic                        sum_carry;     // observe carry bit from sum for sign fixing
+  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
+  logic                        sum_carry; // observe carry bit from sum for sign fixing
+  logic [3*PRECISION_BITS+3:0] sum;       // discard carry as sum won't overflow
   logic                        final_sign;
 
   // Mantissa adder (ab+c). In normal addition, it cannot overflow.
@@ -508,7 +509,7 @@ module fpnew_fma #(
   };
 
   // Final results for output pipeline
-  logic [WIDTH-1:0]   result_d;
+  fp_t                result_d;
   fpnew_pkg::status_t status_d;
 
   // Select output depending on special case detection
