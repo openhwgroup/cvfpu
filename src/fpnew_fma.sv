@@ -183,8 +183,8 @@ module fpnew_fma #(
         operand_a = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
-      fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding)
-        operand_c = '{sign: 1'b0, exponent: '0, mantissa: '0};
+      fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding with RDN)
+        operand_c = '{sign: 1'b1, exponent: '0, mantissa: '0};
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
@@ -345,7 +345,7 @@ module fpnew_fma #(
   assign sticky_before_add = (| addend_sticky_bits);
 
   // In case of a subtraction, the addend is inverted
-  assign addend_shifted = (effective_subtraction) ? -addend_after_shift : addend_after_shift;
+  assign addend_shifted = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
 
   // ------
   // Adder
@@ -356,13 +356,15 @@ module fpnew_fma #(
   logic                        final_sign;
 
   // Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw   = product_shifted + addend_shifted;
+  assign sum_raw   = product_shifted + addend_shifted + unsigned'(effective_subtraction);
   assign sum_carry = sum_raw[3*PRECISION_BITS+4];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw        : sum_raw;
-  assign final_sign = (effective_subtraction && ~sum_carry) ? ~tentative_sign : tentative_sign;
-
+  assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
+  // In case of a mispredicted subtraction result, do a sign flip
+  assign final_sign = (effective_subtraction && (sum_carry == tentative_sign))
+                      ? 1'b1
+                      : (effective_subtraction ? 1'b0 : tentative_sign);
 
   // --------------
   // Normalization
