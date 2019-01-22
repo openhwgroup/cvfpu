@@ -276,7 +276,7 @@ module fpnew_fma #(
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
-  assign exponent_addend = signed'(exponent_c + info_c.is_subnormal);
+  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal})); // 0 as subnorm
   // Biased product exponent is the sum of encoded exponents minus the bias.
   assign exponent_product = (info_a.is_zero || info_b.is_zero)
                             ? 2 - signed'(BIAS) // in case the product is zero, set minimum exp.
