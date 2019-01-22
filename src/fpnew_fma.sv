@@ -441,6 +441,9 @@ module fpnew_fma #(
     end else if (normalized_exponent > 1) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
       final_exponent                    = normalized_exponent - 1;
+    // Otherwise we're denormal
+    end else begin
+      final_exponent = '0;
     end
   end
 
