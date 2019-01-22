@@ -478,8 +478,8 @@ module fpnew_cast_multi #(
       always_comb begin : special_results
         logic [FP_WIDTH-1:0] special_res;
 
-        special_res = info_q[fmt].is_zero
-                      ? fmt_sign[fmt] << FP_WIDTH-1 // signed zero
+        special_res = info_q[src_fmt_q].is_zero
+                      ? fmt_sign[src_fmt_q] << FP_WIDTH-1 // signed zero
                       : {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
 
         // Initialize special result with ones (NaN-box)
