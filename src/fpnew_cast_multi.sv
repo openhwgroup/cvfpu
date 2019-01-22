@@ -277,7 +277,7 @@ module fpnew_cast_multi #(
   assign dst_bias = signed'(fpnew_pkg::bias(dst_fmt_q));
 
   logic [2*INT_MAN_WIDTH:0]  preshift_mant;    // mantissa before final shift
-  logic [2*INT_MAN_WIDTH:0]  destination_mant; // mantissa from shifter, with rnd
+  logic [2*INT_MAN_WIDTH:0]  destination_mant; // mantissa from shifter, with rnd bit
   logic [SUPER_MAN_BITS-1:0] final_mant;       // mantissa after adjustments
   logic [MAX_INT_WIDTH-1:0]  final_int;        // integer shifted in position
 
@@ -329,7 +329,7 @@ module fpnew_cast_multi #(
       // Limit the shift to retain sticky bits
       end else if (destination_exp < -signed'(fpnew_pkg::man_bits(dst_fmt_q))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 1 + fpnew_pkg::man_bits(dst_fmt_q)); // to sticky
+        denorm_shamt    = unsigned'(denorm_shamt + 2 + fpnew_pkg::man_bits(dst_fmt_q)); // to sticky
         uf_before_round = 1'b1;
       end
     end
@@ -561,9 +561,8 @@ module fpnew_cast_multi #(
     DZ: 1'b0, // no divisions
     OF: ~src_is_int & (of_before_round | of_after_round), // in F2F casts, the OF flag is raised
     UF: uf_after_round,
-    NX: src_is_int
-        ? (| fp_round_sticky_bits) // overflow is invalid in i2f
-        : (| fp_round_sticky_bits) | of_before_round | of_after_round
+    NX: src_is_int ? (| fp_round_sticky_bits) // overflow is invalid in i2f
+                   : (| fp_round_sticky_bits) | of_before_round | of_after_round
   };
   assign int_regular_status = '{NX: (| int_round_sticky_bits), default: 1'b0};
 
