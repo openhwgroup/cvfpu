@@ -18,10 +18,6 @@
 #  work, make sure to checkout a branch.
 #
 
-common_cells:
-  commit: master
-  domain: [soc, cluster]
-
 fpu_div_sqrt_mvp:
   commit: master
   domain: [cluster,soc]
