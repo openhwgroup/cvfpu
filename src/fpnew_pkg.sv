@@ -333,12 +333,12 @@ package fpnew_pkg;
   // --------------------------------------------------
   // Returns the operation group of the given operation
   function automatic opgroup_e get_opgroup(operation_e op);
-    unique case (op) inside
-      [FMADD:MUL]:     return ADDMUL;
-      [DIV:SQRT]:      return DIVSQRT;
-      [SGNJ:CLASSIFY]: return NONCOMP;
-      [F2F:CPKCD]:     return CONV;
-      default:         return NONCOMP;
+    unique case (op)
+      FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
+      DIV, SQRT:                   return DIVSQRT;
+      SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
+      F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
+      default:                     return NONCOMP;
     endcase
   endfunction
 
