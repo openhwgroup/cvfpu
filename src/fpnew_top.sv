@@ -16,9 +16,9 @@
 
 module fpnew_top #(
   // FPU configuration
-  parameter fpnew_pkg::fpu_features_t       Features      = fpnew_pkg::RV64D_Xsflt,
-  parameter fpnew_pkg::fpu_implementation_t Implementaion = fpnew_pkg::DEFAULT_NOREGS,
-  parameter type                            TagType       = logic,
+  parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
+  parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
+  parameter type                            TagType        = logic,
   // Do not change
   localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
@@ -106,15 +106,15 @@ module fpnew_top #(
     end
 
     fpnew_opgroup_block #(
-      .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp)   ),
-      .Width         ( WIDTH                          ),
-      .EnableVectors ( Features.EnableVectors         ),
-      .FpFmtMask     ( Features.FpFmtMask             ),
-      .IntFmtMask    ( Features.IntFmtMask            ),
-      .FmtPipeRegs   ( Implementaion.PipeRegs[opgrp]  ),
-      .FmtUnitTypes  ( Implementaion.UnitTypes[opgrp] ),
-      .PipeConfig    ( Implementaion.PipeConfig       ),
-      .TagType       ( TagType                        )
+      .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp)    ),
+      .Width         ( WIDTH                           ),
+      .EnableVectors ( Features.EnableVectors          ),
+      .FpFmtMask     ( Features.FpFmtMask              ),
+      .IntFmtMask    ( Features.IntFmtMask             ),
+      .FmtPipeRegs   ( Implementation.PipeRegs[opgrp]  ),
+      .FmtUnitTypes  ( Implementation.UnitTypes[opgrp] ),
+      .PipeConfig    ( Implementation.PipeConfig       ),
+      .TagType       ( TagType                         )
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,
