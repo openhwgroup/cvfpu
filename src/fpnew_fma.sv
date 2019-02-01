@@ -93,7 +93,8 @@ module fpnew_fma #(
       .Width       ( WIDTH       ),
       .NumPipeRegs ( NumPipeRegs ),
       .NumOperands ( 3           ),
-      .TagType     ( TagType     )
+      .TagType     ( TagType     ),
+      .AuxType     ( AuxType     )
     ) i_input_pipe (
       .clk_i,
       .rst_ni,
@@ -215,52 +216,6 @@ module fpnew_fma #(
   assign effective_subtraction = operand_a.sign ^ operand_b.sign ^ operand_c.sign;
   // The tentative sign of the FMA shall be the sign of the product
   assign tentative_sign = operand_a.sign ^ operand_b.sign;
-
-  // ----------------------
-  // Special case handling
-  // ----------------------
-  fp_t                special_result;
-  fpnew_pkg::status_t special_status;
-  logic               result_is_special;
-
-  always_comb begin : special_cases
-    // Default assignments
-    special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
-    special_status    = '0;
-    result_is_special = 1'b0;
-
-    // Handle potentially mixed nan & infinity input => important for the case where infinity and
-    // zero are multiplied and added to a qnan.
-    // RISC-V mandates raising the NV exception in these cases:
-    // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
-    if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
-      result_is_special = 1'b1; // bypass FMA, output is the canonical qNaN
-      special_status.NV = 1'b1; // invalid operation
-    // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
-    end else if (any_operand_nan) begin
-      result_is_special = 1'b1;           // bypass FMA, output is the canonical qNaN
-      special_status.NV = signalling_nan; // raise the invalid operation flag if signalling
-    // Special cases involving infinity
-    end else if (any_operand_inf) begin
-      result_is_special = 1'b1; // bypass FMA
-      // Effective addition of opposite infinities (±inf - ±inf) is invalid!
-      if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
-        special_status.NV = 1'b1; // invalid operation
-      // Handle cases where output will be inf because of inf product input
-      else if (info_a.is_inf || info_b.is_inf) begin
-        // Result is infinity with the sign of the product
-        special_result    = '{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
-        special_status.OF = 1'b1; // overflow
-        special_status.NX = 1'b1; // inexact operation
-      // Handle cases where the addend is inf
-      end else if (info_c.is_inf) begin
-        // Result is inifinity with sign of the addend (= operand_c)
-        special_result    = '{sign: operand_c.sign, exponent: '1, mantissa: '0};
-        special_status.OF = 1'b1; // overflow
-        special_status.NX = 1'b1; // inexact operation
-      end
-    end
-  end
 
   // ---------------------------
   // Initial exponent data path
@@ -496,6 +451,52 @@ module fpnew_fma #(
   // Classification after rounding
   assign uf_after_round = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0; // exponent = 0
   assign of_after_round = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '1; // exponent all ones
+
+  // ----------------------
+  // Special case handling
+  // ----------------------
+  fp_t                special_result;
+  fpnew_pkg::status_t special_status;
+  logic               result_is_special;
+
+  always_comb begin : special_cases
+    // Default assignments
+    special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+    special_status    = '0;
+    result_is_special = 1'b0;
+
+    // Handle potentially mixed nan & infinity input => important for the case where infinity and
+    // zero are multiplied and added to a qnan.
+    // RISC-V mandates raising the NV exception in these cases:
+    // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
+    if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
+      result_is_special = 1'b1; // bypass FMA, output is the canonical qNaN
+      special_status.NV = 1'b1; // invalid operation
+    // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
+    end else if (any_operand_nan) begin
+      result_is_special = 1'b1;           // bypass FMA, output is the canonical qNaN
+      special_status.NV = signalling_nan; // raise the invalid operation flag if signalling
+    // Special cases involving infinity
+    end else if (any_operand_inf) begin
+      result_is_special = 1'b1; // bypass FMA
+      // Effective addition of opposite infinities (±inf - ±inf) is invalid!
+      if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
+        special_status.NV = 1'b1; // invalid operation
+      // Handle cases where output will be inf because of inf product input
+      else if (info_a.is_inf || info_b.is_inf) begin
+        // Result is infinity with the sign of the product
+        special_result    = '{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
+        special_status.OF = 1'b1; // overflow
+        special_status.NX = 1'b1; // inexact operation
+      // Handle cases where the addend is inf
+      end else if (info_c.is_inf) begin
+        // Result is inifinity with sign of the addend (= operand_c)
+        special_result    = '{sign: operand_c.sign, exponent: '1, mantissa: '0};
+        special_status.OF = 1'b1; // overflow
+        special_status.NX = 1'b1; // inexact operation
+      end
+    end
+  end
 
   // -----------------
   // Result selection
