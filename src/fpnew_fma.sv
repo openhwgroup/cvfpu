@@ -282,7 +282,7 @@ module fpnew_fma #(
   // Addend data path
   // -----------------
   logic [3*PRECISION_BITS+3:0] addend_after_shift;  // upper 3p+4 bits are needed to go on
-  logic [PRECISION_BITS-2:0]   addend_sticky_bits;  // up to p-1 bit of shifted addend are sticky
+  logic [PRECISION_BITS-1:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
   logic                        sticky_before_add;   // they are compressed into a single sticky bit
   logic [3*PRECISION_BITS+3:0] addend_shifted;      // addends are 3p+4 bit wide (including R/S)
 
@@ -294,10 +294,11 @@ module fpnew_fma #(
   // AFTER THE SHIFT:
   // | 000..........000 | mantissa_c | 000...............0RS |  sticky bits  |
   //  <- addend_shamt -> <-    p   -> <- 2p+4-addend_shamt -> <- up to p-1 ->
-  assign {addend_after_shift, addend_sticky_bits} =
+  assign {addend_after_shift[3*PRECISION_BITS+3:1], addend_sticky_bits} =
       (mantissa_c << (3 * PRECISION_BITS + 3)) >> addend_shamt;
 
-  assign sticky_before_add = (| addend_sticky_bits);
+  assign sticky_before_add     = (| addend_sticky_bits);
+  assign addend_after_shift[0] = sticky_before_add;
 
   // In case of a subtraction, the addend is inverted
   assign addend_shifted = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
