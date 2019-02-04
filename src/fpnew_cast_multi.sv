@@ -318,7 +318,7 @@ module fpnew_cast_multi #(
     end else begin
       // Overflow or infinities (for proper rounding)
       if ((destination_exp >= 2**fpnew_pkg::exp_bits(dst_fmt_q)-1) ||
-          info_q[src_fmt_q].is_inf) begin
+          (~src_is_int && info_q[src_fmt_q].is_inf)) begin
         final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
