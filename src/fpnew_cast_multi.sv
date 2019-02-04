@@ -317,12 +317,14 @@ module fpnew_cast_multi #(
     // Handle FP over-/underflows
     end else begin
       // Overflow or infinities (for proper rounding)
-      if ((destination_exp >= 2**fpnew_pkg::exp_bits(dst_fmt_q)-1) || info_q[src_fmt_q].is_inf) begin
+      if ((destination_exp >= 2**fpnew_pkg::exp_bits(dst_fmt_q)-1) ||
+          info_q[src_fmt_q].is_inf) begin
         final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
       // Denormalize underflowing values
-      end else if (destination_exp < 1 && destination_exp >= -fpnew_pkg::man_bits(dst_fmt_q)) begin
+      end else if (destination_exp < 1 &&
+                   destination_exp >= -signed'(fpnew_pkg::man_bits(dst_fmt_q))) begin
         final_exp       = '0; // denormal result
         denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp); // adjust right shifting
         uf_before_round = 1'b1;
