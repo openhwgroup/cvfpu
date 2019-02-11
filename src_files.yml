@@ -8,6 +8,7 @@ fpnew:
     src/fpnew_classifier.sv,
     src/fpnew_divsqrt_multi.sv,
     src/fpnew_fma.sv,
+    src/fpnew_fma_multi.sv,
     src/fpnew_noncomp.sv,
     src/fpnew_opgroup_block.sv,
     src/fpnew_opgroup_fmt_slice.sv,
