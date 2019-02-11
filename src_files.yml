@@ -1,24 +1,7 @@
-common_cells:
-  files: [
-    src/common_cells/src/lzc.sv,
-    src/common_cells/src/rrarbiter.sv,
-    src/common_cells/src/stream_arbiter_flushable.sv,
-  ]
-
-fpu_div_sqrt_mvp:
-  files: [
-    src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/control_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/div_sqrt_mvp_wrapper.sv
-    src/fpu_div_sqrt_mvp/hdl/div_sqrt_top_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/fpu_ff.sv
-    src/fpu_div_sqrt_mvp/hdl/iteration_div_sqrt_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/norm_div_sqrt_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/nrbd_nrsc_mvp.sv
-    src/fpu_div_sqrt_mvp/hdl/preprocess_mvp.sv
-  ]
-
 fpnew:
+  incdirs: [
+    ../common_cells/include/common_cells,
+  ]
   files: [
     src/fpnew_pkg.sv,
     src/fpnew_cast_multi.sv,

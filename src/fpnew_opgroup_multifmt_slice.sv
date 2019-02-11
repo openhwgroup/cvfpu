@@ -237,7 +237,7 @@ module fpnew_opgroup_multifmt_slice #(
         ) i_fpnew_divsqrt_multi (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands      ), // 2 operands
+          .operands_i      ( local_operands[1:0] ), // 2 operands
           .is_boxed_i      ( is_boxed_2op        ), // 2 operands
           .rnd_mode_i,
           .op_i,
