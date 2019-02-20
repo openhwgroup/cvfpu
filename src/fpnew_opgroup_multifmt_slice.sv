@@ -211,6 +211,7 @@ module fpnew_opgroup_multifmt_slice #(
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
+          .src_fmt_i,
           .dst_fmt_i,
           .tag_i,
           .aux_i           ( aux_data            ),

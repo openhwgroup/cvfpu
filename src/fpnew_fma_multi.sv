@@ -32,7 +32,8 @@ module fpnew_fma_multi #(
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
   input  fpnew_pkg::operation_e       op_i,
   input  logic                        op_mod_i,
-  input  fpnew_pkg::fp_format_e       dst_fmt_i,
+  input  fpnew_pkg::fp_format_e       src_fmt_i, // format of the multiplicands
+  input  fpnew_pkg::fp_format_e       dst_fmt_i, // format of the addend and result
   input  TagType                      tag_i,
   input  AuxType                      aux_i,
   // Input Handshake
@@ -111,7 +112,7 @@ module fpnew_fma_multi #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::FP32 ), // unused
+      .src_fmt_i,
       .dst_fmt_i,
       .int_fmt_i      ( fpnew_pkg::INT8 ), // unused
       .tag_i,
@@ -124,7 +125,7 @@ module fpnew_fma_multi #(
       .rnd_mode_o     ( rnd_mode_q   ),
       .op_o           ( op_q         ),
       .op_mod_o       ( op_mod_q     ),
-      .src_fmt_o      ( /* unused */ ),
+      .src_fmt_o      ( src_fmt_q    ),
       .dst_fmt_o      ( dst_fmt_q    ),
       .int_fmt_o      ( /* unused */ ),
       .tag_o,
@@ -140,11 +141,9 @@ module fpnew_fma_multi #(
     assign rnd_mode_q = rnd_mode_i;
     assign op_q       = op_i;
     assign op_mod_q   = op_mod_i;
+    assign src_fmt_q  = src_fmt_i;
     assign dst_fmt_q  = dst_fmt_i;
   end
-
-  // for future use
-  assign src_fmt_q = dst_fmt_q;
 
   // -----------------
   // Input processing
@@ -212,10 +211,10 @@ module fpnew_fma_multi #(
     // Default assignments - packing-order-agnostic
     operand_a = {fmt_sign[src_fmt_q][0], fmt_exponent[src_fmt_q][0], fmt_mantissa[src_fmt_q][0]};
     operand_b = {fmt_sign[src_fmt_q][1], fmt_exponent[src_fmt_q][1], fmt_mantissa[src_fmt_q][1]};
-    operand_c = {fmt_sign[src_fmt_q][2], fmt_exponent[src_fmt_q][2], fmt_mantissa[src_fmt_q][2]};
+    operand_c = {fmt_sign[dst_fmt_q][2], fmt_exponent[dst_fmt_q][2], fmt_mantissa[dst_fmt_q][2]};
     info_a    = info_q[src_fmt_q][0];
     info_b    = info_q[src_fmt_q][1];
-    info_c    = info_q[src_fmt_q][2];
+    info_c    = info_q[dst_fmt_q][2];
 
     // op_mod_i inverts sign of operand C
     operand_c.sign = operand_c.sign ^ op_mod_i;
@@ -273,14 +272,15 @@ module fpnew_fma_multi #(
   assign exponent_c = signed'({1'b0, operand_c.exponent});
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
-  // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
+  // with Ex the encoded exponent and nx the implicit bit. Internal exponents are biased to dst fmt.
   assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal})); // 0 as subnorm
   // Biased product exponent is the sum of encoded exponents minus the bias.
-  assign exponent_product = (info_a.is_zero || info_b.is_zero)
-                            ? 2 - signed'(fpnew_pkg::bias(src_fmt_q)) // in case the product is zero, set minimum exp.
+  assign exponent_product = (info_a.is_zero || info_b.is_zero) // in case the product is zero, set minimum exp.
+                            ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q))
                             : signed'(exponent_a + info_a.is_subnormal
                                       + exponent_b + info_b.is_subnormal
-                                      - signed'(fpnew_pkg::bias(src_fmt_q)));
+                                      - 2*signed'(fpnew_pkg::bias(src_fmt_q))
+                                      + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
   // Exponent difference is the addend exponent minus the product exponent
   assign exponent_difference = exponent_addend - exponent_product;
   // The tentative exponent will be the larger of the product or addend exponent
