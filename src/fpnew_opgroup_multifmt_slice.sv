@@ -337,7 +337,7 @@ module fpnew_opgroup_multifmt_slice #(
     // Set up some constants
     localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
     if (NUM_LANES*FP_WIDTH < Width)
-      assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = lane_ext_bit[0];
+      assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = '{default: lane_ext_bit[0]};
   end
 
   // Bypass lanes with target operand for vectorial casts
