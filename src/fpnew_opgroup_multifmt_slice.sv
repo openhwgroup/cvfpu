@@ -197,7 +197,37 @@ module fpnew_opgroup_multifmt_slice #(
 
       // Instantiate the operation from the selected opgroup
       if (OpGroup == fpnew_pkg::ADDMUL) begin : lane_instance
-        // TODO
+        fpnew_fma_multi #(
+          .FpFmtConfig ( LANE_FORMATS         ),
+          .NumPipeRegs ( NumPipeRegs          ),
+          .PipeConfig  ( PipeConfig           ),
+          .TagType     ( TagType              ),
+          .AuxType     ( logic [AUX_BITS-1:0] )
+        ) i_fpnew_fma_multi (
+          .clk_i,
+          .rst_ni,
+          .operands_i      ( local_operands  ),
+          .is_boxed_i,
+          .rnd_mode_i,
+          .op_i,
+          .op_mod_i,
+          .src_fmt_i,
+          .dst_fmt_i,
+          .tag_i,
+          .aux_i           ( aux_data            ),
+          .in_valid_i      ( in_valid            ),
+          .in_ready_o      ( lane_in_ready[lane] ),
+          .flush_i,
+          .result_o        ( op_result           ),
+          .status_o        ( op_status           ),
+          .extension_bit_o ( lane_ext_bit[lane]  ),
+          .tag_o           ( lane_tags[lane]     ),
+          .aux_o           ( lane_aux[lane]      ),
+          .out_valid_o     ( out_valid           ),
+          .out_ready_i     ( out_ready           ),
+          .busy_o          ( lane_busy[lane]     )
+        );
+
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
         fpnew_divsqrt_multi #(
           .FpFmtConfig ( LANE_FORMATS         ),
@@ -308,7 +338,7 @@ module fpnew_opgroup_multifmt_slice #(
     // Set up some constants
     localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
     if (NUM_LANES*FP_WIDTH < Width)
-      assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = lane_ext_bit[0];
+      assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = '{default: lane_ext_bit[0]};
   end
 
   // Bypass lanes with target operand for vectorial casts
@@ -353,7 +383,6 @@ module fpnew_opgroup_multifmt_slice #(
   end else begin : no_conv
     assign {result_vec_op, result_is_cpk} = '0;
   end
-
 
   // ------------
   // Output Side

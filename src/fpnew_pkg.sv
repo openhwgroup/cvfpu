@@ -206,6 +206,14 @@ package fpnew_pkg;
     IntFmtMask:    4'b0011
   };
 
+  localparam fpu_features_t RV32D = '{
+    Width:         64,
+    EnableVectors: 1'b1,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b11000,
+    IntFmtMask:    4'b0010
+  };
+
   localparam fpu_features_t RV32F = '{
     Width:         32,
     EnableVectors: 1'b0,
@@ -250,6 +258,15 @@ package fpnew_pkg;
     PipeRegs:   '{default: 0},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
                   '{default: MERGED},   // DIVSQRT
+                  '{default: PARALLEL}, // NONCOMP
+                  '{default: MERGED}},  // CONV
+    PipeConfig: AFTER
+  };
+
+  localparam fpu_implementation_t DEFAULT_SNITCH = '{
+    PipeRegs:   '{default: 1},
+    UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
+                  '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
     PipeConfig: AFTER
@@ -335,12 +352,12 @@ package fpnew_pkg;
   // --------------------------------------------------
   // Returns the operation group of the given operation
   function automatic opgroup_e get_opgroup(operation_e op);
-    unique case (op) inside
-      [FMADD:MUL]:     return ADDMUL;
-      [DIV:SQRT]:      return DIVSQRT;
-      [SGNJ:CLASSIFY]: return NONCOMP;
-      [F2F:CPKCD]:     return CONV;
-      default:         return NONCOMP;
+    unique case (op)
+      FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
+      DIV, SQRT:                   return DIVSQRT;
+      SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
+      F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
+      default:                     return NONCOMP;
     endcase
   endfunction
 

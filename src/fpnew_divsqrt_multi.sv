@@ -67,6 +67,7 @@ module fpnew_divsqrt_multi #(
   TagType                      tag_q;
   AuxType                      aux_q;
   logic                        in_valid_q, in_ready_q;
+  logic                        pipe_busy;
 
   // Generate pipeline at input if needed
   if (PipeConfig==fpnew_pkg::BEFORE) begin : input_pipeline
@@ -105,7 +106,7 @@ module fpnew_divsqrt_multi #(
       .aux_o       ( aux_q           ),
       .out_valid_o ( in_valid_q      ),
       .out_ready_i ( in_ready_q      ),
-      .busy_o
+      .busy_o      ( pipe_busy       )
     );
   // Otherwise pass through inputs
   end else begin : no_input_pipeline
@@ -154,6 +155,7 @@ module fpnew_divsqrt_multi #(
   logic out_valid, out_ready;   // output handshake with downstream
   logic hold_result;            // whether to put result into hold register
   logic data_is_held;           // data in hold register is valid
+  logic unit_busy;              // valid data in flight
   // FSM states
   typedef enum logic [1:0] {IDLE, BUSY, HOLD} fsm_state_e;
   fsm_state_e state_q, state_d;
@@ -172,6 +174,7 @@ module fpnew_divsqrt_multi #(
     out_valid    = 1'b0;
     hold_result  = 1'b0;
     data_is_held = 1'b0;
+    unit_busy    = 1'b0;
     state_d      = state_q;
 
     unique case (state_q)
@@ -184,6 +187,7 @@ module fpnew_divsqrt_multi #(
       end
       // Operation in progress
       BUSY: begin
+        unit_busy = 1'b1; // data in flight
         // If the unit is done with processing
         if (unit_done) begin
           out_valid = 1'b1; // try to commit result downstream
@@ -203,6 +207,7 @@ module fpnew_divsqrt_multi #(
       end
       // Waiting with valid result for downstream
       HOLD: begin
+        unit_busy    = 1'b1; // data in flight
         data_is_held = 1'b1; // data in hold register is valid
         out_valid    = 1'b1; // try to commit result downstream
         // If the result is accepted by downstream
@@ -220,6 +225,7 @@ module fpnew_divsqrt_multi #(
 
     // Flushing overrides the other actions
     if (flush_i) begin
+      unit_busy = 1'b0; // data is invalidated
       out_valid = 1'b0; // cancel any valid data
       state_d   = IDLE; // go to default state
     end
@@ -310,7 +316,7 @@ module fpnew_divsqrt_multi #(
       .aux_o,
       .out_valid_o,
       .out_ready_i,
-      .busy_o
+      .busy_o          ( pipe_busy     )
     );
   // Otherwise pass through outputs
   end else begin : no_output_pipeline
@@ -323,4 +329,6 @@ module fpnew_divsqrt_multi #(
     assign out_ready       = out_ready_i;
   end
 
+  // Busy flag
+  assign busy_o = in_valid_q | unit_busy | pipe_busy;
 endmodule
