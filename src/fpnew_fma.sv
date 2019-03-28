@@ -245,8 +245,8 @@ module fpnew_fma #(
 
   always_comb begin : addend_shift_amount
     // Product-anchored case, saturated shift (addend is only in the sticky bit)
-    if (exponent_difference <= signed'(-2 * PRECISION_BITS))
-      addend_shamt = 3 * PRECISION_BITS + 3;
+    if (exponent_difference <= signed'(-2 * PRECISION_BITS - 1))
+      addend_shamt = 3 * PRECISION_BITS + 4;
     // Addend and product will have mutual bits to add
     else if (exponent_difference <= signed'(PRECISION_BITS + 2))
       addend_shamt = unsigned'(signed'(PRECISION_BITS) + 3 - exponent_difference);
@@ -260,7 +260,7 @@ module fpnew_fma #(
   // ------------------
   logic [PRECISION_BITS-1:0]   mantissa_a, mantissa_b, mantissa_c;
   logic [2*PRECISION_BITS-1:0] product;             // the p*p product is 2p bits wide
-  logic [3*PRECISION_BITS+3:0] product_shifted;     // addends are 3p+4 bit wide (including R/S)
+  logic [3*PRECISION_BITS+3:0] product_shifted;     // addends are 3p+4 bit wide (including G/R)
 
   // Add implicit bits to mantissae
   assign mantissa_a = {info_a.is_normal, operand_a.mantissa};
@@ -281,24 +281,26 @@ module fpnew_fma #(
   logic [3*PRECISION_BITS+3:0] addend_after_shift;  // upper 3p+4 bits are needed to go on
   logic [PRECISION_BITS-1:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
   logic                        sticky_before_add;   // they are compressed into a single sticky bit
-  logic [3*PRECISION_BITS+3:0] addend_shifted;      // addends are 3p+4 bit wide (including R/S)
+  logic [3*PRECISION_BITS+3:0] addend_shifted;      // addends are 3p+4 bit wide (including G/R)
+  logic                        inject_carry_in;     // inject carry for subtractions if needed
 
-  // In parallel, the addend is right-shifted according to the exponent difference. Up to p-1 bits
+  // In parallel, the addend is right-shifted according to the exponent difference. Up to p bits
   // are shifted out and compressed into a sticky bit.
   // BEFORE THE SHIFT:
   // | mantissa_c | 000..000 |
-  //  <-    p   -> <- 3p+3 ->
+  //  <-    p   -> <- 3p+4 ->
   // AFTER THE SHIFT:
-  // | 000..........000 | mantissa_c | 000...............0RS |  sticky bits  |
-  //  <- addend_shamt -> <-    p   -> <- 2p+4-addend_shamt -> <- up to p-1 ->
-  assign {addend_after_shift[3*PRECISION_BITS+3:1], addend_sticky_bits} =
-      (mantissa_c << (3 * PRECISION_BITS + 3)) >> addend_shamt;
+  // | 000..........000 | mantissa_c | 000...............0GR |  sticky bits  |
+  //  <- addend_shamt -> <-    p   -> <- 2p+4-addend_shamt -> <-  up to p  ->
+  assign {addend_after_shift, addend_sticky_bits} =
+      (mantissa_c << (3 * PRECISION_BITS + 4)) >> addend_shamt;
 
   assign sticky_before_add     = (| addend_sticky_bits);
-  assign addend_after_shift[0] = sticky_before_add;
+  // assign addend_after_shift[0] = sticky_before_add;
 
   // In case of a subtraction, the addend is inverted
-  assign addend_shifted = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
+  assign addend_shifted  = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
+  assign inject_carry_in = effective_subtraction & ~sticky_before_add;
 
   // ------
   // Adder
@@ -309,7 +311,7 @@ module fpnew_fma #(
   logic                        final_sign;
 
   // Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw   = product_shifted + addend_shifted + unsigned'(effective_subtraction);
+  assign sum_raw   = product_shifted + addend_shifted + inject_carry_in;
   assign sum_carry = sum_raw[3*PRECISION_BITS+4];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
