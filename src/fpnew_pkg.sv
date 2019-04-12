@@ -264,7 +264,12 @@ package fpnew_pkg;
   };
 
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
-    PipeRegs:   '{default: 1},
+    PipeRegs:  '{// FP32, FP64
+               '{2, 2, 1, 1, 1}, // ADDMUL
+               '{default: 1},    // DIVSQRT
+               '{default: 1},    // NONCOMP
+               '{default: 1}},   // CONV
+    // PipeRegs:   '{default: 1},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
                   '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP

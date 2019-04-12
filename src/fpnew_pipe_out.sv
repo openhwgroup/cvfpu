@@ -133,13 +133,13 @@ module fpnew_pipe_out #(
       assign reg_ena = stage_ready[i] & valid_d[i];
 
       // Generate the pipeline registers within the stages, use enable-registers
-      `FFL(result_q[i],        result_d[i],        reg_ena, '0)
-      `FFL(status_q[i],        status_d[i],        reg_ena, '0)
-      `FFL(extension_bit_q[i], extension_bit_d[i], reg_ena, '0)
-      `FFL(class_mask_q[i],    class_mask_d[i],    reg_ena, fpnew_pkg::QNAN)
-      `FFL(is_class_q[i],      is_class_d[i],      reg_ena, '0)
-      `FFL(tag_q[i],           tag_d[i],           reg_ena, '0)
-      `FFL(aux_q[i],           aux_d[i],           reg_ena, '0)
+      `FFLNR(result_q[i],        result_d[i],        reg_ena, clk_i)
+      `FFLNR(status_q[i],        status_d[i],        reg_ena, clk_i)
+      `FFLNR(extension_bit_q[i], extension_bit_d[i], reg_ena, clk_i)
+      `FFLNR(class_mask_q[i],    class_mask_d[i],    reg_ena, clk_i)
+      `FFLNR(is_class_q[i],      is_class_d[i],      reg_ena, clk_i)
+      `FFLNR(tag_q[i],           tag_d[i],           reg_ena, clk_i)
+      `FFLNR(aux_q[i],           aux_d[i],           reg_ena, clk_i)
     end
   end
 
