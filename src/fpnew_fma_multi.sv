@@ -202,7 +202,7 @@ module fpnew_fma_multi #(
   // | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
   // | MUL      | \c 0        | MUL: Set operand C to +0.0
   // | *others* | \c -        | *invalid*
-  // \note \c op_mod_i always inverts the sign of the addend.
+  // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
 
     // Default assignments - packing-order-agnostic
@@ -213,10 +213,10 @@ module fpnew_fma_multi #(
     info_b    = info_q[src_fmt_q][1];
     info_c    = info_q[dst_fmt_q][2];
 
-    // op_mod_i inverts sign of operand C
-    operand_c.sign = operand_c.sign ^ op_mod_i;
+    // op_mod_q inverts sign of operand C
+    operand_c.sign = operand_c.sign ^ op_mod_q;
 
-    unique case (op_i)
+    unique case (op_q)
       fpnew_pkg::FMADD:  ; // do nothing
       fpnew_pkg::FNMSUB: operand_a.sign = ~operand_a.sign; // invert sign of product
       fpnew_pkg::ADD: begin // Set multiplicand to +1
