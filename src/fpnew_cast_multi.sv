@@ -296,7 +296,7 @@ module fpnew_cast_multi #(
     uf_before_round = 1'b0;
 
     // Place mantissa to the left of the shifter
-    preshift_mant = {>> {input_mant, '0}};
+    preshift_mant = input_mant << (INT_MAN_WIDTH + 1);
 
     // Handle INT casts
     if (dst_is_int) begin
