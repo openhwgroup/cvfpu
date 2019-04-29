@@ -335,7 +335,7 @@ module fpnew_f2fcast #(
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
     fpnew_pipe_out #(
       .Width       ( DST_WIDTH   ),
       .NumPipeRegs ( NumPipeRegs ),
