@@ -256,6 +256,84 @@ module fpnew_fma_multi #(
   // The tentative sign of the FMA shall be the sign of the product
   assign tentative_sign = operand_a.sign ^ operand_b.sign;
 
+  // ----------------------
+  // Special case handling
+  // ----------------------
+  logic [WIDTH-1:0]   special_result;
+  fpnew_pkg::status_t special_status;
+  logic               result_is_special;
+
+  logic [NUM_FORMATS-1:0][WIDTH-1:0]    fmt_special_result;
+  fpnew_pkg::status_t [NUM_FORMATS-1:0] fmt_special_status;
+  logic [NUM_FORMATS-1:0]               fmt_result_is_special;
+
+
+  for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_special_results
+    // Set up some constants
+    localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
+
+    localparam logic [EXP_BITS-1:0] QNAN_EXPONENT = '1;
+    localparam logic [MAN_BITS-1:0] QNAN_MANTISSA = 2**(MAN_BITS-1);
+    localparam logic [MAN_BITS-1:0] ZERO_MANTISSA = '0;
+
+    if (FpFmtConfig[fmt]) begin : active_format
+      always_comb begin : special_results
+        logic [FP_WIDTH-1:0] special_res;
+
+        // Default assignment
+        special_res                = {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
+        fmt_special_status[fmt]    = '0;
+        fmt_result_is_special[fmt] = 1'b0;
+
+        // Handle potentially mixed nan & infinity input => important for the case where infinity and
+        // zero are multiplied and added to a qnan.
+        // RISC-V mandates raising the NV exception in these cases:
+        // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
+        if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
+          fmt_result_is_special[fmt] = 1'b1; // bypass FMA, output is the canonical qNaN
+          fmt_special_status[fmt].NV = 1'b1; // invalid operation
+        // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
+        end else if (any_operand_nan) begin
+          fmt_result_is_special[fmt] = 1'b1;           // bypass FMA, output is the canonical qNaN
+          fmt_special_status[fmt].NV = signalling_nan; // raise the invalid operation flag if signalling
+        // Special cases involving infinity
+        end else if (any_operand_inf) begin
+          fmt_result_is_special[fmt] = 1'b1; // bypass FMA
+          // Effective addition of opposite infinities (±inf - ±inf) is invalid!
+          if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
+            fmt_special_status[fmt].NV = 1'b1; // invalid operation
+          // Handle cases where output will be inf because of inf product input
+          else if (info_a.is_inf || info_b.is_inf) begin
+            // Result is infinity with the sign of the product
+            special_res = {operand_a.sign ^ operand_b.sign, QNAN_EXPONENT, ZERO_MANTISSA};
+            fmt_special_status[fmt].OF = 1'b1; // overflow
+            fmt_special_status[fmt].NX = 1'b1; // inexact operation
+          // Handle cases where the addend is inf
+          end else if (info_c.is_inf) begin
+            // Result is inifinity with sign of the addend (= operand_c)
+            special_res = {operand_c.sign, QNAN_EXPONENT, ZERO_MANTISSA};
+            fmt_special_status[fmt].OF = 1'b1; // overflow
+            fmt_special_status[fmt].NX = 1'b1; // inexact operation
+          end
+        end
+        // Initialize special result with ones (NaN-box)
+        fmt_special_result[fmt]               = '1;
+        fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
+      end
+    end else begin : inactive_format
+      assign fmt_special_result[fmt] = 'X;
+    end
+  end
+
+  // Detect special case from source format, I2F casts don't produce a special result
+  assign result_is_special = fmt_result_is_special[dst_fmt_q]; // they're all the same
+  // Signalling input NaNs raise invalid flag, otherwise no flags set
+  assign special_status = fmt_special_status[dst_fmt_q];
+  // Assemble result according to destination format
+  assign special_result = fmt_special_result[dst_fmt_q]; // destination format
+
   // ---------------------------
   // Initial exponent data path
   // ---------------------------
@@ -344,6 +422,98 @@ module fpnew_fma_multi #(
   assign addend_shifted = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
   assign inject_carry_in = effective_subtraction & ~sticky_before_add;
 
+  // ---------------
+  // Internal pipeline
+  // ---------------
+  // Pipelined internal signals
+  logic                          effective_subtraction_q;
+  logic                          tentative_sign_q;
+  logic signed [EXP_WIDTH-1:0]   exponent_product_q;
+  logic signed [EXP_WIDTH-1:0]   exponent_difference_q;
+  logic signed [EXP_WIDTH-1:0]   tentative_exponent_q;
+  logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_q;
+  logic                          sticky_before_add_q;
+  logic [3*PRECISION_BITS+3:0]   product_shifted_q;
+  logic [3*PRECISION_BITS+3:0]   addend_shifted_q;
+  logic                          inject_carry_in_q;
+  fpnew_pkg::roundmode_e         rnd_mode_q2;
+  fpnew_pkg::fp_format_e         dst_fmt_q2;
+  fp_t                           special_result_q;
+  fpnew_pkg::status_t            special_status_q;
+  logic                          result_is_special_q;
+
+  // Generate pipeline between mul and add if needed
+  if (PipeConfig==fpnew_pkg::INSIDE) begin : inside_pipeline
+    fpnew_pipe_fma_inside #(
+      .ExpWidth    ( EXP_WIDTH      ),
+      .PrecBits    ( PRECISION_BITS ),
+      .NumPipeRegs ( NumPipeRegs    ),
+      .FpType      ( fp_t           ),
+      .TagType     ( TagType        ),
+      .AuxType     ( AuxType        )
+    ) i_inside_pipe (
+      .clk_i,
+      .rst_ni,
+      .effective_subtraction_i ( effective_subtraction ),
+      .tentative_sign_i        ( tentative_sign        ),
+      .exponent_product_i      ( exponent_product      ),
+      .exponent_difference_i   ( exponent_difference   ),
+      .tentative_exponent_i    ( tentative_exponent    ),
+      .addend_shamt_i          ( addend_shamt          ),
+      .sticky_before_add_i     ( sticky_before_add     ),
+      .product_shifted_i       ( product_shifted       ),
+      .addend_shifted_i        ( addend_shifted        ),
+      .inject_carry_in_i       ( inject_carry_in       ),
+      .rnd_mode_i              ( rnd_mode_q            ),
+      .dst_fmt_i               ( dst_fmt_q             ),
+      .result_is_special_i     ( result_is_special     ),
+      .special_result_i        ( special_result        ),
+      .special_status_i        ( special_status        ),
+      .tag_i,
+      .aux_i,
+      .in_valid_i,
+      .in_ready_o,
+      .flush_i,
+      .effective_subtraction_o ( effective_subtraction_q ),
+      .tentative_sign_o        ( tentative_sign_q        ),
+      .exponent_product_o      ( exponent_product_q      ),
+      .exponent_difference_o   ( exponent_difference_q   ),
+      .tentative_exponent_o    ( tentative_exponent_q    ),
+      .addend_shamt_o          ( addend_shamt_q          ),
+      .sticky_before_add_o     ( sticky_before_add_q     ),
+      .product_shifted_o       ( product_shifted_q       ),
+      .addend_shifted_o        ( addend_shifted_q        ),
+      .inject_carry_in_o       ( inject_carry_in_q       ),
+      .rnd_mode_o              ( rnd_mode_q2             ),
+      .dst_fmt_o               ( dst_fmt_q2              ),
+      .result_is_special_o     ( result_is_special_q     ),
+      .special_result_o        ( special_result_q        ),
+      .special_status_o        ( special_status_q        ),
+      .tag_o,
+      .aux_o,
+      .out_valid_o,
+      .out_ready_i,
+      .busy_o
+    );
+  // Otherwise pass through inputs
+  end else begin : no_inside_pipeline
+    assign effective_subtraction_q = effective_subtraction;
+    assign tentative_sign_q        = tentative_sign;
+    assign exponent_product_q      = exponent_product;
+    assign exponent_difference_q   = exponent_difference;
+    assign tentative_exponent_q    = tentative_exponent;
+    assign addend_shamt_q          = addend_shamt;
+    assign sticky_before_add_q     = sticky_before_add;
+    assign product_shifted_q       = product_shifted;
+    assign addend_shifted_q        = addend_shifted;
+    assign inject_carry_in_q       = inject_carry_in;
+    assign rnd_mode_q2             = rnd_mode_q;
+    assign dst_fmt_q2              = dst_fmt_q;
+    assign result_is_special_q     = result_is_special;
+    assign special_result_q        = special_result;
+    assign special_status_q        = special_status;
+  end
+
   // ------
   // Adder
   // ------
@@ -353,15 +523,15 @@ module fpnew_fma_multi #(
   logic                        final_sign;
 
   // Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw   = product_shifted + addend_shifted + inject_carry_in;
+  assign sum_raw   = product_shifted_q + addend_shifted_q + inject_carry_in_q;
   assign sum_carry = sum_raw[3*PRECISION_BITS+4];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
+  assign sum        = (effective_subtraction_q && ~sum_carry) ? -sum_raw : sum_raw;
   // In case of a mispredicted subtraction result, do a sign flip
-  assign final_sign = (effective_subtraction && (sum_carry == tentative_sign))
+  assign final_sign = (effective_subtraction_q && (sum_carry == tentative_sign_q))
                       ? 1'b1
-                      : (effective_subtraction ? 1'b0 : tentative_sign);
+                      : (effective_subtraction_q ? 1'b0 : tentative_sign_q);
 
   // --------------
   // Normalization
@@ -398,22 +568,22 @@ module fpnew_fma_multi #(
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
   always_comb begin : norm_shift_amount
     // Product-anchored case or cancellations require LZC
-    if ((exponent_difference <= 0) || (effective_subtraction && (exponent_difference <= 2))) begin
+    if ((exponent_difference_q <= 0) || (effective_subtraction_q && (exponent_difference_q <= 2))) begin
       // Normal result (biased exponent > 0 and not a zero)
-      if ((exponent_product - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
+      if ((exponent_product_q - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
         // Undo initial product shift, remove the counted zeroes
         norm_shamt          = PRECISION_BITS + 2 + leading_zero_count;
-        normalized_exponent = exponent_product - leading_zero_count_sgn + 1; // account for shift
+        normalized_exponent = exponent_product_q - leading_zero_count_sgn + 1; // account for shift
       // Subnormal result
       end else begin
         // Cap the shift distance to align mantissa with minimum exponent
-        norm_shamt          = unsigned'(signed'(PRECISION_BITS + 2 + exponent_product));
+        norm_shamt          = unsigned'(signed'(PRECISION_BITS + 2 + exponent_product_q));
         normalized_exponent = 0; // subnormals encoded as 0
       end
     // Addend-anchored case
     end else begin
-      norm_shamt          = addend_shamt; // Undo the initial shift
-      normalized_exponent = tentative_exponent;
+      norm_shamt          = addend_shamt_q; // Undo the initial shift
+      normalized_exponent = tentative_exponent_q;
     end
   end
 
@@ -445,7 +615,7 @@ module fpnew_fma_multi #(
   end
 
   // Update the sticky bit with the shifted-out bits
-  assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add;
+  assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_q;
 
   // ----------------------------
   // Rounding and classification
@@ -468,7 +638,7 @@ module fpnew_fma_multi #(
   logic                                     result_zero;
 
   // Classification before round. RISC-V mandates checking underflow AFTER rounding!
-  assign of_before_round = final_exponent >= 2**(fpnew_pkg::exp_bits(dst_fmt_q))-1; // infinity exponent is all ones
+  assign of_before_round = final_exponent >= 2**(fpnew_pkg::exp_bits(dst_fmt_q2))-1; // infinity exponent is all ones
   assign uf_before_round = final_exponent == 0;               // exponent for subnormals capped to 0
 
   // Pack exponent and mantissa into proper rounding form
@@ -506,23 +676,23 @@ module fpnew_fma_multi #(
 
   // Assemble result before rounding. In case of overflow, the largest normal value is set.
   assign pre_round_sign     = final_sign;
-  assign pre_round_abs      = fmt_pre_round_abs[dst_fmt_q];
+  assign pre_round_abs      = fmt_pre_round_abs[dst_fmt_q2];
 
   // In case of overflow, the round and sticky bits are set for proper rounding
-  assign round_sticky_bits  = fmt_round_sticky_bits[dst_fmt_q];
+  assign round_sticky_bits  = fmt_round_sticky_bits[dst_fmt_q2];
 
   // Perform the rounding
   fpnew_rounding #(
     .AbsWidth ( SUPER_EXP_BITS + SUPER_MAN_BITS )
   ) i_fpnew_rounding (
-    .abs_value_i             ( pre_round_abs         ),
-    .sign_i                  ( pre_round_sign        ),
-    .round_sticky_bits_i     ( round_sticky_bits     ),
-    .rnd_mode_i              ( rnd_mode_q            ),
-    .effective_subtraction_i ( effective_subtraction ),
-    .abs_rounded_o           ( rounded_abs           ),
-    .sign_o                  ( rounded_sign          ),
-    .exact_zero_o            ( result_zero           )
+    .abs_value_i             ( pre_round_abs           ),
+    .sign_i                  ( pre_round_sign          ),
+    .round_sticky_bits_i     ( round_sticky_bits       ),
+    .rnd_mode_i              ( rnd_mode_q2             ),
+    .effective_subtraction_i ( effective_subtraction_q ),
+    .abs_rounded_o           ( rounded_abs             ),
+    .sign_o                  ( rounded_sign            ),
+    .exact_zero_o            ( result_zero             )
   );
 
   logic [NUM_FORMATS-1:0][WIDTH-1:0] fmt_result;
@@ -551,88 +721,9 @@ module fpnew_fma_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q] & ~result_zero; // zero is not UF
-  assign of_after_round = fmt_of_after_round[dst_fmt_q];
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2] & ~result_zero; // zero is not UF
+  assign of_after_round = fmt_of_after_round[dst_fmt_q2];
 
-  // ----------------------
-  // Special case handling
-  // ----------------------
-  logic [WIDTH-1:0]   special_result;
-  fpnew_pkg::status_t special_status;
-  logic               result_is_special;
-
-  logic [NUM_FORMATS-1:0][WIDTH-1:0]    fmt_special_result;
-  fpnew_pkg::status_t [NUM_FORMATS-1:0] fmt_special_status;
-  logic [NUM_FORMATS-1:0]               fmt_result_is_special;
-
-
-  for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_special_results
-    // Set up some constants
-    localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
-    localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
-    localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
-
-    localparam logic [EXP_BITS-1:0] QNAN_EXPONENT = '1;
-    localparam logic [MAN_BITS-1:0] QNAN_MANTISSA = 2**(MAN_BITS-1);
-    localparam logic [MAN_BITS-1:0] ZERO_MANTISSA = '0;
-
-    if (FpFmtConfig[fmt]) begin : active_format
-      always_comb begin : special_results
-        logic [FP_WIDTH-1:0] special_res;
-
-        // Default assignment
-        special_res                = {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
-        fmt_special_status[fmt]    = '0;
-        fmt_result_is_special[fmt] = 1'b0;
-
-        // Handle potentially mixed nan & infinity input => important for the case where infinity and
-        // zero are multiplied and added to a qnan.
-        // RISC-V mandates raising the NV exception in these cases:
-        // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
-        if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
-          fmt_result_is_special[fmt] = 1'b1; // bypass FMA, output is the canonical qNaN
-          fmt_special_status[fmt].NV = 1'b1; // invalid operation
-        // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
-        end else if (any_operand_nan) begin
-          fmt_result_is_special[fmt] = 1'b1;           // bypass FMA, output is the canonical qNaN
-          fmt_special_status[fmt].NV = signalling_nan; // raise the invalid operation flag if signalling
-        // Special cases involving infinity
-        end else if (any_operand_inf) begin
-          fmt_result_is_special[fmt] = 1'b1; // bypass FMA
-          // Effective addition of opposite infinities (±inf - ±inf) is invalid!
-          if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
-            fmt_special_status[fmt].NV = 1'b1; // invalid operation
-          // Handle cases where output will be inf because of inf product input
-          else if (info_a.is_inf || info_b.is_inf) begin
-            // Result is infinity with the sign of the product
-            special_res = {operand_a.sign ^ operand_b.sign, QNAN_EXPONENT, ZERO_MANTISSA};
-            fmt_special_status[fmt].OF = 1'b1; // overflow
-            fmt_special_status[fmt].NX = 1'b1; // inexact operation
-          // Handle cases where the addend is inf
-          end else if (info_c.is_inf) begin
-            // Result is inifinity with sign of the addend (= operand_c)
-            special_res = {operand_c.sign, QNAN_EXPONENT, ZERO_MANTISSA};
-            fmt_special_status[fmt].OF = 1'b1; // overflow
-            fmt_special_status[fmt].NX = 1'b1; // inexact operation
-          end
-        end
-        // Initialize special result with ones (NaN-box)
-        fmt_special_result[fmt]               = '1;
-        fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
-      end
-    end else begin : inactive_format
-      assign fmt_special_result[fmt] = 'X;
-    end
-  end
-
-  // Detect special case from source format, I2F casts don't produce a special result
-  assign result_is_special = fmt_result_is_special[dst_fmt_q]; // they're all the same
-
-  // Signalling input NaNs raise invalid flag, otherwise no flags set
-  assign special_status = fmt_special_status[dst_fmt_q];
-
-  // Assemble result according to destination format
-  assign special_result = fmt_special_result[dst_fmt_q]; // destination format
 
   // -----------------
   // Result selection
@@ -641,7 +732,7 @@ module fpnew_fma_multi #(
   fpnew_pkg::status_t   regular_status;
 
   // Assemble regular result
-  assign regular_result = fmt_result[dst_fmt_q];
+  assign regular_result = fmt_result[dst_fmt_q2];
   assign regular_status = '{
     NV: 1'b0, // only valid cases are handled in regular path
     DZ: 1'b0, // no divisions
@@ -655,14 +746,14 @@ module fpnew_fma_multi #(
   fpnew_pkg::status_t status_d;
 
   // Select output depending on special case detection
-  assign result_d = result_is_special ? special_result : regular_result;
-  assign status_d = result_is_special ? special_status : regular_status;
+  assign result_d = result_is_special_q ? special_result_q : regular_result;
+  assign status_d = result_is_special_q ? special_status_q : regular_status;
 
   // ----------------
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
     fpnew_pipe_out #(
       .Width       ( WIDTH       ),
       .NumPipeRegs ( NumPipeRegs ),
