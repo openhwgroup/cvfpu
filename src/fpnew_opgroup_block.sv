@@ -21,6 +21,7 @@ module fpnew_opgroup_block #(
   parameter fpnew_pkg::fmt_unsigned_t   FmtPipeRegs   = '{default: 0},
   parameter fpnew_pkg::fmt_unit_types_t FmtUnitTypes  = '{default: fpnew_pkg::PARALLEL},
   parameter fpnew_pkg::pipe_config_t    PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                       SilenceUnused = 1'b1,
   parameter type                        TagType       = logic,
   // Do not change
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
@@ -128,7 +129,7 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = 'X;
+      assign fmt_outputs[fmt]  = SilenceUnused ? '1 : 'X;
 
     // Tie off disabled formats
     end else if (!FpFmtMask[fmt] || (FmtUnitTypes[fmt] == fpnew_pkg::DISABLED)) begin : disable_fmt
@@ -136,7 +137,7 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = 'X;
+      assign fmt_outputs[fmt]  = SilenceUnused ? '1 : 'X;
     end
   end
 

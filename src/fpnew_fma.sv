@@ -12,11 +12,12 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_fma #(
-  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::FP32,
-  parameter int unsigned             NumPipeRegs = 0,
-  parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
-  parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic,
+  parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::FP32,
+  parameter int unsigned             NumPipeRegs   = 0,
+  parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    SilenceUnused = 1'b1,
+  parameter type                     TagType       = logic,
+  parameter type                     AuxType       = logic,
 
   localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat) // do not change
 ) (
@@ -186,12 +187,12 @@ module fpnew_fma #(
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
-        operand_a  = 'X;
-        operand_b  = 'X;
-        operand_c  = 'X;
-        info_a     = 'X;
-        info_b     = 'X;
-        info_c     = 'X;
+        operand_a  = SilenceUnused ? '1 : 'X;
+        operand_b  = SilenceUnused ? '1 : 'X;
+        operand_c  = SilenceUnused ? '1 : 'X;
+        info_a     = SilenceUnused ? '1 : 'X;
+        info_b     = SilenceUnused ? '1 : 'X;
+        info_c     = SilenceUnused ? '1 : 'X;
       end
     endcase
   end

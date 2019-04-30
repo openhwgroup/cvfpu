@@ -15,10 +15,11 @@ module fpnew_cast_multi #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig  = '1,
   parameter fpnew_pkg::ifmt_logic_t  IntFmtConfig = '1,
   // FPU configuration
-  parameter int unsigned             NumPipeRegs = 0,
-  parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
-  parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic,
+  parameter int unsigned             NumPipeRegs   = 0,
+  parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    SilenceUnused = 1'b1,
+  parameter type                     TagType       = logic,
+  parameter type                     AuxType       = logic,
   // Do not change
   localparam int unsigned WIDTH = fpnew_pkg::maximum(fpnew_pkg::max_fp_width(FpFmtConfig),
                                                      fpnew_pkg::max_int_width(IntFmtConfig)),
@@ -185,11 +186,11 @@ module fpnew_cast_multi #(
       // Compensation for the difference in mantissa widths used for leading-zero count
       assign fmt_shift_compensation[fmt] = signed'(INT_MAN_WIDTH - 1 - MAN_BITS);
     end else begin : inactive_format
-      assign info_q[fmt]                 = 'X; // propagate don't care (format disabled)
-      assign fmt_sign[fmt]               = 'x; // propagate don't care (format disabled)
-      assign fmt_exponent[fmt]           = 'X; // propagate don't care (format disabled)
-      assign fmt_mantissa[fmt]           = 'X; // propagate don't care (format disabled)
-      assign fmt_shift_compensation[fmt] = 'X; // propagate don't care (format disabled)
+      assign info_q[fmt]                 = SilenceUnused ? '1 : 'X; // propagate don't care
+      assign fmt_sign[fmt]               = SilenceUnused ? '1 : 'x; // propagate don't care
+      assign fmt_exponent[fmt]           = SilenceUnused ? '1 : 'X; // propagate don't care
+      assign fmt_mantissa[fmt]           = SilenceUnused ? '1 : 'X; // propagate don't care
+      assign fmt_shift_compensation[fmt] = SilenceUnused ? '1 : 'X; // propagate don't care
     end
   end
 
@@ -205,7 +206,7 @@ module fpnew_cast_multi #(
         ifmt_input_val[ifmt][INT_WIDTH-1:0] = operands_q[INT_WIDTH-1:0];
       end
     end else begin : inactive_format
-      assign ifmt_input_val[ifmt] = 'X; // don't care about disabled formats
+      assign ifmt_input_val[ifmt] = SilenceUnused ? '1 : 'X; // don't care about disabled formats
     end
   end
 
@@ -382,7 +383,7 @@ module fpnew_cast_multi #(
         fmt_pre_round_abs[fmt] = {final_exp[EXP_BITS-1:0], final_mant[MAN_BITS-1:0]}; // 0-extend
       end
     end else begin : inactive_format
-      assign fmt_pre_round_abs[fmt] = 'X;
+      assign fmt_pre_round_abs[fmt] = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -398,7 +399,7 @@ module fpnew_cast_multi #(
         ifmt_pre_round_abs[ifmt][INT_WIDTH-1:0] = final_int[INT_WIDTH-1:0];
       end
     end else begin : inactive_format
-      assign ifmt_pre_round_abs[ifmt] = 'X;
+      assign ifmt_pre_round_abs[ifmt] = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -440,9 +441,9 @@ module fpnew_cast_multi #(
                                         : {rounded_sign, rounded_abs[EXP_BITS+MAN_BITS-1:0]};
       end
     end else begin : inactive_format
-      assign fmt_uf_after_round[fmt] = 'X;
-      assign fmt_of_after_round[fmt] = 'X;
-      assign fmt_result[fmt]         = 'X;
+      assign fmt_uf_after_round[fmt] = SilenceUnused ? '1 : 'X;
+      assign fmt_of_after_round[fmt] = SilenceUnused ? '1 : 'X;
+      assign fmt_result[fmt]         = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -486,7 +487,7 @@ module fpnew_cast_multi #(
         fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
       end
     end else begin : inactive_format
-      assign fmt_special_result[fmt] = 'X;
+      assign fmt_special_result[fmt] = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -532,7 +533,7 @@ module fpnew_cast_multi #(
         ifmt_special_result[ifmt][INT_WIDTH-1:0] = special_res;
       end
     end else begin : inactive_format
-      assign ifmt_special_result[ifmt] = 'X;
+      assign ifmt_special_result[ifmt] = SilenceUnused ? '1 : 'X;
     end
   end
 

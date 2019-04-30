@@ -12,11 +12,12 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_fma_multi #(
-  parameter fpnew_pkg::fmt_logic_t   FpFmtConfig = '1,
-  parameter int unsigned             NumPipeRegs = 0,
-  parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
-  parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic,
+  parameter fpnew_pkg::fmt_logic_t   FpFmtConfig   = '1,
+  parameter int unsigned             NumPipeRegs   = 0,
+  parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    SilenceUnused = 1'b1,
+  parameter type                     TagType       = logic,
+  parameter type                     AuxType       = logic,
   // Do not change
   localparam int unsigned WIDTH       = fpnew_pkg::max_fp_width(FpFmtConfig),
   localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
@@ -181,10 +182,10 @@ module fpnew_fma_multi #(
                                        (SUPER_MAN_BITS - MAN_BITS); // move to left of mantissa
       end
     end else begin : inactive_format
-      assign info_q[fmt]                 = 'X; // propagate don't care (format disabled)
-      assign fmt_sign[fmt]               = 'x; // propagate don't care (format disabled)
-      assign fmt_exponent[fmt]           = 'X; // propagate don't care (format disabled)
-      assign fmt_mantissa[fmt]           = 'X; // propagate don't care (format disabled)
+      assign info_q[fmt]                 = SilenceUnused ? '1 : 'X; // propagate don't care
+      assign fmt_sign[fmt]               = SilenceUnused ? '1 : 'x; // propagate don't care
+      assign fmt_exponent[fmt]           = SilenceUnused ? '1 : 'X; // propagate don't care
+      assign fmt_mantissa[fmt]           = SilenceUnused ? '1 : 'X; // propagate don't care
     end
   end
 
@@ -228,12 +229,12 @@ module fpnew_fma_multi #(
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
-        operand_a  = 'X;
-        operand_b  = 'X;
-        operand_c  = 'X;
-        info_a     = 'X;
-        info_b     = 'X;
-        info_c     = 'X;
+        operand_a  = SilenceUnused ? '1 : 'X;
+        operand_b  = SilenceUnused ? '1 : 'X;
+        operand_c  = SilenceUnused ? '1 : 'X;
+        info_a     = SilenceUnused ? '1 : 'X;
+        info_b     = SilenceUnused ? '1 : 'X;
+        info_c     = SilenceUnused ? '1 : 'X;
       end
     endcase
   end
@@ -499,8 +500,8 @@ module fpnew_fma_multi #(
         assign fmt_round_sticky_bits[fmt][0] = sticky_after_norm | of_before_round;
       end
     end else begin : inactive_format
-      assign fmt_pre_round_abs[fmt] = 'X;
-      assign fmt_round_sticky_bits[fmt] = 'X;
+      assign fmt_pre_round_abs[fmt] = SilenceUnused ? '1 : 'X;
+      assign fmt_round_sticky_bits[fmt] = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -544,9 +545,9 @@ module fpnew_fma_multi #(
         fmt_result[fmt][FP_WIDTH-1:0] = {rounded_sign, rounded_abs[EXP_BITS+MAN_BITS-1:0]};
       end
     end else begin : inactive_format
-      assign fmt_uf_after_round[fmt] = 'X;
-      assign fmt_of_after_round[fmt] = 'X;
-      assign fmt_result[fmt]         = 'X;
+      assign fmt_uf_after_round[fmt] = SilenceUnused ? '1 : 'X;
+      assign fmt_of_after_round[fmt] = SilenceUnused ? '1 : 'X;
+      assign fmt_result[fmt]         = SilenceUnused ? '1 : 'X;
     end
   end
 
@@ -621,7 +622,7 @@ module fpnew_fma_multi #(
         fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
       end
     end else begin : inactive_format
-      assign fmt_special_result[fmt] = 'X;
+      assign fmt_special_result[fmt] = SilenceUnused ? '1 : 'X;
     end
   end
 

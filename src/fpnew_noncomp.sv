@@ -12,11 +12,12 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_noncomp #(
-  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::FP32,
-  parameter int unsigned             NumPipeRegs = 0,
-  parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
-  parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic,
+  parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::FP32,
+  parameter int unsigned             NumPipeRegs   = 0,
+  parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    SilenceUnused = 1'b1,
+  parameter type                     TagType       = logic,
+  parameter type                     AuxType       = logic,
 
   localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat) // do not change
 ) (
@@ -187,7 +188,7 @@ module fpnew_noncomp #(
       fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
       fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
       fpnew_pkg::RUP: sgnj_result      = operand_a;       // passthrough
-      default: sgnj_result = 'X; // propagate X
+      default: sgnj_result = SilenceUnused ? '1 : 'X; // propagate X
     endcase
   end
 
@@ -223,7 +224,7 @@ module fpnew_noncomp #(
       unique case (rnd_mode_q)
         fpnew_pkg::RNE: minmax_result = operand_a_smaller ? operand_a : operand_b; // MIN
         fpnew_pkg::RTZ: minmax_result = operand_a_smaller ? operand_b : operand_a; // MAX
-        default: minmax_result = 'X; // propagate X
+        default: minmax_result = SilenceUnused ? '1 : 'X; // propagate X
       endcase
     end
   end
@@ -262,7 +263,7 @@ module fpnew_noncomp #(
           if (any_operand_nan) cmp_result = op_mod_q; // NaNs are valid, always campare as not equal
           else cmp_result = operands_equal ^ op_mod_q;
         end
-        default: cmp_result = 'X; // propagate X
+        default: cmp_result = SilenceUnused ? '1 : 'X; // propagate X
       endcase
     end
   end
@@ -323,14 +324,14 @@ module fpnew_noncomp #(
         extension_bit_d = cmp_extension_bit;
       end
       fpnew_pkg::CLASSIFY: begin
-        result_d        = 'X; // unused
+        result_d        = SilenceUnused ? '1 : 'X; // unused
         status_d        = class_status;
         extension_bit_d = class_extension_bit;
       end
       default: begin
-        result_d        = 'X; // propaagate X
-        status_d        = 'X; // propaagate X
-        extension_bit_d = 'X; // propaagate X
+        result_d        = SilenceUnused ? '1 : 'X; // propaagate X
+        status_d        = SilenceUnused ? '1 : 'X; // propaagate X
+        extension_bit_d = SilenceUnused ? '1 : 'X; // propaagate X
       end
     endcase
   end
