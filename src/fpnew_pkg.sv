@@ -166,9 +166,10 @@ package fpnew_pkg;
   // ------------------
   // Pipelining registers can be inserted (at elaboration time) into operational units
   typedef enum logic [1:0] {
-    BEFORE, // registers are inserted at the inputs of the unit
-    AFTER,  // registers are inserted at the outputs of the unit
-    INSIDE  // registers are inserted at predetermined (suboptimal) locations in the unit
+    BEFORE,     // registers are inserted at the inputs of the unit
+    AFTER,      // registers are inserted at the outputs of the unit
+    INSIDE,     // registers are inserted at predetermined (suboptimal) locations in the unit
+    DISTRIBUTED // registers are evenly distributed, INSIDE >= AFTER >= BEFORE
   } pipe_config_t;
 
   // Arithmetic units can be arranged in parallel (per format), merged (multi-format) or not at all.
