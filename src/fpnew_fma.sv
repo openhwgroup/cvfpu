@@ -83,12 +83,20 @@ module fpnew_fma #(
   fpnew_pkg::roundmode_e rnd_mode_q;
   fpnew_pkg::operation_e op_q;
   logic                  op_mod_q;
+  TagType                tag_q;
+  AuxType                aux_q;
+  logic                  out_valid_input;
+  logic                  in_ready_inside; // written by inside pipeline
+  logic                  busy_input;
 
   // Generate pipeline at input if needed
-  if (PipeConfig==fpnew_pkg::BEFORE) begin : input_pipeline
+  if (PipeConfig==fpnew_pkg::BEFORE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : input_pipeline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? (NumPipeRegs / 3) // Last to get regs
+                          : NumPipeRegs;
     fpnew_pipe_in #(
       .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
+      .NumPipeRegs ( NUM_REGS    ),
       .NumOperands ( 3           ),
       .TagType     ( TagType     ),
       .AuxType     ( AuxType     )
@@ -108,27 +116,32 @@ module fpnew_fma #(
       .in_valid_i,
       .in_ready_o,
       .flush_i,
-      .operands_o     ( operands_q ),
-      .is_boxed_o     ( is_boxed_q ),
-      .rnd_mode_o     ( rnd_mode_q ),
-      .op_o           ( op_q       ),
-      .op_mod_o       ( op_mod_q   ),
-      .src_fmt_o      ( /* unused */ ),
-      .dst_fmt_o      ( /* unused */ ),
-      .int_fmt_o      ( /* unused */ ),
-      .tag_o,
-      .aux_o,
-      .out_valid_o,
-      .out_ready_i,
-      .busy_o
+      .operands_o     ( operands_q       ),
+      .is_boxed_o     ( is_boxed_q       ),
+      .rnd_mode_o     ( rnd_mode_q       ),
+      .op_o           ( op_q             ),
+      .op_mod_o       ( op_mod_q         ),
+      .src_fmt_o      ( /* unused */     ),
+      .dst_fmt_o      ( /* unused */     ),
+      .int_fmt_o      ( /* unused */     ),
+      .tag_o          ( tag_q            ),
+      .aux_o          ( aux_q            ),
+      .out_valid_o    ( out_valid_input  ),
+      .out_ready_i    ( in_ready_inside  ),
+      .busy_o         ( busy_input       )
     );
   // Otherwise pass through inputs
   end else begin : no_input_pipeline
-    assign operands_q = operands_i;
-    assign is_boxed_q = is_boxed_i;
-    assign rnd_mode_q = rnd_mode_i;
-    assign op_q       = op_i;
-    assign op_mod_q   = op_mod_i;
+    assign in_ready_o      = in_ready_inside;
+    assign operands_q      = operands_i;
+    assign is_boxed_q      = is_boxed_i;
+    assign rnd_mode_q      = rnd_mode_i;
+    assign op_q            = op_i;
+    assign op_mod_q        = op_mod_i;
+    assign tag_q           = tag_i;
+    assign aux_q           = aux_i;
+    assign out_valid_input = in_valid_i;
+    assign busy_input      = 1'b0;
   end
 
   // -----------------
@@ -366,13 +379,21 @@ module fpnew_fma #(
   fp_t                           special_result_q;
   fpnew_pkg::status_t            special_status_q;
   logic                          result_is_special_q;
+  TagType                        tag_q2;
+  AuxType                        aux_q2;
+  logic                          out_valid_inside;
+  logic                          in_ready_output; // written by output pipeline
+  logic                          busy_inside;
 
   // Generate pipeline between mul and add if needed
-  if (PipeConfig==fpnew_pkg::INSIDE) begin : inside_pipeline
+  if (PipeConfig==fpnew_pkg::INSIDE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : inside_pipeline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? ((NumPipeRegs + 2) / 3) // First to get regs
+                          : NumPipeRegs;
     fpnew_pipe_fma_inside #(
       .ExpWidth    ( EXP_WIDTH      ),
       .PrecBits    ( PRECISION_BITS ),
-      .NumPipeRegs ( NumPipeRegs    ),
+      .NumPipeRegs ( NUM_REGS       ),
       .FpType      ( fp_t           ),
       .TagType     ( TagType        ),
       .AuxType     ( AuxType        )
@@ -394,10 +415,10 @@ module fpnew_fma #(
       .result_is_special_i     ( result_is_special     ),
       .special_result_i        ( special_result        ),
       .special_status_i        ( special_status        ),
-      .tag_i,
-      .aux_i,
-      .in_valid_i,
-      .in_ready_o,
+      .tag_i                   ( tag_q                 ),
+      .aux_i                   ( aux_q                 ),
+      .in_valid_i              ( out_valid_input       ),
+      .in_ready_o              ( in_ready_inside       ),
       .flush_i,
       .effective_subtraction_o ( effective_subtraction_q ),
       .tentative_sign_o        ( tentative_sign_q        ),
@@ -414,14 +435,15 @@ module fpnew_fma #(
       .result_is_special_o     ( result_is_special_q     ),
       .special_result_o        ( special_result_q        ),
       .special_status_o        ( special_status_q        ),
-      .tag_o,
-      .aux_o,
-      .out_valid_o,
-      .out_ready_i,
-      .busy_o
+      .tag_o                   ( tag_q2                  ),
+      .aux_o                   ( aux_q2                  ),
+      .out_valid_o             ( out_valid_inside        ),
+      .out_ready_i             ( in_ready_output         ),
+      .busy_o                  ( busy_inside             )
     );
   // Otherwise pass through inputs
   end else begin : no_inside_pipeline
+    assign in_ready_inside         = in_ready_output;
     assign effective_subtraction_q = effective_subtraction;
     assign tentative_sign_q        = tentative_sign;
     assign exponent_product_q      = exponent_product;
@@ -436,6 +458,10 @@ module fpnew_fma #(
     assign result_is_special_q     = result_is_special;
     assign special_result_q        = special_result;
     assign special_status_q        = special_status;
+    assign tag_q2                  = tag_q;
+    assign aux_q2                  = aux_q;
+    assign out_valid_inside        = out_valid_input;
+    assign busy_inside             = 1'b0;
   end
 
   // ------
@@ -607,6 +633,7 @@ module fpnew_fma #(
   // Final results for output pipeline
   fp_t                result_d;
   fpnew_pkg::status_t status_d;
+  logic               busy_output;
 
   // Select output depending on special case detection
   assign result_d = result_is_special_q ? special_result_q : regular_result;
@@ -616,40 +643,50 @@ module fpnew_fma #(
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig==fpnew_pkg::AFTER || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : output_pipline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? ((NumPipeRegs + 1) / 3) // Second to get regs
+                          : NumPipeRegs;
     fpnew_pipe_out #(
       .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
-      .TagType     ( TagType     )
+      .NumPipeRegs ( NUM_REGS    ),
+      .TagType     ( TagType     ),
+      .AuxType     ( AuxType     )
     ) i_output_pipe (
       .clk_i,
       .rst_ni,
-      .result_i        ( result_d        ),
-      .status_i        ( status_d        ),
-      .extension_bit_i ( 1'b1            ), // always NaN-Box result
-      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
-      .is_class_i      ( 1'b0            ), // unused
-      .tag_i,
-      .aux_i,
-      .in_valid_i,
-      .in_ready_o,
+      .result_i        ( result_d         ),
+      .status_i        ( status_d         ),
+      .extension_bit_i ( 1'b1             ), // always NaN-Box result
+      .class_mask_i    ( fpnew_pkg::QNAN  ), // unused
+      .is_class_i      ( 1'b0             ), // unused
+      .tag_i           ( tag_q2           ),
+      .aux_i           ( aux_q2           ),
+      .in_valid_i      ( out_valid_inside ),
+      .in_ready_o      ( in_ready_output  ),
       .flush_i,
       .result_o,
       .status_o,
       .extension_bit_o,
-      .class_mask_o    ( /* unused */ ),
-      .is_class_o      ( /* unused */ ),
+      .class_mask_o    ( /* unused */     ),
+      .is_class_o      ( /* unused */     ),
       .tag_o,
       .aux_o,
       .out_valid_o,
       .out_ready_i,
-      .busy_o
+      .busy_o          ( busy_output      )
     );
   // Otherwise pass through outputs
   end else begin : no_output_pipeline
+    assign in_ready_output = out_ready_i;
     assign result_o        = result_d;
     assign status_o        = status_d;
     assign extension_bit_o = 1'b1; // always NaN-Box result
+    assign tag_o           = tag_q2;
+    assign aux_o           = aux_q2;
+    assign out_valid_o     = out_valid_inside;
   end
+
+  assign busy_o = busy_input | busy_inside | busy_output;
 
 endmodule
