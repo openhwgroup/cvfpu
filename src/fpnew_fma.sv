@@ -390,7 +390,7 @@ module fpnew_fma #(
     localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
                           ? ((NumPipeRegs + 2) / 3) // First to get regs
                           : NumPipeRegs;
-    fpnew_pipe_fma_inside #(
+    fpnew_pipe_inside_fma #(
       .ExpWidth    ( EXP_WIDTH      ),
       .PrecBits    ( PRECISION_BITS ),
       .NumPipeRegs ( NUM_REGS       ),

@@ -34,7 +34,7 @@
 
 `include "registers.svh"
 
-module fpnew_pipe_fma_inside #(
+module fpnew_pipe_inside_fma #(
   parameter int unsigned ExpWidth    = 10,
   parameter int unsigned PrecBits    = 24,
   parameter int unsigned NumPipeRegs = 0,
