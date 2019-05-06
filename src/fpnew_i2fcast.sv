@@ -12,7 +12,7 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_i2fcast #(
-  parameter fpnew_pkg::fp_format_e   DstFpFormat  = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   DstFpFormat  = fpnew_pkg::fp_format_e'(0),
   parameter fpnew_pkg::ifmt_logic_t  IntFmtConfig = '1,
   parameter int unsigned             NumPipeRegs  = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig   = fpnew_pkg::BEFORE,
@@ -94,12 +94,12 @@ module fpnew_i2fcast #(
       .clk_i,
       .rst_ni,
       .operands_i,
-      .is_boxed_i     ( 'X               ), // unused
+      .is_boxed_i     ( 'X                         ), // unused
       .rnd_mode_i,
-      .op_i           ( fpnew_pkg::FMADD ), // unused
+      .op_i           ( fpnew_pkg::FMADD           ), // unused
       .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::FP32  ), // unused
-      .dst_fmt_i      ( fpnew_pkg::FP32  ), // unused
+      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0) ), // unused
+      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0) ), // unused
       .int_fmt_i,
       .tag_i,
       .aux_i,

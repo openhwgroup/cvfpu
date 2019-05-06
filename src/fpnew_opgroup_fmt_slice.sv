@@ -13,7 +13,7 @@
 
 module fpnew_opgroup_fmt_slice #(
   parameter fpnew_pkg::opgroup_e     OpGroup       = fpnew_pkg::ADDMUL,
-  parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::fp_format_e'(0),
   // FPU configuration
   parameter int unsigned             Width         = 32,
   parameter logic                    EnableVectors = 1'b1,

@@ -12,7 +12,7 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_fma #(
-  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(0),
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
@@ -108,9 +108,9 @@ module fpnew_fma #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::FP32 ), // unused
-      .dst_fmt_i      ( fpnew_pkg::FP32 ), // unused
-      .int_fmt_i      ( fpnew_pkg::INT8 ), // unused
+      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .int_fmt_i      ( fpnew_pkg::int_format_e'(0) ), // unused
       .tag_i,
       .aux_i,
       .in_valid_i,
@@ -400,25 +400,25 @@ module fpnew_fma #(
     ) i_inside_pipe (
       .clk_i,
       .rst_ni,
-      .effective_subtraction_i ( effective_subtraction ),
-      .tentative_sign_i        ( tentative_sign        ),
-      .exponent_product_i      ( exponent_product      ),
-      .exponent_difference_i   ( exponent_difference   ),
-      .tentative_exponent_i    ( tentative_exponent    ),
-      .addend_shamt_i          ( addend_shamt          ),
-      .sticky_before_add_i     ( sticky_before_add     ),
-      .product_shifted_i       ( product_shifted       ),
-      .addend_shifted_i        ( addend_shifted        ),
-      .inject_carry_in_i       ( inject_carry_in       ),
-      .rnd_mode_i              ( rnd_mode_q            ),
-      .dst_fmt_i               ( fpnew_pkg::FP32       ), // unused
-      .result_is_special_i     ( result_is_special     ),
-      .special_result_i        ( special_result        ),
-      .special_status_i        ( special_status        ),
-      .tag_i                   ( tag_q                 ),
-      .aux_i                   ( aux_q                 ),
-      .in_valid_i              ( out_valid_input       ),
-      .in_ready_o              ( in_ready_inside       ),
+      .effective_subtraction_i ( effective_subtraction      ),
+      .tentative_sign_i        ( tentative_sign             ),
+      .exponent_product_i      ( exponent_product           ),
+      .exponent_difference_i   ( exponent_difference        ),
+      .tentative_exponent_i    ( tentative_exponent         ),
+      .addend_shamt_i          ( addend_shamt               ),
+      .sticky_before_add_i     ( sticky_before_add          ),
+      .product_shifted_i       ( product_shifted            ),
+      .addend_shifted_i        ( addend_shifted             ),
+      .inject_carry_in_i       ( inject_carry_in            ),
+      .rnd_mode_i              ( rnd_mode_q                 ),
+      .dst_fmt_i               ( fpnew_pkg::fp_format_e'(0) ), // unused
+      .result_is_special_i     ( result_is_special          ),
+      .special_result_i        ( special_result             ),
+      .special_status_i        ( special_status             ),
+      .tag_i                   ( tag_q                      ),
+      .aux_i                   ( aux_q                      ),
+      .in_valid_i              ( out_valid_input            ),
+      .in_ready_o              ( in_ready_inside            ),
       .flush_i,
       .effective_subtraction_o ( effective_subtraction_q ),
       .tentative_sign_o        ( tentative_sign_q        ),

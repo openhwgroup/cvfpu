@@ -119,7 +119,7 @@ module fpnew_fma_multi #(
       .op_mod_i,
       .src_fmt_i,
       .dst_fmt_i,
-      .int_fmt_i      ( fpnew_pkg::INT8 ), // unused
+      .int_fmt_i      ( fpnew_pkg::int_format_e'(0) ), // unused
       .tag_i,
       .aux_i,
       .in_valid_i,

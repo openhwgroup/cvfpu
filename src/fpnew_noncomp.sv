@@ -12,7 +12,7 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_noncomp #(
-  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(0),
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
@@ -89,9 +89,9 @@ module fpnew_noncomp #(
       .rnd_mode_i,
       .op_i,
       .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::FP32 ), // unused
-      .dst_fmt_i      ( fpnew_pkg::FP32 ), // unused
-      .int_fmt_i      ( fpnew_pkg::INT8 ), // unused
+      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .int_fmt_i      ( fpnew_pkg::int_format_e'(0) ), // unused
       .tag_i,
       .aux_i,
       .in_valid_i,

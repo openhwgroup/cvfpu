@@ -157,9 +157,9 @@ module fpnew_pipe_in #(
       `FFL(rnd_mode_q[i], rnd_mode_d[i], reg_ena, fpnew_pkg::RNE)
       `FFL(op_q[i],       op_d[i],       reg_ena, fpnew_pkg::FMADD)
       `FFL(op_mod_q[i],   op_mod_d[i],   reg_ena, '0)
-      `FFL(src_fmt_q[i],  src_fmt_d[i],  reg_ena, fpnew_pkg::FP32)
-      `FFL(dst_fmt_q[i],  dst_fmt_d[i],  reg_ena, fpnew_pkg::FP32)
-      `FFL(int_fmt_q[i],  int_fmt_d[i],  reg_ena, fpnew_pkg::INT8)
+      `FFL(src_fmt_q[i],  src_fmt_d[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
+      `FFL(dst_fmt_q[i],  dst_fmt_d[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
+      `FFL(int_fmt_q[i],  int_fmt_d[i],  reg_ena, fpnew_pkg::int_format_e'(0))
       `FFL(tag_q[i],      tag_d[i],      reg_ena, '0)
       `FFL(aux_q[i],      aux_d[i],      reg_ena, '0)
     end
