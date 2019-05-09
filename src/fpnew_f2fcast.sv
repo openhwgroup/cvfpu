@@ -318,9 +318,9 @@ module fpnew_f2fcast #(
   assign regular_status = '{
     NV: 1'b0, // only valid cases are handled in regular path
     DZ: 1'b0, // no divisions
-    OF: of_before_round | of_after_round,         // rounding can introduce new overflow
+    OF: ~info_a.is_inf & (of_before_round | of_after_round), // rounding can introduce new overflow
     UF: uf_after_round,                           // true zero results don't count as underflow
-    NX: (| round_sticky_bits) | of_before_round | of_after_round // RS bits mean loss in precision
+    NX: (| round_sticky_bits) | (~info_a.is_inf & (of_before_round | of_after_round))
   };
 
   // Final results for output pipeline

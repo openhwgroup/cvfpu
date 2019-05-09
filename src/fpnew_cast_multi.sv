@@ -665,10 +665,10 @@ module fpnew_cast_multi #(
   assign fp_regular_status = '{
     NV: src_is_int_q & (of_before_round | of_after_round), // overflow is invalid for I2F casts
     DZ: 1'b0, // no divisions
-    OF: ~src_is_int_q & (of_before_round | of_after_round), // in F2F casts, the OF flag is raised
+    OF: ~src_is_int_q & (~info_q2.is_inf & (of_before_round | of_after_round)), // inf casts no OF
     UF: uf_after_round,
     NX: src_is_int_q ? (| fp_round_sticky_bits) // overflow is invalid in i2f
-                   : (| fp_round_sticky_bits) | of_before_round | of_after_round
+            : (| fp_round_sticky_bits) | (~info_q2.is_inf & (of_before_round | of_after_round))
   };
   assign int_regular_status = '{NX: (| int_round_sticky_bits), default: 1'b0};
 

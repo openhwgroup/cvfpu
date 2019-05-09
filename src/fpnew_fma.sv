@@ -261,14 +261,10 @@ module fpnew_fma #(
       else if (info_a.is_inf || info_b.is_inf) begin
         // Result is infinity with the sign of the product
         special_result    = '{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
-        special_status.OF = 1'b1; // overflow
-        special_status.NX = 1'b1; // inexact operation
       // Handle cases where the addend is inf
       end else if (info_c.is_inf) begin
         // Result is inifinity with sign of the addend (= operand_c)
         special_result    = '{sign: operand_c.sign, exponent: '1, mantissa: '0};
-        special_status.OF = 1'b1; // overflow
-        special_status.NX = 1'b1; // inexact operation
       end
     end
   end

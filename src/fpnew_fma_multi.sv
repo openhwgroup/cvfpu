@@ -321,14 +321,10 @@ module fpnew_fma_multi #(
           else if (info_a.is_inf || info_b.is_inf) begin
             // Result is infinity with the sign of the product
             special_res = {operand_a.sign ^ operand_b.sign, QNAN_EXPONENT, ZERO_MANTISSA};
-            fmt_special_status[fmt].OF = 1'b1; // overflow
-            fmt_special_status[fmt].NX = 1'b1; // inexact operation
           // Handle cases where the addend is inf
           end else if (info_c.is_inf) begin
             // Result is inifinity with sign of the addend (= operand_c)
             special_res = {operand_c.sign, QNAN_EXPONENT, ZERO_MANTISSA};
-            fmt_special_status[fmt].OF = 1'b1; // overflow
-            fmt_special_status[fmt].NX = 1'b1; // inexact operation
           end
         end
         // Initialize special result with ones (NaN-box)
