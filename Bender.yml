@@ -3,33 +3,23 @@ package:
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
-  common_cells: {git: "https://github.com/pulp-platform/common_cells.git", version: 1.7.5}
-  fpu_legacy: {git: "git@iis-git.ee.ethz.ch:sasa/fpu.git", rev: master}
+  common_cells: {git: "https://github.com/pulp-platform/common_cells.git", rev: 32dd115}
+  fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", rev: e10ab86}
 
 sources:
-  - src/pkg/fpnew_pkg.vhd
-  - src/pkg/fpnew_fmts_pkg.vhd
-  - src/pkg/fpnew_comps_pkg.vhd
-  - src/pkg/fpnew_pkg_constants.vhd
-  - src/utils/fp_arbiter.vhd
-  - src/utils/fp_pipe.vhd
-  - src/utils/fp_rounding.vhd
-  - src/ops/fma_core.vhd
-  - src/ops/fp_fma.vhd
-  - src/ops/fp_divsqrt_multi.vhd
-  - src/ops/fp_noncomp.vhd
-  - src/ops/fp_f2fcasts.vhd
-  - src/ops/fp_f2icasts.vhd
-  - src/ops/fp_i2fcasts.vhd
-  - src/ops/fp_conv_multi.vhd
-  - src/subunits/addmul_fmt_slice.vhd
-  - src/subunits/addmul_block.vhd
-  - src/subunits/conv_multifmt_slice.vhd
-  - src/subunits/conv_block.vhd
-  - src/subunits/divsqrt_block.vhd
-  - src/subunits/divsqrt_multifmt_slice.vhd
-  - src/subunits/divsqrt_block.vhd
-  - src/subunits/noncomp_fmt_slice.vhd
-  - src/subunits/noncomp_block.vhd
-  - src/fpnew.vhd
-  - src/fpnew_top.vhd
+  - src/fpnew_pkg.sv
+  - src/fpnew_cast_multi.sv
+  - src/fpnew_classifier.sv
+  - src/fpnew_divsqrt_multi.sv
+  - src/fpnew_fma.sv
+  - src/fpnew_fma_multi.sv
+  - src/fpnew_noncomp.sv
+  - src/fpnew_opgroup_block.sv
+  - src/fpnew_opgroup_fmt_slice.sv
+  - src/fpnew_opgroup_multifmt_slice.sv
+  - src/fpnew_pipe_in.sv
+  - src/fpnew_pipe_out.sv
+  - src/fpnew_pipe_inside_fma.sv
+  - src/fpnew_pipe_inside_cast.sv
+  - src/fpnew_rounding.sv
+  - src/fpnew_top.sv
