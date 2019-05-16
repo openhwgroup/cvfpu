@@ -46,6 +46,7 @@ module fpnew_pipe_inside_cast #(
   // Input signals
   input  logic                          input_sign_i,
   input  logic signed [IntExpWidth-1:0] input_exp_i,
+  input  logic signed [IntExpWidth-1:0] destination_exp_i,
   input  logic        [IntManWidth-1:0] input_mant_i,
   input  logic                          src_is_int_i,
   input  logic                          dst_is_int_i,
@@ -65,6 +66,7 @@ module fpnew_pipe_inside_cast #(
   // Output signals
   output logic                          input_sign_o,
   output logic signed [IntExpWidth-1:0] input_exp_o,
+  output logic signed [IntExpWidth-1:0] destination_exp_o,
   output logic        [IntManWidth-1:0] input_mant_o,
   output logic                          src_is_int_o,
   output logic                          dst_is_int_o,
@@ -87,6 +89,7 @@ module fpnew_pipe_inside_cast #(
   // Input signals for the next stage (= output signals of the previous stage)
   logic                   [0:NumPipeRegs]                  input_sign_d;
   logic signed            [0:NumPipeRegs][IntExpWidth-1:0] input_exp_d;
+  logic signed            [0:NumPipeRegs][IntExpWidth-1:0] destination_exp_d;
   logic                   [0:NumPipeRegs][IntManWidth-1:0] input_mant_d;
   logic                   [0:NumPipeRegs]                  src_is_int_d;
   logic                   [0:NumPipeRegs]                  dst_is_int_d;
@@ -106,6 +109,7 @@ module fpnew_pipe_inside_cast #(
   // Input stage: First element of pipeline is taken from inputs
   assign input_sign_d[0]            = input_sign_i;
   assign input_exp_d[0]             = input_exp_i;
+  assign destination_exp_d[0]       = destination_exp_i;
   assign input_mant_d[0]            = input_mant_i;
   assign src_is_int_d[0]            = src_is_int_i;
   assign dst_is_int_d[0]            = dst_is_int_i;
@@ -128,6 +132,7 @@ module fpnew_pipe_inside_cast #(
     // Pipelined versions of signals for later stages
     logic                   [0:NumPipeRegs]                  input_sign_q;
     logic signed            [0:NumPipeRegs][IntExpWidth-1:0] input_exp_q;
+    logic signed            [0:NumPipeRegs][IntExpWidth-1:0] destination_exp_q;
     logic                   [0:NumPipeRegs][IntManWidth-1:0] input_mant_q;
     logic                   [0:NumPipeRegs]                  src_is_int_q;
     logic                   [0:NumPipeRegs]                  dst_is_int_q;
@@ -149,6 +154,7 @@ module fpnew_pipe_inside_cast #(
       // Next state from previous register to form a shift register
       assign input_sign_d[i+1]            = input_sign_q[i];
       assign input_exp_d[i+1]             = input_exp_q[i];
+      assign destination_exp_d[i+1]       = destination_exp_q[i];
       assign input_mant_d[i+1]            = input_mant_q[i];
       assign src_is_int_d[i+1]            = src_is_int_q[i];
       assign dst_is_int_d[i+1]            = dst_is_int_q[i];
@@ -175,26 +181,28 @@ module fpnew_pipe_inside_cast #(
       assign reg_ena = stage_ready[i] & valid_d[i];
 
       // Generate the pipeline registers within the stages, use enable-registers
-      `FFL(input_sign_q[i],   input_sign_d[i],   reg_ena, '0)
-      `FFL(input_exp_q[i],    input_exp_d[i],    reg_ena, '0)
-      `FFL(input_mant_q[i],   input_mant_d[i],   reg_ena, '0)
-      `FFL(src_is_int_q[i],   src_is_int_d[i],   reg_ena, '0)
-      `FFL(dst_is_int_q[i],   dst_is_int_d[i],   reg_ena, '0)
-      `FFL(info_q[i],         info_d[i],         reg_ena, '0)
-      `FFL(mant_is_zero_q[i], mant_is_zero_d[i], reg_ena, '0)
-      `FFL(op_mod_q[i],       op_mod_d[i],       reg_ena, '0)
-      `FFL(rnd_mode_q[i],     rnd_mode_d[i],     reg_ena, fpnew_pkg::RNE)
-      `FFL(src_fmt_q[i],      src_fmt_d[i],      reg_ena, fpnew_pkg::fp_format_e'(0))
-      `FFL(dst_fmt_q[i],      dst_fmt_d[i],      reg_ena, fpnew_pkg::fp_format_e'(0))
-      `FFL(int_fmt_q[i],      int_fmt_d[i],      reg_ena, fpnew_pkg::int_format_e'(0))
-      `FFL(tag_q[i],          tag_d[i],          reg_ena, '0)
-      `FFL(aux_q[i],          aux_d[i],          reg_ena, '0)
+      `FFL(input_sign_q[i],      input_sign_d[i],      reg_ena, '0)
+      `FFL(destination_exp_q[i], destination_exp_d[i], reg_ena, '0)
+      `FFL(input_exp_q[i],       input_exp_d[i],       reg_ena, '0)
+      `FFL(input_mant_q[i],      input_mant_d[i],      reg_ena, '0)
+      `FFL(src_is_int_q[i],      src_is_int_d[i],      reg_ena, '0)
+      `FFL(dst_is_int_q[i],      dst_is_int_d[i],      reg_ena, '0)
+      `FFL(info_q[i],            info_d[i],            reg_ena, '0)
+      `FFL(mant_is_zero_q[i],    mant_is_zero_d[i],    reg_ena, '0)
+      `FFL(op_mod_q[i],          op_mod_d[i],          reg_ena, '0)
+      `FFL(rnd_mode_q[i],        rnd_mode_d[i],        reg_ena, fpnew_pkg::RNE)
+      `FFL(src_fmt_q[i],         src_fmt_d[i],         reg_ena, fpnew_pkg::fp_format_e'(0))
+      `FFL(dst_fmt_q[i],         dst_fmt_d[i],         reg_ena, fpnew_pkg::fp_format_e'(0))
+      `FFL(int_fmt_q[i],         int_fmt_d[i],         reg_ena, fpnew_pkg::int_format_e'(0))
+      `FFL(tag_q[i],             tag_d[i],             reg_ena, '0)
+      `FFL(aux_q[i],             aux_d[i],             reg_ena, '0)
     end
   end
 
   // Output stage: bind last stage outputs to module output. Directly connects to input if no regs.
   assign input_sign_o            = input_sign_d[NumPipeRegs];
   assign input_exp_o             = input_exp_d[NumPipeRegs];
+  assign destination_exp_o       = destination_exp_d[NumPipeRegs];
   assign input_mant_o            = input_mant_d[NumPipeRegs];
   assign src_is_int_o            = src_is_int_d[NumPipeRegs];
   assign dst_is_int_o            = dst_is_int_d[NumPipeRegs];
