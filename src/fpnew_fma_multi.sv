@@ -436,7 +436,6 @@ module fpnew_fma_multi #(
   // ---------------
   // Pipelined internal signals
   logic                          effective_subtraction_q;
-  logic                          tentative_sign_q;
   logic signed [EXP_WIDTH-1:0]   exponent_product_q;
   logic signed [EXP_WIDTH-1:0]   exponent_difference_q;
   logic signed [EXP_WIDTH-1:0]   tentative_exponent_q;
@@ -456,11 +455,34 @@ module fpnew_fma_multi #(
   logic                          in_ready_output; // written by output pipeline
   logic                          busy_inside;
 
+  // ------
+  // Adder
+  // ------
+  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
+  logic                        sum_carry; // observe carry bit from sum for sign fixing
+  logic [3*PRECISION_BITS+3:0] sum_d, sum_q;       // discard carry as sum won't overflow
+  logic                        final_sign_d, final_sign_q;
+
+  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
+  assign sum_raw = product_shifted + addend_shifted + inject_carry_in;
+  assign sum_carry = sum_raw[3*PRECISION_BITS+4];
+
+
+  // Complement negative sum (can only happen in subtraction -> overflows for positive results)
+  assign sum_d        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
+
+  // In case of a mispredicted subtraction result, do a sign flip
+  assign final_sign_d = (effective_subtraction && (sum_carry == tentative_sign))
+                      ? 1'b1
+                      : (effective_subtraction ? 1'b0 : tentative_sign);
+
+
   // Generate pipeline between mul and add if needed
   if (PipeConfig==fpnew_pkg::INSIDE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : inside_pipeline
     localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
                           ? ((NumPipeRegs + 2) / 3) // First to get regs
                           : NumPipeRegs;
+
     fpnew_pipe_inside_fma #(
       .ExpWidth    ( EXP_WIDTH      ),
       .PrecBits    ( PRECISION_BITS ),
@@ -471,36 +493,32 @@ module fpnew_fma_multi #(
     ) i_inside_pipe (
       .clk_i,
       .rst_ni,
-      .effective_subtraction_i ( effective_subtraction ),
-      .tentative_sign_i        ( tentative_sign        ),
-      .exponent_product_i      ( exponent_product      ),
-      .exponent_difference_i   ( exponent_difference   ),
-      .tentative_exponent_i    ( tentative_exponent    ),
-      .addend_shamt_i          ( addend_shamt          ),
-      .sticky_before_add_i     ( sticky_before_add     ),
-      .product_shifted_i       ( product_shifted       ),
-      .addend_shifted_i        ( addend_shifted        ),
-      .inject_carry_in_i       ( inject_carry_in       ),
-      .rnd_mode_i              ( rnd_mode_q            ),
-      .dst_fmt_i               ( dst_fmt_q             ),
-      .result_is_special_i     ( result_is_special     ),
-      .special_result_i        ( special_result        ),
-      .special_status_i        ( special_status        ),
-      .tag_i                   ( tag_q                 ),
-      .aux_i                   ( aux_q                 ),
-      .in_valid_i              ( out_valid_input       ),
-      .in_ready_o              ( in_ready_inside       ),
+      .effective_subtraction_i ( effective_subtraction      ),
+      .final_sign_i            ( final_sign_d               ),
+      .exponent_product_i      ( exponent_product           ),
+      .exponent_difference_i   ( exponent_difference        ),
+      .tentative_exponent_i    ( tentative_exponent         ),
+      .addend_shamt_i          ( addend_shamt               ),
+      .sticky_before_add_i     ( sticky_before_add          ),
+      .sum_i                   ( sum_d                      ),
+      .rnd_mode_i              ( rnd_mode_q                 ),
+      .dst_fmt_i               ( dst_fmt_q                  ), // unused
+      .result_is_special_i     ( result_is_special          ),
+      .special_result_i        ( special_result             ),
+      .special_status_i        ( special_status             ),
+      .tag_i                   ( tag_q                      ),
+      .aux_i                   ( aux_q                      ),
+      .in_valid_i              ( out_valid_input            ),
+      .in_ready_o              ( in_ready_inside            ),
       .flush_i,
       .effective_subtraction_o ( effective_subtraction_q ),
-      .tentative_sign_o        ( tentative_sign_q        ),
+      .final_sign_o            ( final_sign_q            ),
       .exponent_product_o      ( exponent_product_q      ),
       .exponent_difference_o   ( exponent_difference_q   ),
       .tentative_exponent_o    ( tentative_exponent_q    ),
       .addend_shamt_o          ( addend_shamt_q          ),
       .sticky_before_add_o     ( sticky_before_add_q     ),
-      .product_shifted_o       ( product_shifted_q       ),
-      .addend_shifted_o        ( addend_shifted_q        ),
-      .inject_carry_in_o       ( inject_carry_in_q       ),
+      .sum_o                   ( sum_q                   ),
       .rnd_mode_o              ( rnd_mode_q2             ),
       .dst_fmt_o               ( dst_fmt_q2              ),
       .result_is_special_o     ( result_is_special_q     ),
@@ -512,19 +530,17 @@ module fpnew_fma_multi #(
       .out_ready_i             ( in_ready_output         ),
       .busy_o                  ( busy_inside             )
     );
+
   // Otherwise pass through inputs
   end else begin : no_inside_pipeline
     assign in_ready_inside         = in_ready_output;
     assign effective_subtraction_q = effective_subtraction;
-    assign tentative_sign_q        = tentative_sign;
+    assign final_sign_q            = final_sign_d;
     assign exponent_product_q      = exponent_product;
     assign exponent_difference_q   = exponent_difference;
     assign tentative_exponent_q    = tentative_exponent;
     assign addend_shamt_q          = addend_shamt;
     assign sticky_before_add_q     = sticky_before_add;
-    assign product_shifted_q       = product_shifted;
-    assign addend_shifted_q        = addend_shifted;
-    assign inject_carry_in_q       = inject_carry_in;
     assign rnd_mode_q2             = rnd_mode_q;
     assign dst_fmt_q2              = dst_fmt_q;
     assign result_is_special_q     = result_is_special;
@@ -534,26 +550,8 @@ module fpnew_fma_multi #(
     assign aux_q2                  = aux_q;
     assign out_valid_inside        = out_valid_input;
     assign busy_inside             = 1'b0;
+    assign sum_q                   = sum_d;
   end
-
-  // ------
-  // Adder
-  // ------
-  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
-  logic                        sum_carry; // observe carry bit from sum for sign fixing
-  logic [3*PRECISION_BITS+3:0] sum;       // discard carry as sum won't overflow
-  logic                        final_sign;
-
-  // Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw   = product_shifted_q + addend_shifted_q + inject_carry_in_q;
-  assign sum_carry = sum_raw[3*PRECISION_BITS+4];
-
-  // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum        = (effective_subtraction_q && ~sum_carry) ? -sum_raw : sum_raw;
-  // In case of a mispredicted subtraction result, do a sign flip
-  assign final_sign = (effective_subtraction_q && (sum_carry == tentative_sign_q))
-                      ? 1'b1
-                      : (effective_subtraction_q ? 1'b0 : tentative_sign_q);
 
   // --------------
   // Normalization
@@ -573,7 +571,7 @@ module fpnew_fma_multi #(
 
   logic signed [EXP_WIDTH-1:0] final_exponent;
 
-  assign sum_lower = sum[LOWER_SUM_WIDTH-1:0];
+  assign sum_lower = sum_q[LOWER_SUM_WIDTH-1:0];
 
   // Leading zero counter for cancellations
   lzc #(
@@ -610,7 +608,7 @@ module fpnew_fma_multi #(
   end
 
   // Do the large normalization shift
-  assign sum_shifted       = sum << norm_shamt;
+  assign sum_shifted       = sum_q << norm_shamt;
 
   // The addend-anchored case needs a 1-bit normalization since the leading-one can be to the left
   // or right of the (non-carry) MSB of the sum.
@@ -697,7 +695,7 @@ module fpnew_fma_multi #(
   end
 
   // Assemble result before rounding. In case of overflow, the largest normal value is set.
-  assign pre_round_sign     = final_sign;
+  assign pre_round_sign     = final_sign_q;
   assign pre_round_abs      = fmt_pre_round_abs[dst_fmt_q2];
 
   // In case of overflow, the round and sticky bits are set for proper rounding

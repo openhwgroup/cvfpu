@@ -42,21 +42,20 @@ module fpnew_pipe_inside_fma #(
   parameter type         TagType     = logic,
   parameter type         AuxType     = logic,
   // Do not change
-  localparam SHIFT_AMOUNT_WIDTH = $clog2(3 * PrecBits + 3)
+  localparam int unsigned SUM_WIDTH          = 3*PrecBits+3+1,
+  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PrecBits + 3)
 ) (
   input  logic                          clk_i,
   input  logic                          rst_ni,
   // Input signals
   input  logic                          effective_subtraction_i,
-  input  logic                          tentative_sign_i,
+  input  logic                          final_sign_i,
   input  logic signed [ExpWidth-1:0]    exponent_product_i,
   input  logic signed [ExpWidth-1:0]    exponent_difference_i,
   input  logic signed [ExpWidth-1:0]    tentative_exponent_i,
   input  logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_i,
   input  logic                          sticky_before_add_i,
-  input  logic [3*PrecBits+3:0]         product_shifted_i,
-  input  logic [3*PrecBits+3:0]         addend_shifted_i,
-  input  logic                          inject_carry_in_i,
+  input  logic [SUM_WIDTH-1:0]          sum_i,
   input  fpnew_pkg::roundmode_e         rnd_mode_i,
   input  fpnew_pkg::fp_format_e         dst_fmt_i,
   input  logic                          result_is_special_i,
@@ -70,15 +69,13 @@ module fpnew_pipe_inside_fma #(
   input  logic                          flush_i,
   // Output signals
   output logic                          effective_subtraction_o,
-  output logic                          tentative_sign_o,
+  output logic                          final_sign_o,
   output logic signed [ExpWidth-1:0]    exponent_product_o,
   output logic signed [ExpWidth-1:0]    exponent_difference_o,
   output logic signed [ExpWidth-1:0]    tentative_exponent_o,
   output logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_o,
   output logic                          sticky_before_add_o,
-  output logic [3*PrecBits+3:0]         product_shifted_o,
-  output logic [3*PrecBits+3:0]         addend_shifted_o,
-  output logic                          inject_carry_in_o,
+  output logic [SUM_WIDTH-1:0]          sum_o,
   output fpnew_pkg::roundmode_e         rnd_mode_o,
   output fpnew_pkg::fp_format_e         dst_fmt_o,
   output logic                          result_is_special_o,
@@ -95,15 +92,13 @@ module fpnew_pipe_inside_fma #(
 
   // Input signals for the next stage (= output signals of the previous stage)
   logic                  [0:NumPipeRegs]                         effective_subtraction_d;
-  logic                  [0:NumPipeRegs]                         tentative_sign_d;
+  logic                  [0:NumPipeRegs]                         final_sign_d;
   logic signed           [0:NumPipeRegs][ExpWidth-1:0]           exponent_product_d;
   logic signed           [0:NumPipeRegs][ExpWidth-1:0]           exponent_difference_d;
   logic signed           [0:NumPipeRegs][ExpWidth-1:0]           tentative_exponent_d;
   logic                  [0:NumPipeRegs][SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_d;
   logic                  [0:NumPipeRegs]                         sticky_before_add_d;
-  logic                  [0:NumPipeRegs][3*PrecBits+3:0]         product_shifted_d;
-  logic                  [0:NumPipeRegs][3*PrecBits+3:0]         addend_shifted_d;
-  logic                  [0:NumPipeRegs]                         inject_carry_in_d;
+  logic                  [0:NumPipeRegs][SUM_WIDTH-1:0]          sum_d;
   fpnew_pkg::roundmode_e [0:NumPipeRegs]                         rnd_mode_d;
   fpnew_pkg::fp_format_e [0:NumPipeRegs]                         dst_fmt_d;
   logic                  [0:NumPipeRegs]                         result_is_special_d;
@@ -117,15 +112,13 @@ module fpnew_pipe_inside_fma #(
 
   // Input stage: First element of pipeline is taken from inputs
   assign effective_subtraction_d[0] = effective_subtraction_i;
-  assign tentative_sign_d[0]        = tentative_sign_i;
+  assign final_sign_d[0]            = final_sign_i;
   assign exponent_product_d[0]      = exponent_product_i;
   assign exponent_difference_d[0]   = exponent_difference_i;
   assign tentative_exponent_d[0]    = tentative_exponent_i;
   assign addend_shamt_d[0]          = addend_shamt_i;
   assign sticky_before_add_d[0]     = sticky_before_add_i;
-  assign product_shifted_d[0]       = product_shifted_i;
-  assign addend_shifted_d[0]        = addend_shifted_i;
-  assign inject_carry_in_d[0]       = inject_carry_in_i;
+  assign sum_d[0]                   = sum_i;
   assign rnd_mode_d[0]              = rnd_mode_i;
   assign dst_fmt_d[0]               = dst_fmt_i;
   assign result_is_special_d[0]     = result_is_special_i;
@@ -142,12 +135,13 @@ module fpnew_pipe_inside_fma #(
   if (NumPipeRegs > 0) begin : gen_pipeline
     // Pipelined versions of signals for later stages
     logic                  [0:NumPipeRegs]                         effective_subtraction_q;
-    logic                  [0:NumPipeRegs]                         tentative_sign_q;
+    logic                  [0:NumPipeRegs]                         final_sign_q;
     logic signed           [0:NumPipeRegs][ExpWidth-1:0]           exponent_product_q;
     logic signed           [0:NumPipeRegs][ExpWidth-1:0]           exponent_difference_q;
     logic signed           [0:NumPipeRegs][ExpWidth-1:0]           tentative_exponent_q;
     logic                  [0:NumPipeRegs][SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_q;
     logic                  [0:NumPipeRegs]                         sticky_before_add_q;
+    logic                  [0:NumPipeRegs][SUM_WIDTH-1:0]          sum_q;
     logic                  [0:NumPipeRegs][3*PrecBits+3:0]         product_shifted_q;
     logic                  [0:NumPipeRegs][3*PrecBits+3:0]         addend_shifted_q;
     logic                  [0:NumPipeRegs]                         inject_carry_in_q;
@@ -166,15 +160,13 @@ module fpnew_pipe_inside_fma #(
 
       // Next state from previous register to form a shift register
       assign effective_subtraction_d[i+1] = effective_subtraction_q[i];
-      assign tentative_sign_d[i+1]        = tentative_sign_q[i];
+      assign final_sign_d[i+1]            = final_sign_q[i];
       assign exponent_product_d[i+1]      = exponent_product_q[i];
       assign exponent_difference_d[i+1]   = exponent_difference_q[i];
       assign tentative_exponent_d[i+1]    = tentative_exponent_q[i];
       assign addend_shamt_d[i+1]          = addend_shamt_q[i];
       assign sticky_before_add_d[i+1]     = sticky_before_add_q[i];
-      assign product_shifted_d[i+1]       = product_shifted_q[i];
-      assign addend_shifted_d[i+1]        = addend_shifted_q[i];
-      assign inject_carry_in_d[i+1]       = inject_carry_in_q[i];
+      assign sum_d[i+1]                   = sum_q[i];
       assign rnd_mode_d[i+1]              = rnd_mode_q[i];
       assign dst_fmt_d[i+1]               = dst_fmt_q[i];
       assign result_is_special_d[i+1]     = result_is_special_q[i];
@@ -197,15 +189,13 @@ module fpnew_pipe_inside_fma #(
 
       // Generate the pipeline registers within the stages, use enable-registers
       `FFL(effective_subtraction_q[i], effective_subtraction_d[i], reg_ena, '0)
-      `FFL(tentative_sign_q[i],        tentative_sign_d[i],        reg_ena, '0)
+      `FFL(final_sign_q[i],            final_sign_d[i],            reg_ena, '0)
       `FFL(exponent_product_q[i],      exponent_product_d[i],      reg_ena, '0)
       `FFL(exponent_difference_q[i],   exponent_difference_d[i],   reg_ena, '0)
       `FFL(tentative_exponent_q[i],    tentative_exponent_d[i],    reg_ena, '0)
       `FFL(addend_shamt_q[i],          addend_shamt_d[i],          reg_ena, '0)
       `FFL(sticky_before_add_q[i],     sticky_before_add_d[i],     reg_ena, '0)
-      `FFL(product_shifted_q[i],       product_shifted_d[i],       reg_ena, '0)
-      `FFL(addend_shifted_q[i],        addend_shifted_d[i],        reg_ena, '0)
-      `FFL(inject_carry_in_q[i],       inject_carry_in_d[i],       reg_ena, '0)
+      `FFL(sum_q[i],                   sum_d[i],               reg_ena, '0)
       `FFL(rnd_mode_q[i],              rnd_mode_d[i],              reg_ena, fpnew_pkg::RNE)
       `FFL(dst_fmt_q[i],               dst_fmt_d[i],               reg_ena, fpnew_pkg::fp_format_e'(0))
       `FFL(result_is_special_q[i],     result_is_special_d[i],     reg_ena, '0)
@@ -218,15 +208,13 @@ module fpnew_pipe_inside_fma #(
 
   // Output stage: bind last stage outputs to module output. Directly connects to input if no regs.
   assign effective_subtraction_o = effective_subtraction_d[NumPipeRegs];
-  assign tentative_sign_o        = tentative_sign_d[NumPipeRegs];
+  assign final_sign_o            = final_sign_d[NumPipeRegs];
   assign exponent_product_o      = exponent_product_d[NumPipeRegs];
   assign exponent_difference_o   = exponent_difference_d[NumPipeRegs];
   assign tentative_exponent_o    = tentative_exponent_d[NumPipeRegs];
   assign addend_shamt_o          = addend_shamt_d[NumPipeRegs];
   assign sticky_before_add_o     = sticky_before_add_d[NumPipeRegs];
-  assign product_shifted_o       = product_shifted_d[NumPipeRegs];
-  assign addend_shifted_o        = addend_shifted_d[NumPipeRegs];
-  assign inject_carry_in_o       = inject_carry_in_d[NumPipeRegs];
+  assign sum_o                   = sum_d[NumPipeRegs];
   assign rnd_mode_o              = rnd_mode_d[NumPipeRegs];
   assign dst_fmt_o               = dst_fmt_d[NumPipeRegs];
   assign result_is_special_o     = result_is_special_d[NumPipeRegs];
