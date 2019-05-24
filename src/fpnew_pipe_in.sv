@@ -32,7 +32,7 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
-`include "registers.svh"
+`include "common_cells/registers.svh"
 
 module fpnew_pipe_in #(
   parameter int unsigned Width         = 32,
