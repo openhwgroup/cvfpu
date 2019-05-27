@@ -88,12 +88,21 @@ module fpnew_cast_multi #(
   fpnew_pkg::fp_format_e  src_fmt_q;
   fpnew_pkg::fp_format_e  dst_fmt_q;
   fpnew_pkg::int_format_e int_fmt_q;
+  TagType                 tag_q;
+  AuxType                 aux_q;
+  logic                   out_valid_input;
+  logic                   in_ready_inside; // written by inside pipeline
+  logic                   busy_input;
+
 
   // Generate pipeline at input if needed
-  if (PipeConfig==fpnew_pkg::BEFORE) begin : input_pipeline
+    if (PipeConfig==fpnew_pkg::BEFORE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : input_pipeline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? (NumPipeRegs / 3) // Last to get regs
+                          : NumPipeRegs;
     fpnew_pipe_in #(
       .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
+      .NumPipeRegs ( NUM_REGS    ),
       .NumOperands ( 1           ),
       .NumFormats  ( NUM_FORMATS ),
       .TagType     ( TagType     ),
@@ -114,30 +123,35 @@ module fpnew_cast_multi #(
       .in_valid_i,
       .in_ready_o,
       .flush_i,
-      .operands_o     ( operands_q   ),
-      .is_boxed_o     ( is_boxed_q   ),
-      .rnd_mode_o     ( rnd_mode_q   ),
-      .op_o           ( op_q         ),
-      .op_mod_o       ( op_mod_q     ),
-      .src_fmt_o      ( src_fmt_q    ),
-      .dst_fmt_o      ( dst_fmt_q    ),
-      .int_fmt_o      ( int_fmt_q    ),
-      .tag_o,
-      .aux_o,
-      .out_valid_o,
-      .out_ready_i,
-      .busy_o
+      .operands_o  ( operands_q      ),
+      .is_boxed_o  ( is_boxed_q      ),
+      .rnd_mode_o  ( rnd_mode_q      ),
+      .op_o        ( op_q            ),
+      .op_mod_o    ( op_mod_q        ),
+      .src_fmt_o   ( src_fmt_q       ),
+      .dst_fmt_o   ( dst_fmt_q       ),
+      .int_fmt_o   ( int_fmt_q       ),
+      .tag_o       ( tag_q           ),
+      .aux_o       ( aux_q           ),
+      .out_valid_o ( out_valid_input ),
+      .out_ready_i ( in_ready_inside ),
+      .busy_o      ( busy_input      )
     );
   // Otherwise pass through inputs
   end else begin : no_input_pipeline
-    assign operands_q = operands_i;
-    assign is_boxed_q = is_boxed_i;
-    assign rnd_mode_q = rnd_mode_i;
-    assign op_q       = op_i;
-    assign op_mod_q   = op_mod_i;
-    assign src_fmt_q  = src_fmt_i;
-    assign dst_fmt_q  = dst_fmt_i;
-    assign int_fmt_q  = int_fmt_i;
+    assign in_ready_o      = in_ready_inside;
+    assign operands_q      = operands_i;
+    assign is_boxed_q      = is_boxed_i;
+    assign rnd_mode_q      = rnd_mode_i;
+    assign op_q            = op_i;
+    assign op_mod_q        = op_mod_i;
+    assign src_fmt_q       = src_fmt_i;
+    assign dst_fmt_q       = dst_fmt_i;
+    assign int_fmt_q       = int_fmt_i;
+    assign tag_q           = tag_i;
+    assign aux_q           = aux_i;
+    assign out_valid_input = in_valid_i;
+    assign busy_input      = 1'b0;
   end
 
   // -----------------
@@ -264,14 +278,112 @@ module fpnew_cast_multi #(
 
   assign input_exp     = src_is_int ? int_input_exp : fp_input_exp;
 
+  logic signed [INT_EXP_WIDTH-1:0] destination_exp_d, destination_exp_q;  // re-biased exponent for destination
+  logic signed [INT_EXP_WIDTH-1:0] dst_bias;      // dst format bias
+  assign dst_bias = signed'(fpnew_pkg::bias(dst_fmt_q));
+
+  // Rebias the exponent
+  assign destination_exp_d = input_exp + dst_bias;
+
+  // ---------------
+  // Internal pipeline
+  // ---------------
+  // Pipelined internal signals
+  logic                            input_sign_q;
+  logic signed [INT_EXP_WIDTH-1:0] input_exp_q;
+  logic        [INT_MAN_WIDTH-1:0] input_mant_q;
+  logic                            src_is_int_q;
+  logic                            dst_is_int_q;
+  fpnew_pkg::fp_info_t             info_q2;
+  logic                            mant_is_zero_q;
+  logic                            op_mod_q2;
+  fpnew_pkg::roundmode_e           rnd_mode_q2;
+  fpnew_pkg::fp_format_e           src_fmt_q2;
+  fpnew_pkg::fp_format_e           dst_fmt_q2;
+  fpnew_pkg::int_format_e          int_fmt_q2;
+  TagType                          tag_q2;
+  AuxType                          aux_q2;
+  logic                            out_valid_inside;
+  logic                            in_ready_output; // written by output pipeline
+  logic                            busy_inside;
+
+  // Generate pipeline between mul and add if needed
+  if (PipeConfig==fpnew_pkg::INSIDE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : inside_pipeline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? ((NumPipeRegs + 2) / 3) // First to get regs
+                          : NumPipeRegs;
+    fpnew_pipe_inside_cast #(
+      .IntExpWidth ( INT_EXP_WIDTH ),
+      .IntManWidth ( INT_MAN_WIDTH ),
+      .NumPipeRegs ( NUM_REGS      ),
+      .TagType     ( TagType       ),
+      .AuxType     ( AuxType       )
+    ) i_inside_pipe (
+      .clk_i,
+      .rst_ni,
+      .input_sign_i      ( input_sign        ),
+      .input_exp_i       ( input_exp         ),
+      .destination_exp_i ( destination_exp_d ),
+      .input_mant_i      ( input_mant        ),
+      .src_is_int_i      ( src_is_int        ),
+      .dst_is_int_i      ( dst_is_int        ),
+      .info_i            ( info_q[src_fmt_q] ),
+      .mant_is_zero_i    ( mant_is_zero      ),
+      .op_mod_i          ( op_mod_q          ),
+      .rnd_mode_i        ( rnd_mode_q        ),
+      .src_fmt_i         ( src_fmt_q         ),
+      .dst_fmt_i         ( dst_fmt_q         ),
+      .int_fmt_i         ( int_fmt_q         ),
+      .tag_i             ( tag_q             ),
+      .aux_i             ( aux_q             ),
+      .in_valid_i        ( out_valid_input   ),
+      .in_ready_o        ( in_ready_inside   ),
+      .flush_i,
+      .input_sign_o      ( input_sign_q      ),
+      .input_exp_o       ( input_exp_q       ),
+      .destination_exp_o ( destination_exp_q ),
+      .input_mant_o      ( input_mant_q      ),
+      .src_is_int_o      ( src_is_int_q      ),
+      .dst_is_int_o      ( dst_is_int_q      ),
+      .info_o            ( info_q2           ),
+      .mant_is_zero_o    ( mant_is_zero_q    ),
+      .op_mod_o          ( op_mod_q2         ),
+      .rnd_mode_o        ( rnd_mode_q2       ),
+      .src_fmt_o         ( src_fmt_q2        ),
+      .dst_fmt_o         ( dst_fmt_q2        ),
+      .int_fmt_o         ( int_fmt_q2        ),
+      .tag_o             ( tag_q2            ),
+      .aux_o             ( aux_q2            ),
+      .out_valid_o       ( out_valid_inside  ),
+      .out_ready_i       ( in_ready_output   ),
+      .busy_o            ( busy_inside       )
+    );
+  // Otherwise pass through inputs
+  end else begin : no_inside_pipeline
+    assign in_ready_inside   = in_ready_output;
+    assign input_sign_q      = input_sign;
+    assign input_exp_q       = input_exp;
+    assign destination_exp_d = destination_exp_d;
+    assign input_mant_q      = input_mant;
+    assign src_is_int_q      = src_is_int;
+    assign dst_is_int_q      = dst_is_int;
+    assign info_q2           = info_q[src_fmt_q];
+    assign mant_is_zero_q    = mant_is_zero;
+    assign op_mod_q2         = op_mod_q;
+    assign rnd_mode_q2       = rnd_mode_q;
+    assign src_fmt_q2        = src_fmt_q;
+    assign dst_fmt_q2        = dst_fmt_q;
+    assign int_fmt_q2        = int_fmt_q;
+    assign tag_q2            = tag_q;
+    assign aux_q2            = aux_q;
+    assign out_valid_inside  = out_valid_input;
+    assign busy_inside       = 1'b0;
+  end
+
   // --------
   // Casting
   // --------
-  logic signed [INT_EXP_WIDTH-1:0] destination_exp;  // re-biased exponent for destination
   logic        [INT_EXP_WIDTH-1:0] final_exp;        // after eventual adjustments
-
-  logic signed [INT_EXP_WIDTH-1:0] dst_bias;      // dst format bias
-  assign dst_bias = signed'(fpnew_pkg::bias(dst_fmt_q));
 
   logic [2*INT_MAN_WIDTH:0]  preshift_mant;    // mantissa before final shift
   logic [2*INT_MAN_WIDTH:0]  destination_mant; // mantissa from shifter, with rnd bit
@@ -283,52 +395,50 @@ module fpnew_cast_multi #(
   logic [1:0] fp_round_sticky_bits, int_round_sticky_bits, round_sticky_bits;
   logic       of_before_round, uf_before_round;
 
-  // Rebias the exponent
-  assign destination_exp = input_exp + dst_bias;
 
   // Perform adjustments to mantissa and exponent
   always_comb begin : cast_value
     // Default assignment
-    final_exp       = unsigned'(destination_exp); // take exponent as is, only look at lower bits
+    final_exp       = unsigned'(destination_exp_q); // take exponent as is, only look at lower bits
     preshift_mant   = '0;  // initialize mantissa container with zeroes
-    denorm_shamt    = SUPER_MAN_BITS - fpnew_pkg::man_bits(dst_fmt_q); // right of mantissa
+    denorm_shamt    = SUPER_MAN_BITS - fpnew_pkg::man_bits(dst_fmt_q2); // right of mantissa
     of_before_round = 1'b0;
     uf_before_round = 1'b0;
 
     // Place mantissa to the left of the shifter
-    preshift_mant = {>> {input_mant, '0}};
+    preshift_mant = input_mant_q << (INT_MAN_WIDTH + 1);
 
     // Handle INT casts
-    if (dst_is_int) begin
+    if (dst_is_int_q) begin
       // By default right shift mantissa to be an integer
-      denorm_shamt = unsigned'(MAX_INT_WIDTH - 1 - input_exp);
+      denorm_shamt = unsigned'(MAX_INT_WIDTH - 1 - input_exp_q);
       // overflow: when converting to unsigned the range is larger by one
-      if (input_exp >= signed'(fpnew_pkg::int_width(int_fmt_q) - 1 + op_mod_q)) begin
+      if (input_exp_q >= signed'(fpnew_pkg::int_width(int_fmt_q2) - 1 + op_mod_q2)) begin
         denorm_shamt    = '0; // prevent shifting
         of_before_round = 1'b1;
       // underflow
-      end else if (input_exp < -1) begin
+      end else if (input_exp_q < -1) begin
         denorm_shamt    = MAX_INT_WIDTH + 1; // all bits go to the sticky
         uf_before_round = 1'b1;
       end
     // Handle FP over-/underflows
     end else begin
       // Overflow or infinities (for proper rounding)
-      if ((destination_exp >= 2**fpnew_pkg::exp_bits(dst_fmt_q)-1) ||
-          (~src_is_int && info_q[src_fmt_q].is_inf)) begin
-        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q)-2); // largest normal value
+      if ((destination_exp_q >= 2**fpnew_pkg::exp_bits(dst_fmt_q2)-1) ||
+          (~src_is_int_q && info_q2.is_inf)) begin
+        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q2)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
       // Denormalize underflowing values
-      end else if (destination_exp < 1 &&
-                   destination_exp >= -signed'(fpnew_pkg::man_bits(dst_fmt_q))) begin
+      end else if (destination_exp_q < 1 &&
+                   destination_exp_q >= -signed'(fpnew_pkg::man_bits(dst_fmt_q2))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp); // adjust right shifting
+        denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp_q); // adjust right shifting
         uf_before_round = 1'b1;
       // Limit the shift to retain sticky bits
-      end else if (destination_exp < -signed'(fpnew_pkg::man_bits(dst_fmt_q))) begin
+      end else if (destination_exp_q < -signed'(fpnew_pkg::man_bits(dst_fmt_q2))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 2 + fpnew_pkg::man_bits(dst_fmt_q)); // to sticky
+        denorm_shamt    = unsigned'(denorm_shamt + 2 + fpnew_pkg::man_bits(dst_fmt_q2)); // to sticky
         uf_before_round = 1'b1;
       end
     end
@@ -348,7 +458,7 @@ module fpnew_cast_multi #(
   assign int_round_sticky_bits[0] = (| {destination_mant[NUM_INT_STICKY-1:0]});
 
   // select RS bits for destination operation
-  assign round_sticky_bits = dst_is_int ? int_round_sticky_bits : fp_round_sticky_bits;
+  assign round_sticky_bits = dst_is_int_q ? int_round_sticky_bits : fp_round_sticky_bits;
 
   // ----------------------------
   // Rounding and classification
@@ -403,15 +513,15 @@ module fpnew_cast_multi #(
   end
 
   // Select output with destination format and operation
-  assign pre_round_abs = dst_is_int ? ifmt_pre_round_abs[int_fmt_q] : fmt_pre_round_abs[dst_fmt_q];
+  assign pre_round_abs = dst_is_int_q ? ifmt_pre_round_abs[int_fmt_q2] : fmt_pre_round_abs[dst_fmt_q2];
 
   fpnew_rounding #(
     .AbsWidth ( WIDTH )
   ) i_fpnew_rounding (
     .abs_value_i             ( pre_round_abs     ),
-    .sign_i                  ( input_sign        ), // source format
+    .sign_i                  ( input_sign_q      ), // source format
     .round_sticky_bits_i     ( round_sticky_bits ),
-    .rnd_mode_i              ( rnd_mode_q        ),
+    .rnd_mode_i              ( rnd_mode_q2       ),
     .effective_subtraction_i ( 1'b0              ), // no operation happened
     .abs_rounded_o           ( rounded_abs       ),
     .sign_o                  ( rounded_sign      ),
@@ -435,7 +545,7 @@ module fpnew_cast_multi #(
 
         // Assemble regular result, nan box short ones. Int zeroes need to be detected`
         fmt_result[fmt]               = '1;
-        fmt_result[fmt][FP_WIDTH-1:0] = src_is_int & mant_is_zero
+        fmt_result[fmt][FP_WIDTH-1:0] = src_is_int_q & mant_is_zero_q
                                         ? '0
                                         : {rounded_sign, rounded_abs[EXP_BITS+MAN_BITS-1:0]};
       end
@@ -447,8 +557,8 @@ module fpnew_cast_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q] & ~result_true_zero; // zero is not UF
-  assign of_after_round = fmt_of_after_round[dst_fmt_q];
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2] & ~result_true_zero; // zero is not UF
+  assign of_after_round = fmt_of_after_round[dst_fmt_q2];
 
   // Negative integer result needs to be brought into two's complement
   assign rounded_int_res      = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
@@ -477,8 +587,8 @@ module fpnew_cast_multi #(
       always_comb begin : special_results
         logic [FP_WIDTH-1:0] special_res;
 
-        special_res = info_q[src_fmt_q].is_zero
-                      ? fmt_sign[src_fmt_q] << FP_WIDTH-1 // signed zero
+        special_res = info_q2.is_zero
+                      ? input_sign_q << FP_WIDTH-1 // signed zero
                       : {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
 
         // Initialize special result with ones (NaN-box)
@@ -491,15 +601,15 @@ module fpnew_cast_multi #(
   end
 
   // Detect special case from source format, I2F casts don't produce a special result
-  assign fp_result_is_special = ~src_is_int & (info_q[src_fmt_q].is_zero |
-                                               info_q[src_fmt_q].is_nan |
-                                               ~info_q[src_fmt_q].is_boxed);
+  assign fp_result_is_special = ~src_is_int_q & (info_q2.is_zero |
+                                               info_q2.is_nan |
+                                               ~info_q2.is_boxed);
 
   // Signalling input NaNs raise invalid flag, otherwise no flags set
-  assign fp_special_status = '{NV: info_q[src_fmt_q].is_signalling, default: 1'b0};
+  assign fp_special_status = '{NV: info_q2.is_signalling, default: 1'b0};
 
   // Assemble result according to destination format
-  assign fp_special_result = fmt_special_result[dst_fmt_q]; // destination format
+  assign fp_special_result = fmt_special_result[dst_fmt_q2]; // destination format
 
   // --------------------------
   // INT Special case handling
@@ -521,10 +631,10 @@ module fpnew_cast_multi #(
 
         // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
         special_res[INT_WIDTH-2:0] = '1;       // alone yields 2**(INT_WIDTH-1)-1
-        special_res[INT_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
+        special_res[INT_WIDTH-1]   = op_mod_q2; // for unsigned casts yields 2**INT_WIDTH-1
 
         // Negative special case (except for nans) tie to -max or 0
-        if (fmt_sign[src_fmt_q] && !info_q[src_fmt_q].is_nan)
+        if (input_sign_q && !info_q2.is_nan)
           special_res = ~special_res;
 
         // Initialize special result with sign-extension
@@ -537,15 +647,15 @@ module fpnew_cast_multi #(
   end
 
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
-  assign int_result_is_special = info_q[src_fmt_q].is_nan | info_q[src_fmt_q].is_inf |
-                                 of_before_round | ~info_q[src_fmt_q].is_boxed |
-                                 (fmt_sign[src_fmt_q] & op_mod_q & ~rounded_int_res_zero);
+  assign int_result_is_special = info_q2.is_nan | info_q2.is_inf |
+                                 of_before_round | ~info_q2.is_boxed |
+                                 (input_sign_q & op_mod_q2 & ~rounded_int_res_zero);
 
   // All integer special cases are invalid
   assign int_special_status = '{NV: 1'b1, default: 1'b0};
 
   // Assemble result according to destination format
-  assign int_special_result = ifmt_special_result[int_fmt_q]; // destination format
+  assign int_special_result = ifmt_special_result[int_fmt_q2]; // destination format
 
   // -----------------
   // Result selection
@@ -556,16 +666,16 @@ module fpnew_cast_multi #(
   fpnew_pkg::status_t fp_status, int_status;
 
   assign fp_regular_status = '{
-    NV: src_is_int & (of_before_round | of_after_round), // overflow is invalid for I2F casts
+    NV: src_is_int_q & (of_before_round | of_after_round), // overflow is invalid for I2F casts
     DZ: 1'b0, // no divisions
-    OF: ~src_is_int & (of_before_round | of_after_round), // in F2F casts, the OF flag is raised
+    OF: ~src_is_int_q & (~info_q2.is_inf & (of_before_round | of_after_round)), // inf casts no OF
     UF: uf_after_round,
-    NX: src_is_int ? (| fp_round_sticky_bits) // overflow is invalid in i2f
-                   : (| fp_round_sticky_bits) | of_before_round | of_after_round
+    NX: src_is_int_q ? (| fp_round_sticky_bits) // overflow is invalid in i2f
+            : (| fp_round_sticky_bits) | (~info_q2.is_inf & (of_before_round | of_after_round))
   };
   assign int_regular_status = '{NX: (| int_round_sticky_bits), default: 1'b0};
 
-  assign fp_result  = fp_result_is_special  ? fp_special_result  : fmt_result[dst_fmt_q];
+  assign fp_result  = fp_result_is_special  ? fp_special_result  : fmt_result[dst_fmt_q2];
   assign fp_status  = fp_result_is_special  ? fp_special_status  : fp_regular_status;
   assign int_result = int_result_is_special ? int_special_result : rounded_int_res;
   assign int_status = int_result_is_special ? int_special_status : int_regular_status;
@@ -574,53 +684,63 @@ module fpnew_cast_multi #(
   logic [WIDTH-1:0]   result_d;
   fpnew_pkg::status_t status_d;
   logic               extension_bit;
+  logic               busy_output;
 
   // Select output depending on special case detection
-  assign result_d = dst_is_int ? int_result : fp_result;
-  assign status_d = dst_is_int ? int_status : fp_status;
+  assign result_d = dst_is_int_q ? int_result : fp_result;
+  assign status_d = dst_is_int_q ? int_status : fp_status;
 
   // MSB of int result decides extension, otherwise NaN box
-  assign extension_bit = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+  assign extension_bit = dst_is_int_q ? int_result[WIDTH-1] : 1'b1;
 
   // ----------------
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig==fpnew_pkg::AFTER || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : output_pipline
+    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
+                          ? ((NumPipeRegs + 1) / 3) // Second to get regs
+                          : NumPipeRegs;
     fpnew_pipe_out #(
-      .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
-      .TagType     ( TagType     ),
-      .AuxType     ( AuxType     )
+      .Width       ( WIDTH    ),
+      .NumPipeRegs ( NUM_REGS ),
+      .TagType     ( TagType  ),
+      .AuxType     ( AuxType  )
     ) i_output_pipe (
       .clk_i,
       .rst_ni,
-      .result_i        ( result_d        ),
-      .status_i        ( status_d        ),
-      .extension_bit_i ( extension_bit   ),
-      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
-      .is_class_i      ( 1'b0            ), // unused
-      .tag_i,
-      .aux_i,
-      .in_valid_i,
-      .in_ready_o,
+      .result_i        ( result_d         ),
+      .status_i        ( status_d         ),
+      .extension_bit_i ( extension_bit    ),
+      .class_mask_i    ( fpnew_pkg::QNAN  ), // unused
+      .is_class_i      ( 1'b0             ), // unused
+      .tag_i           ( tag_q2           ),
+      .aux_i           ( aux_q2           ),
+      .in_valid_i      ( out_valid_inside ),
+      .in_ready_o      ( in_ready_output  ),
       .flush_i,
       .result_o,
       .status_o,
       .extension_bit_o,
-      .class_mask_o    ( /* unused */  ),
-      .is_class_o      ( /* unused */  ),
+      .class_mask_o    ( /* unused */     ),
+      .is_class_o      ( /* unused */     ),
       .tag_o,
       .aux_o,
       .out_valid_o,
       .out_ready_i,
-      .busy_o
+      .busy_o           ( busy_output      )
     );
   // Otherwise pass through outputs
   end else begin : no_output_pipeline
+    assign in_ready_output = out_ready_i;
     assign result_o        = result_d;
     assign status_o        = status_d;
     assign extension_bit_o = extension_bit;
+    assign tag_o           = tag_q2;
+    assign aux_o           = aux_q2;
+    assign out_valid_o     = out_valid_inside;
   end
+
+  assign busy_o = busy_input | busy_inside | busy_output;
 
 endmodule

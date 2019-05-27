@@ -12,7 +12,7 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_f2icast #(
-  parameter fpnew_pkg::fp_format_e   SrcFpFormat  = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   SrcFpFormat  = fpnew_pkg::fp_format_e'(0),
   parameter fpnew_pkg::ifmt_logic_t  IntFmtConfig = '{default: 1'b1},
   parameter int unsigned             NumPipeRegs  = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig   = fpnew_pkg::BEFORE,
@@ -95,8 +95,8 @@ module fpnew_f2icast #(
       .rnd_mode_i,
       .op_i           ( fpnew_pkg::FMADD ), // unused
       .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::FP32  ), // unused
-      .dst_fmt_i      ( fpnew_pkg::FP32  ), // unused
+      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0) ), // unused
+      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0) ), // unused
       .int_fmt_i,
       .tag_i,
       .aux_i,
@@ -317,7 +317,7 @@ module fpnew_f2icast #(
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
     fpnew_pipe_out #(
       .Width       ( DST_WIDTH   ),
       .NumPipeRegs ( NumPipeRegs ),

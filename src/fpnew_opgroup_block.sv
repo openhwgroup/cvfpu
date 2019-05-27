@@ -193,19 +193,22 @@ module fpnew_opgroup_block #(
   output_t arbiter_output;
 
   // Round-Robin arbiter to decide which result to use
-  stream_arbiter_flushable #(
-    .DATA_T ( output_t    ),
-    .N_INP  ( NUM_FORMATS )
+  rr_arb_tree #(
+    .NumIn     ( NUM_FORMATS ),
+    .DataType  ( output_t    ),
+    .AxiVldRdy ( 1'b1        )
   ) i_arbiter (
     .clk_i,
     .rst_ni,
     .flush_i,
-    .inp_data_i  ( fmt_outputs    ),
-    .inp_valid_i ( fmt_out_valid  ),
-    .inp_ready_o ( fmt_out_ready  ),
-    .oup_data_o  ( arbiter_output ),
-    .oup_valid_o ( out_valid_o    ),
-    .oup_ready_i ( out_ready_i    )
+    .rr_i   ( '0             ),
+    .req_i  ( fmt_out_valid  ),
+    .gnt_o  ( fmt_out_ready  ),
+    .data_i ( fmt_outputs    ),
+    .gnt_i  ( out_ready_i    ),
+    .req_o  ( out_valid_o    ),
+    .data_o ( arbiter_output ),
+    .idx_o  ( /* unused */   )
   );
 
   // Unpack output

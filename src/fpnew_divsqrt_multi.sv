@@ -11,7 +11,7 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
-`include "registers.svh"
+`include "common_cells/registers.svh"
 
 module fpnew_divsqrt_multi #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig  = '1,
@@ -285,7 +285,7 @@ module fpnew_divsqrt_multi #(
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
     fpnew_pipe_out #(
       .Width       ( WIDTH       ),
       .NumPipeRegs ( NumPipeRegs ),

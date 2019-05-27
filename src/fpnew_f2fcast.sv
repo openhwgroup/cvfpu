@@ -12,8 +12,8 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_f2fcast #(
-  parameter fpnew_pkg::fp_format_e   SrcFpFormat = fpnew_pkg::FP32,
-  parameter fpnew_pkg::fp_format_e   DstFpFormat = fpnew_pkg::FP32,
+  parameter fpnew_pkg::fp_format_e   SrcFpFormat = fpnew_pkg::fp_format_e'(0),
+  parameter fpnew_pkg::fp_format_e   DstFpFormat = fpnew_pkg::fp_format_e'(0),
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
@@ -103,11 +103,11 @@ module fpnew_f2fcast #(
       .operands_i,
       .is_boxed_i,
       .rnd_mode_i,
-      .op_i           ( fpnew_pkg::FMADD ), // unused
-      .op_mod_i       ( 1'b0             ), // unused
-      .src_fmt_i      ( fpnew_pkg::FP32  ), // unused
-      .dst_fmt_i      ( fpnew_pkg::FP32  ), // unused
-      .int_fmt_i      ( fpnew_pkg::INT8  ), // unused
+      .op_i           ( fpnew_pkg::FMADD            ), // unused
+      .op_mod_i       ( 1'b0                        ), // unused
+      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
+      .int_fmt_i      ( fpnew_pkg::int_format_e'(0) ), // unused
       .tag_i,
       .aux_i,
       .in_valid_i,
@@ -318,9 +318,9 @@ module fpnew_f2fcast #(
   assign regular_status = '{
     NV: 1'b0, // only valid cases are handled in regular path
     DZ: 1'b0, // no divisions
-    OF: of_before_round | of_after_round,         // rounding can introduce new overflow
+    OF: ~info_a.is_inf & (of_before_round | of_after_round), // rounding can introduce new overflow
     UF: uf_after_round,                           // true zero results don't count as underflow
-    NX: (| round_sticky_bits) | of_before_round | of_after_round // RS bits mean loss in precision
+    NX: (| round_sticky_bits) | (~info_a.is_inf & (of_before_round | of_after_round))
   };
 
   // Final results for output pipeline
@@ -335,7 +335,7 @@ module fpnew_f2fcast #(
   // Output Pipeline
   // ----------------
   // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER) begin : output_pipline
+  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
     fpnew_pipe_out #(
       .Width       ( DST_WIDTH   ),
       .NumPipeRegs ( NumPipeRegs ),
