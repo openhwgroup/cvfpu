@@ -1,6 +1,6 @@
 fpnew:
   incdirs: [
-    ../common_cells/include/common_cells,
+    ../common_cells/include,
   ]
   files: [
     src/fpnew_pkg.sv,
