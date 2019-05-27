@@ -10,7 +10,17 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 ## [Unreleased]
 
 ### Added
+### Changed
+### Fixed
+
+## [0.5.0] - 2019-05-27
+
+### Added
 - The FPU :)
 - Initial Documentation
 
+### Changed
+- "Restarted" the changelog as the old one was stale
+
 ### Fixed
+- Handling of exception flags for infinity operands
