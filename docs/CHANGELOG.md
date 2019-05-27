@@ -8,10 +8,15 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 
 
 ## [Unreleased]
-
 ### Added
 ### Changed
 ### Fixed
+
+## [0.5.1] - 2019-05-27
+
+### Fixed
+- Include path for `common_cells` in `src_files.yml`
+
 
 ## [0.5.0] - 2019-05-27
 
