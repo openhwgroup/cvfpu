@@ -19,7 +19,7 @@
 #
 
 common_cells:
-  commit: b6436016a1022d0069e7d4424ef5087798ee9e67
+  commit: 0b8c10c21c9f810509bbd7bf86cfbdc4e6626c8e
   domain: [soc, cluster]
 
 fpu_div_sqrt_mvp:
