@@ -12,6 +12,11 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 ### Changed
 ### Fixed
 
+## [0.5.1] - 2019-05-31
+
+### Fixed
+- Internal pipeline bypass in cast unit
+
 ## [0.5.1] - 2019-05-27
 
 ### Fixed

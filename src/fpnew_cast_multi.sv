@@ -363,7 +363,7 @@ module fpnew_cast_multi #(
     assign in_ready_inside   = in_ready_output;
     assign input_sign_q      = input_sign;
     assign input_exp_q       = input_exp;
-    assign destination_exp_d = destination_exp_d;
+    assign destination_exp_q = destination_exp_d;
     assign input_mant_q      = input_mant;
     assign src_is_int_q      = src_is_int;
     assign dst_is_int_q      = dst_is_int;
