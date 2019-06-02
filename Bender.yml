@@ -3,8 +3,8 @@ package:
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
-  common_cells: {git: "https://github.com/pulp-platform/common_cells.git", rev: 32dd115}
-  fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", rev: e10ab86}
+  common_cells: {git: "https://github.com/pulp-platform/common_cells.git",         version: v1.13.1}
+  fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", version: v1.0.1}
 
 sources:
   - src/fpnew_pkg.sv

@@ -427,6 +427,8 @@ Results from all lanes are collected and assembled at the output of the slice.
 
 Implementing units as merged slices usually yields best total area, however costs more in terms of per-format latency.
 
+When the `ADDMUL` block is implemented using the `MERGED` implementation, multi-format FMA (multiplication done in `src_format`, accumulation in `dst_format`) is automatically supported among all formats using `MERGED`.
+
 ![FPnew](fig/multislice_block.png)
 
 
@@ -435,6 +437,9 @@ Implementing units as merged slices usually yields best total area, however cost
 Pipeline registers are inserted into the operational units directly, according to the settings in the  `Implementation` parameter.
 As such, each slice in the system can have a different latency.
 Merged slices are bound to thave the largest latency of the included formats.
+
+All pipeline registers are inserted as shift registers at predefined locations in the FPU.
+For optimal mapping, retiming funcitonality of your synthesis tools should be used to balance the paths between registers.
 
 Data traverses the pipeline stages within the operational units using the same handshaking mechanism that is also present at the top-level FPU interface.
 An individual pipeline stage is only stalled if its successor stage is stalled and cannot proceed in the following cycle.
