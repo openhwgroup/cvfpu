@@ -9,9 +9,12 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 
 ## [Unreleased]
+
 ### Added
 ### Changed
+
 ### Fixed
+- UF flag handling according to IEEE754-2008 (#11)
 
 
 ## [0.5.4] - 2019-06-02
