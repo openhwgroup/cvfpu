@@ -557,7 +557,7 @@ module fpnew_cast_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2] & ~result_true_zero; // zero is not UF
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2];
   assign of_after_round = fmt_of_after_round[dst_fmt_q2];
 
   // Negative integer result needs to be brought into two's complement
@@ -669,7 +669,7 @@ module fpnew_cast_multi #(
     NV: src_is_int_q & (of_before_round | of_after_round), // overflow is invalid for I2F casts
     DZ: 1'b0, // no divisions
     OF: ~src_is_int_q & (~info_q2.is_inf & (of_before_round | of_after_round)), // inf casts no OF
-    UF: uf_after_round,
+    UF: uf_after_round & fp_regular_status.NX,
     NX: src_is_int_q ? (| fp_round_sticky_bits) // overflow is invalid in i2f
             : (| fp_round_sticky_bits) | (~info_q2.is_inf & (of_before_round | of_after_round))
   };

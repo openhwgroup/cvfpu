@@ -741,7 +741,7 @@ module fpnew_fma_multi #(
   end
 
   // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2] & ~result_zero; // zero is not UF
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2];
   assign of_after_round = fmt_of_after_round[dst_fmt_q2];
 
 
@@ -757,7 +757,7 @@ module fpnew_fma_multi #(
     NV: 1'b0, // only valid cases are handled in regular path
     DZ: 1'b0, // no divisions
     OF: of_before_round | of_after_round,         // rounding can introduce new overflow
-    UF: uf_after_round & ~result_zero,            // true zero results don't count as underflow
+    UF: uf_after_round & regular_status.NX,                      // only inexact results raise UF
     NX: (| round_sticky_bits) | of_before_round | of_after_round // RS bits mean loss in precision
   };
 

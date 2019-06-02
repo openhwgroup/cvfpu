@@ -319,7 +319,7 @@ module fpnew_f2fcast #(
     NV: 1'b0, // only valid cases are handled in regular path
     DZ: 1'b0, // no divisions
     OF: ~info_a.is_inf & (of_before_round | of_after_round), // rounding can introduce new overflow
-    UF: uf_after_round,                           // true zero results don't count as underflow
+    UF: uf_after_round & regular_status.NX,                  // only inexact results raise UF
     NX: (| round_sticky_bits) | (~info_a.is_inf & (of_before_round | of_after_round))
   };
 
