@@ -8,8 +8,14 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 
 
 ## [Unreleased]
+
 ### Added
+- Documentation about multi-format operations
+- Extended pipelining description slightly
+
 ### Changed
+- Updated diagrams in architecture documentation
+
 ### Fixed
 
 ## [0.5.3] - 2019-05-31
@@ -17,10 +23,12 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 ### Fixed
 - ips_list.yml entry for updated common_cells
 
+
 ## [0.5.2] - 2019-05-31
 
 ### Fixed
 - Internal pipeline bypass in cast unit
+
 
 ## [0.5.1] - 2019-05-27
 

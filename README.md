@@ -30,6 +30,8 @@ Multiple integer formats with arbitrary number of bits (as source or destionatio
 - Conversions between FP formats and integers (signed & unsigned) and vice versa
 - Classification
 
+Multi-format FMA operations (i.e. multiplication in one format, accumulation in another) are optionally supported. 
+
 Optionally, *packed-SIMD* versions of all the above operations can be generated for formats narrower than the FPU datapath width.
 E.g.: Support for double-precision (64bit) operations and two simultaneous single-precision (32bit) operations.
 
