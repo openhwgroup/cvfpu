@@ -17,6 +17,9 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 - Updated diagrams in architecture documentation
 
 ### Fixed
+- [common_cells] Bumped to fix src_files.yml bugs
+- [fpu_div_sqrt_mvp] Bumped to fix linter warnings
+
 
 ## [0.5.3] - 2019-05-31
 
