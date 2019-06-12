@@ -47,13 +47,13 @@ module fpnew_rounding #(
           2'b01: round_up = 1'b0;           // < ulp/2 away, round down
           2'b10: round_up = abs_value_i[0]; // = ulp/2 away, round towards even result
           2'b11: round_up = 1'b1;           // > ulp/2 away, round up
-          default: round_up = 1'bx; // propagate X
+          default: round_up = fpnew_pkg::DONT_CARE;
         endcase
       fpnew_pkg::RTZ: round_up = 1'b0; // always round down
       fpnew_pkg::RDN: round_up = (| round_sticky_bits_i) ? sign_i  : 1'b0; // to 0 if +, away if -
       fpnew_pkg::RUP: round_up = (| round_sticky_bits_i) ? ~sign_i : 1'b0; // to 0 if -, away if +
       fpnew_pkg::RMM: round_up = round_sticky_bits_i[1]; // round down if < ulp/2 away, else up
-      default: round_up = 1'bx; // propagate x
+      default: round_up = fpnew_pkg::DONT_CARE; // propagate x
     endcase
   end
 

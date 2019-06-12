@@ -128,7 +128,7 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = 'X;
+      assign fmt_outputs[fmt]  = '{default: fpnew_pkg::DONT_CARE};
 
     // Tie off disabled formats
     end else if (!FpFmtMask[fmt] || (FmtUnitTypes[fmt] == fpnew_pkg::DISABLED)) begin : disable_fmt
@@ -136,7 +136,7 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = 'X;
+      assign fmt_outputs[fmt]  = '{default: fpnew_pkg::DONT_CARE};
     end
   end
 

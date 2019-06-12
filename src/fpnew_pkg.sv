@@ -258,7 +258,7 @@ package fpnew_pkg;
                   '{default: MERGED},   // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
-    PipeConfig: AFTER
+    PipeConfig: BEFORE
   };
 
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
@@ -267,8 +267,13 @@ package fpnew_pkg;
                   '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
-    PipeConfig: AFTER
+    PipeConfig: BEFORE
   };
+
+  // -----------------------
+  // Synthesis optimization
+  // -----------------------
+  localparam logic DONT_CARE = 1'b1; // the value to assign as don't care
 
   // -------------------------
   // General helper functions

@@ -194,10 +194,10 @@ module fpnew_fma_multi #(
                                        (SUPER_MAN_BITS - MAN_BITS); // move to left of mantissa
       end
     end else begin : inactive_format
-      assign info_q[fmt]                 = 'X; // propagate don't care (format disabled)
-      assign fmt_sign[fmt]               = 'x; // propagate don't care (format disabled)
-      assign fmt_exponent[fmt]           = 'X; // propagate don't care (format disabled)
-      assign fmt_mantissa[fmt]           = 'X; // propagate don't care (format disabled)
+      assign info_q[fmt]                 = '{default: fpnew_pkg::DONT_CARE}; // format disabled
+      assign fmt_sign[fmt]               = fpnew_pkg::DONT_CARE;             // format disabled
+      assign fmt_exponent[fmt]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
+      assign fmt_mantissa[fmt]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
     end
   end
 
@@ -241,12 +241,12 @@ module fpnew_fma_multi #(
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
-        operand_a  = 'X;
-        operand_b  = 'X;
-        operand_c  = 'X;
-        info_a     = 'X;
-        info_b     = 'X;
-        info_c     = 'X;
+        operand_a  = '{default: fpnew_pkg::DONT_CARE};
+        operand_b  = '{default: fpnew_pkg::DONT_CARE};
+        operand_c  = '{default: fpnew_pkg::DONT_CARE};
+        info_a     = '{default: fpnew_pkg::DONT_CARE};
+        info_b     = '{default: fpnew_pkg::DONT_CARE};
+        info_c     = '{default: fpnew_pkg::DONT_CARE};
       end
     endcase
   end
@@ -332,7 +332,7 @@ module fpnew_fma_multi #(
         fmt_special_result[fmt][FP_WIDTH-1:0] = special_res;
       end
     end else begin : inactive_format
-      assign fmt_special_result[fmt] = 'X;
+      assign fmt_special_result[fmt] = '{default: fpnew_pkg::DONT_CARE};
     end
   end
 
@@ -689,8 +689,8 @@ module fpnew_fma_multi #(
         assign fmt_round_sticky_bits[fmt][0] = sticky_after_norm | of_before_round;
       end
     end else begin : inactive_format
-      assign fmt_pre_round_abs[fmt] = 'X;
-      assign fmt_round_sticky_bits[fmt] = 'X;
+      assign fmt_pre_round_abs[fmt] = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_round_sticky_bits[fmt] = '{default: fpnew_pkg::DONT_CARE};
     end
   end
 
@@ -734,9 +734,9 @@ module fpnew_fma_multi #(
         fmt_result[fmt][FP_WIDTH-1:0] = {rounded_sign, rounded_abs[EXP_BITS+MAN_BITS-1:0]};
       end
     end else begin : inactive_format
-      assign fmt_uf_after_round[fmt] = 'X;
-      assign fmt_of_after_round[fmt] = 'X;
-      assign fmt_result[fmt]         = 'X;
+      assign fmt_uf_after_round[fmt] = fpnew_pkg::DONT_CARE;
+      assign fmt_of_after_round[fmt] = fpnew_pkg::DONT_CARE;
+      assign fmt_result[fmt]         = '{default: fpnew_pkg::DONT_CARE};
     end
   end
 
