@@ -258,7 +258,7 @@ package fpnew_pkg;
                   '{default: MERGED},   // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
-    PipeConfig: AFTER
+    PipeConfig: BEFORE
   };
 
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
@@ -267,7 +267,7 @@ package fpnew_pkg;
                   '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
-    PipeConfig: AFTER
+    PipeConfig: BEFORE
   };
 
   // -----------------------

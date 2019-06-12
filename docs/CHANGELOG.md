@@ -19,6 +19,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Changed
 - Don't care logic value can be changed from the package now
+- Default pipeline config in the package is now `BEFORE`
 
 ### Fixed
 - Don't care values are assigned `'1` instead of `'X` by default
