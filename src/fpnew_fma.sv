@@ -199,12 +199,12 @@ module fpnew_fma #(
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
-        operand_a  = 'X;
-        operand_b  = 'X;
-        operand_c  = 'X;
-        info_a     = 'X;
-        info_b     = 'X;
-        info_c     = 'X;
+        operand_a  = '{default: fpnew_pkg::DONT_CARE};
+        operand_b  = '{default: fpnew_pkg::DONT_CARE};
+        operand_c  = '{default: fpnew_pkg::DONT_CARE};
+        info_a     = '{default: fpnew_pkg::DONT_CARE};
+        info_b     = '{default: fpnew_pkg::DONT_CARE};
+        info_c     = '{default: fpnew_pkg::DONT_CARE};
       end
     endcase
   end

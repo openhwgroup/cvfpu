@@ -94,7 +94,7 @@ module fpnew_i2fcast #(
       .clk_i,
       .rst_ni,
       .operands_i,
-      .is_boxed_i     ( 'X                         ), // unused
+      .is_boxed_i     ( '{default: fpnew_pkg::DONT_CARE} ), // unused
       .rnd_mode_i,
       .op_i           ( fpnew_pkg::FMADD           ), // unused
       .op_mod_i,

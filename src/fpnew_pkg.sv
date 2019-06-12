@@ -270,6 +270,11 @@ package fpnew_pkg;
     PipeConfig: AFTER
   };
 
+  // -----------------------
+  // Synthesis optimization
+  // -----------------------
+  localparam logic DONT_CARE = 1'b1; // the value to assign as don't care
+
   // -------------------------
   // General helper functions
   // -------------------------
