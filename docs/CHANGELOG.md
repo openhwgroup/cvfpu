@@ -15,6 +15,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Fixed
 - Don't care assignments to structs have been expanded for better tool support
 - Undriven busy signal in output pipeline bypass
+- Typo in the documentation about the multiply operation
 
 ## [0.5.6] - 2019-06-12
 
