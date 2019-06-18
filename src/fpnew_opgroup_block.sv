@@ -130,8 +130,8 @@ module fpnew_opgroup_block #(
       // Outputs are don't care
       assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
-      assign fmt_outputs[fmt].ext_bit  = fpnew_pkg::DONT_CARE;
-      assign fmt_outputs[fmt].tag  = TagType'(fpnew_pkg::DONT_CARE);
+      assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
+      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
 
     // Tie off disabled formats
     end else if (!FpFmtMask[fmt] || (FmtUnitTypes[fmt] == fpnew_pkg::DISABLED)) begin : disable_fmt
@@ -141,8 +141,8 @@ module fpnew_opgroup_block #(
       // Outputs are don't care
       assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
-      assign fmt_outputs[fmt].ext_bit  = fpnew_pkg::DONT_CARE;
-      assign fmt_outputs[fmt].tag  = TagType'(fpnew_pkg::DONT_CARE);      
+      assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
+      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);      
     end
   end
 
