@@ -739,6 +739,7 @@ module fpnew_cast_multi #(
     assign tag_o           = tag_q2;
     assign aux_o           = aux_q2;
     assign out_valid_o     = out_valid_inside;
+    assign busy_output     = 1'b0;
   end
 
   assign busy_o = busy_input | busy_inside | busy_output;
