@@ -753,13 +753,11 @@ module fpnew_fma_multi #(
 
   // Assemble regular result
   assign regular_result = fmt_result[dst_fmt_q2];
-  assign regular_status = '{
-    NV: 1'b0, // only valid cases are handled in regular path
-    DZ: 1'b0, // no divisions
-    OF: of_before_round | of_after_round,         // rounding can introduce new overflow
-    UF: uf_after_round & regular_status.NX,                      // only inexact results raise UF
-    NX: (| round_sticky_bits) | of_before_round | of_after_round // RS bits mean loss in precision
-  };
+  assign regular_status.NV = 1'b0; // only valid cases are handled in regular path
+  assign regular_status.DZ = 1'b0; // no divisions
+  assign regular_status.OF = of_before_round | of_after_round;   // rounding can introduce overflow
+  assign regular_status.UF = uf_after_round & regular_status.NX; // only inexact results raise UF
+  assign regular_status.NX = (| round_sticky_bits) | of_before_round | of_after_round;
 
   // Final results for output pipeline
   logic [WIDTH-1:0]   result_d;
