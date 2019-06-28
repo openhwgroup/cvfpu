@@ -11,6 +11,8 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+`include "common_cells/registers.svh"
+
 module fpnew_fma #(
   parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(0),
   parameter int unsigned             NumPipeRegs = 0,
@@ -64,6 +66,22 @@ module fpnew_fma #(
   localparam int unsigned EXP_WIDTH = fpnew_pkg::maximum(EXP_BITS + 2, LZC_RESULT_WIDTH);
   // Shift amount width: maximum internal mantissa size is 3p+3 bits
   localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3);
+  // Pipelines
+  localparam NUM_INP_REGS = PipeConfig == fpnew_pkg::BEFORE
+                            ? NumPipeRegs
+                            : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                               ? ((NumPipeRegs + 1) / 3) // Second to get distributed regs
+                               : 0); // no regs here otherwise
+  localparam NUM_MID_REGS = PipeConfig == fpnew_pkg::INSIDE
+                          ? NumPipeRegs
+                          : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                             ? ((NumPipeRegs + 2) / 3) // First to get distributed regs
+                             : 0); // no regs here otherwise
+  localparam NUM_OUT_REGS = PipeConfig == fpnew_pkg::AFTER
+                            ? NumPipeRegs
+                            : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                               ? (NumPipeRegs / 3) // Last to get distributed regs
+                               : 0); // no regs here otherwise
 
   // ----------------
   // Type definition
@@ -77,71 +95,49 @@ module fpnew_fma #(
   // ---------------
   // Input pipeline
   // ---------------
-  // Pipelined input signals
-  logic [2:0][WIDTH-1:0] operands_q;
-  logic [2:0]            is_boxed_q;
-  fpnew_pkg::roundmode_e rnd_mode_q;
-  fpnew_pkg::operation_e op_q;
-  logic                  op_mod_q;
-  TagType                tag_q;
-  AuxType                aux_q;
-  logic                  out_valid_input;
-  logic                  in_ready_inside; // written by inside pipeline
-  logic                  busy_input;
+  // Input pipeline signals, index i holds signal after i register stages
+  logic                  [0:NUM_INP_REGS][2:0][WIDTH-1:0] inp_pipe_operands_q;
+  logic                  [0:NUM_INP_REGS][2:0]            inp_pipe_is_boxed_q;
+  fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                 inp_pipe_rnd_mode_q;
+  fpnew_pkg::operation_e [0:NUM_INP_REGS]                 inp_pipe_op_q;
+  logic                  [0:NUM_INP_REGS]                 inp_pipe_op_mod_q;
+  TagType                [0:NUM_INP_REGS]                 inp_pipe_tag_q;
+  AuxType                [0:NUM_INP_REGS]                 inp_pipe_aux_q;
+  logic                  [0:NUM_INP_REGS]                 inp_pipe_valid_q;
+  // Ready signal is combinatorial for all stages
+  logic [0:NUM_INP_REGS] inp_pipe_ready;
 
-  // Generate pipeline at input if needed
-  if (PipeConfig==fpnew_pkg::BEFORE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : input_pipeline
-    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
-                          ? (NumPipeRegs / 3) // Last to get regs
-                          : NumPipeRegs;
-    fpnew_pipe_in #(
-      .Width       ( WIDTH       ),
-      .NumPipeRegs ( NUM_REGS    ),
-      .NumOperands ( 3           ),
-      .TagType     ( TagType     ),
-      .AuxType     ( AuxType     )
-    ) i_input_pipe (
-      .clk_i,
-      .rst_ni,
-      .operands_i,
-      .is_boxed_i,
-      .rnd_mode_i,
-      .op_i,
-      .op_mod_i,
-      .src_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
-      .dst_fmt_i      ( fpnew_pkg::fp_format_e'(0)  ), // unused
-      .int_fmt_i      ( fpnew_pkg::int_format_e'(0) ), // unused
-      .tag_i,
-      .aux_i,
-      .in_valid_i,
-      .in_ready_o,
-      .flush_i,
-      .operands_o     ( operands_q       ),
-      .is_boxed_o     ( is_boxed_q       ),
-      .rnd_mode_o     ( rnd_mode_q       ),
-      .op_o           ( op_q             ),
-      .op_mod_o       ( op_mod_q         ),
-      .src_fmt_o      ( /* unused */     ),
-      .dst_fmt_o      ( /* unused */     ),
-      .int_fmt_o      ( /* unused */     ),
-      .tag_o          ( tag_q            ),
-      .aux_o          ( aux_q            ),
-      .out_valid_o    ( out_valid_input  ),
-      .out_ready_i    ( in_ready_inside  ),
-      .busy_o         ( busy_input       )
-    );
-  // Otherwise pass through inputs
-  end else begin : no_input_pipeline
-    assign in_ready_o      = in_ready_inside;
-    assign operands_q      = operands_i;
-    assign is_boxed_q      = is_boxed_i;
-    assign rnd_mode_q      = rnd_mode_i;
-    assign op_q            = op_i;
-    assign op_mod_q        = op_mod_i;
-    assign tag_q           = tag_i;
-    assign aux_q           = aux_i;
-    assign out_valid_input = in_valid_i;
-    assign busy_input      = 1'b0;
+  // Input stage: First element of pipeline is taken from inputs
+  assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_is_boxed_q[0] = is_boxed_i;
+  assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
+  assign inp_pipe_op_q[0]       = op_i;
+  assign inp_pipe_op_mod_q[0]   = op_mod_i;
+  assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_aux_q[0]      = aux_i;
+  assign inp_pipe_valid_q[0]    = in_valid_i;
+  // Input stage: Propagate pipeline ready signal to updtream circuitry
+  assign in_ready_o = inp_pipe_ready[0];
+  // Generate the register stages
+  for (genvar i = 0; i < NUM_INP_REGS; i++) begin : gen_input_pipeline
+    // Internal register enable for this stage
+    logic reg_ena;
+    // Determine the ready signal of the current stage - advance the pipeline:
+    // 1. if the next stage is ready for our data
+    // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+    assign inp_pipe_ready[i] = inp_pipe_ready[i+1] | ~inp_pipe_valid_q[i+1];
+    // Valid: enabled by ready signal, synchronous clear with the flush signal
+    `FFLARNC(inp_pipe_valid_q[i+1], inp_pipe_valid_q[i], inp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+    // Enable register if pipleine ready and a valid data item is present
+    assign reg_ena = inp_pipe_ready[i] & inp_pipe_valid_q[i];
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_is_boxed_q[i+1], inp_pipe_is_boxed_q[i], reg_ena, '0)
+    `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
+    `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
+    `FFL(inp_pipe_op_mod_q[i+1],   inp_pipe_op_mod_q[i],   reg_ena, '0)
+    `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
 
   // -----------------
@@ -154,9 +150,9 @@ module fpnew_fma #(
     .FpFormat    ( FpFormat ),
     .NumOperands ( 3        )
     ) i_class_inputs (
-    .operands_i ( operands_q ),
-    .is_boxed_i ( is_boxed_q ),
-    .info_o     ( info_q     )
+    .operands_i ( inp_pipe_operands_q[NUM_INP_REGS] ),
+    .is_boxed_i ( inp_pipe_is_boxed_q[NUM_INP_REGS] ),
+    .info_o     ( info_q                            )
   );
 
   fp_t                 operand_a, operand_b, operand_c;
@@ -177,17 +173,17 @@ module fpnew_fma #(
   always_comb begin : op_select
 
     // Default assignments - packing-order-agnostic
-    operand_a = operands_q[0];
-    operand_b = operands_q[1];
-    operand_c = operands_q[2];
+    operand_a = inp_pipe_operands_q[NUM_INP_REGS][0];
+    operand_b = inp_pipe_operands_q[NUM_INP_REGS][1];
+    operand_c = inp_pipe_operands_q[NUM_INP_REGS][2];
     info_a    = info_q[0];
     info_b    = info_q[1];
     info_c    = info_q[2];
 
     // op_mod_q inverts sign of operand C
-    operand_c.sign = operand_c.sign ^ op_mod_q;
+    operand_c.sign = operand_c.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
 
-    unique case (op_q)
+    unique case (inp_pipe_op_q[NUM_INP_REGS])
       fpnew_pkg::FMADD:  ; // do nothing
       fpnew_pkg::FNMSUB: operand_a.sign = ~operand_a.sign; // invert sign of product
       fpnew_pkg::ADD: begin // Set multiplicand to +1
@@ -357,121 +353,121 @@ module fpnew_fma #(
   assign addend_shifted  = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
   assign inject_carry_in = effective_subtraction & ~sticky_before_add;
 
+  // ------
+  // Adder
+  // ------
+  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
+  logic                        sum_carry; // observe carry bit from sum for sign fixing
+  logic [3*PRECISION_BITS+3:0] sum;       // discard carry as sum won't overflow
+  logic                        final_sign;
+
+  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
+  assign sum_raw = product_shifted + addend_shifted + inject_carry_in;
+  assign sum_carry = sum_raw[3*PRECISION_BITS+4];
+
+  // Complement negative sum (can only happen in subtraction -> overflows for positive results)
+  assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
+
+  // In case of a mispredicted subtraction result, do a sign flip
+  assign final_sign = (effective_subtraction && (sum_carry == tentative_sign))
+                      ? 1'b1
+                      : (effective_subtraction ? 1'b0 : tentative_sign);
+
   // ---------------
   // Internal pipeline
   // ---------------
-  // Pipelined internal signals
+  // Pipeline output signals as non-arrays
   logic                          effective_subtraction_q;
   logic signed [EXP_WIDTH-1:0]   exponent_product_q;
   logic signed [EXP_WIDTH-1:0]   exponent_difference_q;
   logic signed [EXP_WIDTH-1:0]   tentative_exponent_q;
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_q;
   logic                          sticky_before_add_q;
-  fpnew_pkg::roundmode_e         rnd_mode_q2;
+  logic [3*PRECISION_BITS+3:0]   sum_q;
+  logic                          final_sign_q;
+  fpnew_pkg::roundmode_e         rnd_mode_q;
+  logic                          result_is_special_q;
   fp_t                           special_result_q;
   fpnew_pkg::status_t            special_status_q;
-  logic                          result_is_special_q;
-  TagType                        tag_q2;
-  AuxType                        aux_q2;
-  logic                          out_valid_inside;
-  logic                          in_ready_output; // written by output pipeline
-  logic                          busy_inside;
+  // Internal pipeline signals, index i holds signal after i register stages
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_eff_sub_q;
+  logic signed           [0:NUM_MID_REGS][EXP_WIDTH-1:0]          mid_pipe_exp_prod_q;
+  logic signed           [0:NUM_MID_REGS][EXP_WIDTH-1:0]          mid_pipe_exp_diff_q;
+  logic signed           [0:NUM_MID_REGS][EXP_WIDTH-1:0]          mid_pipe_tent_exp_q;
+  logic                  [0:NUM_MID_REGS][SHIFT_AMOUNT_WIDTH-1:0] mid_pipe_add_shamt_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_sticky_q;
+  logic                  [0:NUM_MID_REGS][3*PRECISION_BITS+3:0]   mid_pipe_sum_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_final_sign_q;
+  fpnew_pkg::roundmode_e [0:NUM_MID_REGS]                         mid_pipe_rnd_mode_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_res_is_spec_q;
+  fp_t                   [0:NUM_MID_REGS]                         mid_pipe_spec_res_q;
+  fpnew_pkg::status_t    [0:NUM_MID_REGS]                         mid_pipe_spec_stat_q;
+  TagType                [0:NUM_MID_REGS]                         mid_pipe_tag_q;
+  AuxType                [0:NUM_MID_REGS]                         mid_pipe_aux_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_valid_q;
+  // Ready signal is combinatorial for all stages
+  logic [0:NUM_MID_REGS] mid_pipe_ready;
 
-  // ------
-  // Adder
-  // ------
-  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
-  logic                        sum_carry; // observe carry bit from sum for sign fixing
-  logic [3*PRECISION_BITS+3:0] sum_d, sum_q;       // discard carry as sum won't overflow
-  logic                        final_sign_d, final_sign_q;
+  // Input stage: First element of pipeline is taken from upstream logic
+  assign mid_pipe_eff_sub_q[0]     = effective_subtraction;
+  assign mid_pipe_exp_prod_q[0]    = exponent_product;
+  assign mid_pipe_exp_diff_q[0]    = exponent_difference;
+  assign mid_pipe_tent_exp_q[0]    = tentative_exponent;
+  assign mid_pipe_add_shamt_q[0]   = addend_shamt;
+  assign mid_pipe_sticky_q[0]      = sticky_before_add;
+  assign mid_pipe_sum_q[0]         = sum;
+  assign mid_pipe_final_sign_q[0]  = final_sign;
+  assign mid_pipe_rnd_mode_q[0]    = inp_pipe_rnd_mode_q[NUM_INP_REGS];
+  assign mid_pipe_res_is_spec_q[0] = result_is_special;
+  assign mid_pipe_spec_res_q[0]    = special_result;
+  assign mid_pipe_spec_stat_q[0]   = special_status;
+  assign mid_pipe_tag_q[0]         = inp_pipe_tag_q[NUM_INP_REGS];
+  assign mid_pipe_aux_q[0]         = inp_pipe_aux_q[NUM_INP_REGS];
+  assign mid_pipe_valid_q[0]       = inp_pipe_valid_q[NUM_INP_REGS];
+  // Input stage: Propagate pipeline ready signal to input pipe
+  assign inp_pipe_ready[NUM_INP_REGS] = mid_pipe_ready[0];
 
-  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw = product_shifted + addend_shifted + inject_carry_in;
-  assign sum_carry = sum_raw[3*PRECISION_BITS+4];
-
-
-  // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum_d        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
-
-  // In case of a mispredicted subtraction result, do a sign flip
-  assign final_sign_d = (effective_subtraction && (sum_carry == tentative_sign))
-                      ? 1'b1
-                      : (effective_subtraction ? 1'b0 : tentative_sign);
-
-  // Generate pipeline between mul and add if needed
-  if (PipeConfig==fpnew_pkg::INSIDE || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : inside_pipeline
-    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
-                          ? ((NumPipeRegs + 2) / 3) // First to get regs
-                          : NumPipeRegs;
-
-    fpnew_pipe_inside_fma #(
-      .ExpWidth    ( EXP_WIDTH      ),
-      .PrecBits    ( PRECISION_BITS ),
-      .NumPipeRegs ( NUM_REGS       ),
-      .FpType      ( fp_t           ),
-      .TagType     ( TagType        ),
-      .AuxType     ( AuxType        )
-    ) i_inside_pipe (
-      .clk_i,
-      .rst_ni,
-      .effective_subtraction_i ( effective_subtraction      ),
-      .final_sign_i            ( final_sign_d               ),
-      .exponent_product_i      ( exponent_product           ),
-      .exponent_difference_i   ( exponent_difference        ),
-      .tentative_exponent_i    ( tentative_exponent         ),
-      .addend_shamt_i          ( addend_shamt               ),
-      .sticky_before_add_i     ( sticky_before_add          ),
-      .sum_i                   ( sum_d                      ),
-      .rnd_mode_i              ( rnd_mode_q                 ),
-      .dst_fmt_i               ( fpnew_pkg::fp_format_e'(0) ), // unused
-      .result_is_special_i     ( result_is_special          ),
-      .special_result_i        ( special_result             ),
-      .special_status_i        ( special_status             ),
-      .tag_i                   ( tag_q                      ),
-      .aux_i                   ( aux_q                      ),
-      .in_valid_i              ( out_valid_input            ),
-      .in_ready_o              ( in_ready_inside            ),
-      .flush_i,
-      .effective_subtraction_o ( effective_subtraction_q ),
-      .final_sign_o            ( final_sign_q            ),
-      .exponent_product_o      ( exponent_product_q      ),
-      .exponent_difference_o   ( exponent_difference_q   ),
-      .tentative_exponent_o    ( tentative_exponent_q    ),
-      .addend_shamt_o          ( addend_shamt_q          ),
-      .sticky_before_add_o     ( sticky_before_add_q     ),
-      .sum_o                   ( sum_q                   ),
-      .rnd_mode_o              ( rnd_mode_q2             ),
-      .dst_fmt_o               ( /* unused */            ),
-      .result_is_special_o     ( result_is_special_q     ),
-      .special_result_o        ( special_result_q        ),
-      .special_status_o        ( special_status_q        ),
-      .tag_o                   ( tag_q2                  ),
-      .aux_o                   ( aux_q2                  ),
-      .out_valid_o             ( out_valid_inside        ),
-      .out_ready_i             ( in_ready_output         ),
-      .busy_o                  ( busy_inside             )
-    );
-
-  // Otherwise pass through inputs
-  end else begin : no_inside_pipeline
-    assign in_ready_inside         = in_ready_output;
-    assign effective_subtraction_q = effective_subtraction;
-    assign final_sign_q            = final_sign_d;
-    assign exponent_product_q      = exponent_product;
-    assign exponent_difference_q   = exponent_difference;
-    assign tentative_exponent_q    = tentative_exponent;
-    assign addend_shamt_q          = addend_shamt;
-    assign sticky_before_add_q     = sticky_before_add;
-    assign rnd_mode_q2             = rnd_mode_q;
-    assign result_is_special_q     = result_is_special;
-    assign special_result_q        = special_result;
-    assign special_status_q        = special_status;
-    assign tag_q2                  = tag_q;
-    assign aux_q2                  = aux_q;
-    assign out_valid_inside        = out_valid_input;
-    assign busy_inside             = 1'b0;
-    assign sum_q                   = sum_d;
+  // Generate the register stages
+  for (genvar i = 0; i < NUM_MID_REGS; i++) begin : gen_inside_pipeline
+    // Internal register enable for this stage
+    logic reg_ena;
+    // Determine the ready signal of the current stage - advance the pipeline:
+    // 1. if the next stage is ready for our data
+    // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+    assign mid_pipe_ready[i] = mid_pipe_ready[i+1] | ~mid_pipe_valid_q[i+1];
+    // Valid: enabled by ready signal, synchronous clear with the flush signal
+    `FFLARNC(mid_pipe_valid_q[i+1], mid_pipe_valid_q[i], mid_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+    // Enable register if pipleine ready and a valid data item is present
+    assign reg_ena = mid_pipe_ready[i] & mid_pipe_valid_q[i];
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_exp_prod_q[i+1],    mid_pipe_exp_prod_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_exp_diff_q[i+1],    mid_pipe_exp_diff_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_tent_exp_q[i+1],    mid_pipe_tent_exp_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_add_shamt_q[i+1],   mid_pipe_add_shamt_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_sticky_q[i+1],      mid_pipe_sticky_q[i],      reg_ena, '0)
+    `FFL(mid_pipe_sum_q[i+1],         mid_pipe_sum_q[i],         reg_ena, '0)
+    `FFL(mid_pipe_final_sign_q[i+1],  mid_pipe_final_sign_q[i],  reg_ena, '0)
+    `FFL(mid_pipe_rnd_mode_q[i+1],    mid_pipe_rnd_mode_q[i],    reg_ena, fpnew_pkg::RNE)
+    `FFL(mid_pipe_res_is_spec_q[i+1], mid_pipe_res_is_spec_q[i], reg_ena, '0)
+    `FFL(mid_pipe_spec_res_q[i+1],    mid_pipe_spec_res_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_spec_stat_q[i+1],   mid_pipe_spec_stat_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_tag_q[i+1],         mid_pipe_tag_q[i],         reg_ena, TagType'('0))
+    `FFL(mid_pipe_aux_q[i+1],         mid_pipe_aux_q[i],         reg_ena, AuxType'('0))
   end
+  // Output stage: assign selected pipe outputs to signals for later use
+  assign effective_subtraction_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
+  assign exponent_product_q      = mid_pipe_exp_prod_q[NUM_MID_REGS];
+  assign exponent_difference_q   = mid_pipe_exp_diff_q[NUM_MID_REGS];
+  assign tentative_exponent_q    = mid_pipe_tent_exp_q[NUM_MID_REGS];
+  assign addend_shamt_q          = mid_pipe_add_shamt_q[NUM_MID_REGS];
+  assign sticky_before_add_q     = mid_pipe_sticky_q[NUM_MID_REGS];
+  assign sum_q                   = mid_pipe_sum_q[NUM_MID_REGS];
+  assign final_sign_q            = mid_pipe_final_sign_q[NUM_MID_REGS];
+  assign rnd_mode_q              = mid_pipe_rnd_mode_q[NUM_MID_REGS];
+  assign result_is_special_q     = mid_pipe_res_is_spec_q[NUM_MID_REGS];
+  assign special_result_q        = mid_pipe_spec_res_q[NUM_MID_REGS];
+  assign special_status_q        = mid_pipe_spec_stat_q[NUM_MID_REGS];
 
   // --------------
   // Normalization
@@ -593,7 +589,7 @@ module fpnew_fma #(
     .abs_value_i             ( pre_round_abs           ),
     .sign_i                  ( pre_round_sign          ),
     .round_sticky_bits_i     ( round_sticky_bits       ),
-    .rnd_mode_i              ( rnd_mode_q2             ),
+    .rnd_mode_i              ( rnd_mode_q              ),
     .effective_subtraction_i ( effective_subtraction_q ),
     .abs_rounded_o           ( rounded_abs             ),
     .sign_o                  ( rounded_sign            ),
@@ -621,7 +617,6 @@ module fpnew_fma #(
   // Final results for output pipeline
   fp_t                result_d;
   fpnew_pkg::status_t status_d;
-  logic               busy_output;
 
   // Select output depending on special case detection
   assign result_d = result_is_special_q ? special_result_q : regular_result;
@@ -630,52 +625,49 @@ module fpnew_fma #(
   // ----------------
   // Output Pipeline
   // ----------------
-  // Generate pipeline at output if needed
-  if (PipeConfig==fpnew_pkg::AFTER || PipeConfig==fpnew_pkg::DISTRIBUTED) begin : output_pipline
-    localparam NUM_REGS = PipeConfig==fpnew_pkg::DISTRIBUTED
-                          ? ((NumPipeRegs + 1) / 3) // Second to get regs
-                          : NumPipeRegs;
-    fpnew_pipe_out #(
-      .Width       ( WIDTH       ),
-      .NumPipeRegs ( NUM_REGS    ),
-      .TagType     ( TagType     ),
-      .AuxType     ( AuxType     )
-    ) i_output_pipe (
-      .clk_i,
-      .rst_ni,
-      .result_i        ( result_d         ),
-      .status_i        ( status_d         ),
-      .extension_bit_i ( 1'b1             ), // always NaN-Box result
-      .class_mask_i    ( fpnew_pkg::QNAN  ), // unused
-      .is_class_i      ( 1'b0             ), // unused
-      .tag_i           ( tag_q2           ),
-      .aux_i           ( aux_q2           ),
-      .in_valid_i      ( out_valid_inside ),
-      .in_ready_o      ( in_ready_output  ),
-      .flush_i,
-      .result_o,
-      .status_o,
-      .extension_bit_o,
-      .class_mask_o    ( /* unused */     ),
-      .is_class_o      ( /* unused */     ),
-      .tag_o,
-      .aux_o,
-      .out_valid_o,
-      .out_ready_i,
-      .busy_o          ( busy_output      )
-    );
-  // Otherwise pass through outputs
-  end else begin : no_output_pipeline
-    assign in_ready_output = out_ready_i;
-    assign result_o        = result_d;
-    assign status_o        = status_d;
-    assign extension_bit_o = 1'b1; // always NaN-Box result
-    assign tag_o           = tag_q2;
-    assign aux_o           = aux_q2;
-    assign out_valid_o     = out_valid_inside;
-    assign busy_output     = 1'b0;
+  // Output pipeline signals, index i holds signal after i register stages
+  fp_t                [0:NUM_OUT_REGS] out_pipe_result_q;
+  fpnew_pkg::status_t [0:NUM_OUT_REGS] out_pipe_status_q;
+  TagType             [0:NUM_OUT_REGS] out_pipe_tag_q;
+  AuxType             [0:NUM_OUT_REGS] out_pipe_aux_q;
+  logic               [0:NUM_OUT_REGS] out_pipe_valid_q;
+  // Ready signal is combinatorial for all stages
+  logic [0:NUM_OUT_REGS] out_pipe_ready;
+
+  // Input stage: First element of pipeline is taken from inputs
+  assign out_pipe_result_q[0] = result_d;
+  assign out_pipe_status_q[0] = status_d;
+  assign out_pipe_tag_q[0]    = mid_pipe_tag_q[NUM_MID_REGS];
+  assign out_pipe_aux_q[0]    = mid_pipe_aux_q[NUM_MID_REGS];
+  assign out_pipe_valid_q[0]  = mid_pipe_valid_q[NUM_MID_REGS];
+  // Input stage: Propagate pipeline ready signal to inside pipe
+  assign mid_pipe_ready[NUM_MID_REGS] = out_pipe_ready[0];
+  // Generate the register stages
+  for (genvar i = 0; i < NUM_OUT_REGS; i++) begin : gen_output_pipeline
+    // Internal register enable for this stage
+    logic reg_ena;
+    // Determine the ready signal of the current stage - advance the pipeline:
+    // 1. if the next stage is ready for our data
+    // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+    assign out_pipe_ready[i] = out_pipe_ready[i+1] | ~out_pipe_valid_q[i+1];
+    // Valid: enabled by ready signal, synchronous clear with the flush signal
+    `FFLARNC(out_pipe_valid_q[i+1], out_pipe_valid_q[i], out_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+    // Enable register if pipleine ready and a valid data item is present
+    assign reg_ena = out_pipe_ready[i] & out_pipe_valid_q[i];
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
+    `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
+    `FFL(out_pipe_tag_q[i+1],    out_pipe_tag_q[i],    reg_ena, TagType'('0))
+    `FFL(out_pipe_aux_q[i+1],    out_pipe_aux_q[i],    reg_ena, AuxType'('0))
   end
-
-  assign busy_o = busy_input | busy_inside | busy_output;
-
+  // Output stage: Ready travels backwards from output side, driven by downstream circuitry
+  assign out_pipe_ready[NUM_OUT_REGS] = out_ready_i;
+  // Output stage: assign module outputs
+  assign result_o        = out_pipe_result_q[NUM_OUT_REGS];
+  assign status_o        = out_pipe_status_q[NUM_OUT_REGS];
+  assign extension_bit_o = 1'b1; // always NaN-Box result
+  assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
+  assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
+  assign busy_o          = (| {inp_pipe_valid_q, mid_pipe_valid_q, out_pipe_valid_q});
 endmodule

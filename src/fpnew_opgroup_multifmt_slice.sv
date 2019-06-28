@@ -11,6 +11,8 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+`include "common_cells/registers.svh"
+
 module fpnew_opgroup_multifmt_slice #(
   parameter fpnew_pkg::opgroup_e     OpGroup       = fpnew_pkg::CONV,
   parameter int unsigned             Width         = 64,
@@ -340,43 +342,40 @@ module fpnew_opgroup_multifmt_slice #(
 
   // Bypass lanes with target operand for vectorial casts
   if (OpGroup == fpnew_pkg::CONV) begin : target_regs
-    logic in_valid, out_ready;
+    // Bypass pipeline signals, index i holds signal after i register stages
+    logic [0:NumPipeRegs][Width-1:0] byp_pipe_target_q;
+    logic [0:NumPipeRegs][2:0]       byp_pipe_aux_q;
+    logic [0:NumPipeRegs]            byp_pipe_valid_q;
+    // Ready signal is combinatorial for all stages
+    logic [0:NumPipeRegs] byp_pipe_ready;
 
-    assign in_valid = in_valid_i & vectorial_op;
-    // instantiate pipe
-    fpnew_pipe_out #(
-      .Width       ( Width       ),
-      .NumPipeRegs ( NumPipeRegs ),
-      .TagType     ( logic       ),
-      .AuxType     ( logic [2:0] )
-    ) target_pipe (
-      .clk_i,
-      .rst_ni,
-      .result_i        ( conv_target_d   ),
-      .status_i        ( '0              ), // unused
-      .extension_bit_i ( 1'b0            ), // unused
-      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
-      .is_class_i      ( 1'b0            ), // unused
-      .tag_i           ( 1'b0            ), // unused
-      .aux_i           ( target_aux_d    ),
-      .in_valid_i      ( in_valid        ),
-      .in_ready_o      ( /* unused */    ),
-      .flush_i,
-      .result_o        ( conv_target_q   ),
-      .status_o        ( /* unused */    ),
-      .extension_bit_o ( /* unused */    ),
-      .class_mask_o    ( /* unused */    ),
-      .is_class_o      ( /* unused */    ),
-      .tag_o           ( /* unused */    ),
-      .aux_o           ( target_aux_q    ),
-      .out_valid_o     ( /* unused */    ),
-      .out_ready_i     ( out_ready       ),
-      .busy_o          ( /* unused */    )
-    );
-    assign out_ready = out_ready_i & result_is_vector;
+    // Input stage: First element of pipeline is taken from inputs
+    assign byp_pipe_target_q[0]  = conv_target_d;
+    assign byp_pipe_aux_q[0]     = target_aux_d;
+    assign byp_pipe_valid_q[0]   = in_valid_i & vectorial_op;
+    // Generate the register stages
+    for (genvar i = 0; i < NumPipeRegs; i++) begin : gen_bypass_pipeline
+      // Internal register enable for this stage
+      logic reg_ena;
+      // Determine the ready signal of the current stage - advance the pipeline:
+      // 1. if the next stage is ready for our data
+      // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+      assign byp_pipe_ready[i] = byp_pipe_ready[i+1] | ~byp_pipe_valid_q[i+1];
+      // Valid: enabled by ready signal, synchronous clear with the flush signal
+      `FFLARNC(byp_pipe_valid_q[i+1], byp_pipe_valid_q[i], byp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+      // Enable register if pipleine ready and a valid data item is present
+      assign reg_ena = byp_pipe_ready[i] & byp_pipe_valid_q[i];
+      // Generate the pipeline registers within the stages, use enable-registers
+      `FFL(byp_pipe_target_q[i+1],  byp_pipe_target_q[i],  reg_ena, '0)
+      `FFL(byp_pipe_aux_q[i+1],     byp_pipe_aux_q[i],     reg_ena, '0)
+    end
+    // Output stage: Ready travels backwards from output side, driven by downstream circuitry
+    assign byp_pipe_ready[NumPipeRegs] = out_ready_i & result_is_vector;
+    // Output stage: assign module outputs
+    assign conv_target_q = byp_pipe_target_q[NumPipeRegs];
 
     // decode the aux data
-    assign {result_vec_op, result_is_cpk} = target_aux_q;
+    assign {result_vec_op, result_is_cpk} = byp_pipe_aux_q[NumPipeRegs];
   end else begin : no_conv
     assign {result_vec_op, result_is_cpk} = '0;
   end

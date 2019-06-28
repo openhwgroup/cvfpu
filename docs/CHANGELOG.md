@@ -12,6 +12,8 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Added
 ### Changed
+- Pipelines are generated in the datapath modules instead of separate instances
+
 ### Fixed
 - Don't care assignments to structs have been expanded for better tool support [(#14)](https://github.com/pulp-platform/fpnew/pull/14)
 - Undriven busy signal in output pipeline bypass
