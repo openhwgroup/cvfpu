@@ -22,6 +22,9 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Potential simulation/synthesis mismatch of the UF flag
 - [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
 
+### Removed
+- Currently unused modules: `fpnew_pipe*`, `fpnew_{f2i,f2f,i2f}_cast`
+
 ## [0.5.6] - 2019-06-12
 
 ### Changed
