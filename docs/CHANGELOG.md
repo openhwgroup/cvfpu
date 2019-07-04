@@ -13,6 +13,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Added
 ### Changed
 ### Fixed
+- Typo in changelog
 
 ## [0.6.0] - 2019-07-04
 
@@ -28,7 +29,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Various linter warnings
 - Documentation to reflect on updated pipeline distribution order
 - [fpu_div_sqrt_mvp] Bumped to fix linter warnings
-- [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
+- [Bender] Fixed dependencies for Bender [(#15)](https://github.com/pulp-platform/fpnew/pull/15)
 
 ### Removed
 - Currently unused modules: `fpnew_pipe*`, `fpnew_{f2i,f2f,i2f}_cast`
