@@ -12,6 +12,11 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Added
 ### Changed
+### Fixed
+
+## [0.6.0] - 2019-07-04
+
+### Changed
 - Pipelines are generated in the datapath modules instead of separate instances
 
 ### Fixed
@@ -21,11 +26,13 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Generation of merged slices when the first package format is disabled
 - Potential simulation/synthesis mismatch of the UF flag
 - Various linter warnings
+- Documentation to reflect on updated pipeline distribution order
 - [fpu_div_sqrt_mvp] Bumped to fix linter warnings
 - [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
 
 ### Removed
 - Currently unused modules: `fpnew_pipe*`, `fpnew_{f2i,f2f,i2f}_cast`
+
 
 ## [0.5.6] - 2019-06-12
 
