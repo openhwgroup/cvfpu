@@ -91,13 +91,13 @@ module fpnew_opgroup_block #(
       assign in_valid = in_valid_i & (dst_fmt_i == fmt); // enable selected format
 
       fpnew_opgroup_fmt_slice #(
-        .OpGroup       ( OpGroup          ),
-        .FpFormat      ( fmt              ),
-        .Width         ( Width            ),
-        .EnableVectors ( EnableVectors    ),
-        .NumPipeRegs   ( FmtPipeRegs[fmt] ),
-        .PipeConfig    ( PipeConfig       ),
-        .TagType       ( TagType          )
+        .OpGroup       ( OpGroup                      ),
+        .FpFormat      ( fpnew_pkg::fp_format_e'(fmt) ),
+        .Width         ( Width                        ),
+        .EnableVectors ( EnableVectors                ),
+        .NumPipeRegs   ( FmtPipeRegs[fmt]             ),
+        .PipeConfig    ( PipeConfig                   ),
+        .TagType       ( TagType                      )
       ) i_fmt_slice (
         .clk_i,
         .rst_ni,
@@ -143,7 +143,7 @@ module fpnew_opgroup_block #(
       assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
-      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);      
+      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
     end
   end
 

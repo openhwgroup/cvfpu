@@ -20,6 +20,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Typo in the documentation about the multiply operation
 - Generation of merged slices when the first package format is disabled
 - Potential simulation/synthesis mismatch of the UF flag
+- Various linter warnings
 - [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
 
 ### Removed

@@ -340,6 +340,13 @@ module fpnew_opgroup_multifmt_slice #(
       assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = '{default: lane_ext_bit[0]};
   end
 
+  // Mute int results if unused
+  for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : int_results_disabled
+    if (OpGroup != fpnew_pkg::CONV) begin : mute_int_result
+      assign ifmt_slice_result[ifmt] = '0;
+    end
+  end
+
   // Bypass lanes with target operand for vectorial casts
   if (OpGroup == fpnew_pkg::CONV) begin : target_regs
     // Bypass pipeline signals, index i holds signal after i register stages

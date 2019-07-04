@@ -126,7 +126,8 @@ module fpnew_opgroup_fmt_slice #(
           .out_ready_i     ( out_ready            ),
           .busy_o          ( lane_busy[lane]      )
         );
-        assign lane_is_class[lane] = 1'b0;
+        assign lane_is_class[lane]   = 1'b0;
+        assign lane_class_mask[lane] = fpnew_pkg::NEGINF;
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
         // fpnew_divsqrt #(
         //   .FpFormat   (FpFormat),
@@ -245,11 +246,14 @@ module fpnew_opgroup_fmt_slice #(
 
   localparam int unsigned CLASS_VEC_BITS = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
 
-  localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
+  // Pad out unused vec_class bits
+  if (CLASS_VEC_BITS < Width) begin : pad_vectorial_class
+    assign slice_vec_class_result[Width-1:CLASS_VEC_BITS] = '0;
+  end
 
-  assign slice_class_result = result_is_vector
-                              ? slice_vec_class_result & CLASS_VEC_MASK
-                              : lane_class_mask[0];    // Scalar classification block
+  // localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
+
+  assign slice_class_result = result_is_vector ? slice_vec_class_result : lane_class_mask[0];
 
   // Select the proper result
   assign result_o = result_is_class ? slice_class_result : slice_regular_result;
