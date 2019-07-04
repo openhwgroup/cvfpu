@@ -51,72 +51,78 @@ module fpnew_divsqrt_multi #(
   output logic                        busy_o
 );
 
+  // ----------
+  // Constants
+  // ----------
+  // Pipelines
+  localparam NUM_INP_REGS = (PipeConfig == fpnew_pkg::BEFORE)
+                            ? NumPipeRegs
+                            : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                               ? (NumPipeRegs / 2) // Last to get distributed regs
+                               : 0); // no regs here otherwise
+  localparam NUM_OUT_REGS = (PipeConfig == fpnew_pkg::AFTER || PipeConfig == fpnew_pkg::INSIDE)
+                            ? NumPipeRegs
+                            : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                               ? ((NumPipeRegs + 1) / 2) // First to get distributed regs
+                               : 0); // no regs here otherwise
+
   // ---------------
   // Input pipeline
   // ---------------
-  // Pipelined input signals
-  logic [1:0][WIDTH-1:0]       operands_q;
-  logic [NUM_FORMATS-1:0][1:0] is_boxed_q;
-  fpnew_pkg::roundmode_e       rnd_mode_q;
-  fpnew_pkg::operation_e       op_q;
-  logic                        op_mod_q;
-  fpnew_pkg::fp_format_e       dst_fmt_q;
-  TagType                      tag_q;
-  AuxType                      aux_q;
-  logic                        in_valid_q, in_ready_q;
-  logic                        pipe_busy;
+  // Selected pipeline output signals as non-arrays
+  logic [1:0][WIDTH-1:0] operands_q;
+  fpnew_pkg::roundmode_e rnd_mode_q;
+  fpnew_pkg::operation_e op_q;
+  fpnew_pkg::fp_format_e dst_fmt_q;
+  logic                  in_valid_q;
 
-  // Generate pipeline at input if needed
-  if (PipeConfig==fpnew_pkg::BEFORE) begin : input_pipeline
-    fpnew_pipe_in #(
-      .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
-      .NumOperands ( 2           ),
-      .NumFormats  ( NUM_FORMATS ),
-      .TagType     ( TagType     ),
-      .AuxType     ( AuxType     )
-    ) i_input_pipe (
-      .clk_i,
-      .rst_ni,
-      .operands_i,
-      .is_boxed_i,
-      .rnd_mode_i,
-      .op_i,
-      .op_mod_i    ( 1'b0            ), // unused
-      .src_fmt_i   ( fpnew_pkg::FP32 ), // unused
-      .dst_fmt_i,
-      .int_fmt_i   ( fpnew_pkg::INT8 ), // unused,
-      .tag_i,
-      .aux_i,
-      .in_valid_i,
-      .in_ready_o,
-      .flush_i,
-      .operands_o  ( operands_q      ),
-      .is_boxed_o  ( is_boxed_q      ),
-      .rnd_mode_o  ( rnd_mode_q      ),
-      .op_o        ( op_q            ),
-      .op_mod_o    ( /* unused */    ),
-      .src_fmt_o   ( /* unused */    ),
-      .dst_fmt_o   ( dst_fmt_q       ),
-      .int_fmt_o   ( /* unused */    ),
-      .tag_o       ( tag_q           ),
-      .aux_o       ( aux_q           ),
-      .out_valid_o ( in_valid_q      ),
-      .out_ready_i ( in_ready_q      ),
-      .busy_o      ( pipe_busy       )
-    );
-  // Otherwise pass through inputs
-  end else begin : no_input_pipeline
-    assign operands_q = operands_i;
-    assign is_boxed_q = is_boxed_i;
-    assign rnd_mode_q = rnd_mode_i;
-    assign op_q       = op_i;
-    assign dst_fmt_q  = dst_fmt_i;
-    assign tag_q      = tag_i;
-    assign aux_q      = aux_i;
-    assign in_valid_q = in_valid_i;
-    assign in_ready_o = in_ready_q;
+  // Input pipeline signals, index i holds signal after i register stages
+  logic                  [0:NUM_INP_REGS][1:0][WIDTH-1:0]       inp_pipe_operands_q;
+  fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q;
+  fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
+  fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
+  TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
+  AuxType                [0:NUM_INP_REGS]                       inp_pipe_aux_q;
+  logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
+  // Ready signal is combinatorial for all stages
+  logic [0:NUM_INP_REGS] inp_pipe_ready;
+
+  // Input stage: First element of pipeline is taken from inputs
+  assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
+  assign inp_pipe_op_q[0]       = op_i;
+  assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
+  assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_aux_q[0]      = aux_i;
+  assign inp_pipe_valid_q[0]    = in_valid_i;
+  // Input stage: Propagate pipeline ready signal to updtream circuitry
+  assign in_ready_o = inp_pipe_ready[0];
+  // Generate the register stages
+  for (genvar i = 0; i < NUM_INP_REGS; i++) begin : gen_input_pipeline
+    // Internal register enable for this stage
+    logic reg_ena;
+    // Determine the ready signal of the current stage - advance the pipeline:
+    // 1. if the next stage is ready for our data
+    // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+    assign inp_pipe_ready[i] = inp_pipe_ready[i+1] | ~inp_pipe_valid_q[i+1];
+    // Valid: enabled by ready signal, synchronous clear with the flush signal
+    `FFLARNC(inp_pipe_valid_q[i+1], inp_pipe_valid_q[i], inp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+    // Enable register if pipleine ready and a valid data item is present
+    assign reg_ena = inp_pipe_ready[i] & inp_pipe_valid_q[i];
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
+    `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
+    `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
+    `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
+  // Output stage: assign selected pipe outputs to signals for later use
+  assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
+  assign rnd_mode_q = inp_pipe_rnd_mode_q[NUM_INP_REGS];
+  assign op_q       = inp_pipe_op_q[NUM_INP_REGS];
+  assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
+  assign in_valid_q = inp_pipe_valid_q[NUM_INP_REGS];
 
   // -----------------
   // Input processing
@@ -158,7 +164,7 @@ module fpnew_divsqrt_multi #(
   fsm_state_e state_q, state_d;
 
   // Upstream ready comes from sanitization FSM
-  assign in_ready_q = in_ready;
+  assign inp_pipe_ready[NUM_INP_REGS] = in_ready;
 
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
   assign div_valid  = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
@@ -237,9 +243,9 @@ module fpnew_divsqrt_multi #(
   AuxType result_aux_q;
 
   // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
-  `FFL(result_is_fp8_q, input_is_fp8, in_valid_q, '0)
-  `FFL(result_tag_q,    tag_q,        in_valid_q, '0)
-  `FFL(result_aux_q,    aux_q,        in_valid_q, '0)
+  `FFL(result_is_fp8_q, input_is_fp8,                 in_valid_q, '0)
+  `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], in_valid_q, '0)
+  `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], in_valid_q, '0)
 
   // -----------------
   // DIVSQRT instance
@@ -284,48 +290,49 @@ module fpnew_divsqrt_multi #(
   // ----------------
   // Output Pipeline
   // ----------------
-  // Generate pipeline at output if needed
-  if (PipeConfig!=fpnew_pkg::BEFORE) begin : output_pipline
-    fpnew_pipe_out #(
-      .Width       ( WIDTH       ),
-      .NumPipeRegs ( NumPipeRegs ),
-      .TagType     ( TagType     ),
-      .AuxType     ( AuxType     )
-    ) i_output_pipe (
-      .clk_i,
-      .rst_ni,
-      .result_i        ( result_d        ),
-      .status_i        ( status_d        ),
-      .extension_bit_i ( 1'b1            ), // always NaN-box
-      .tag_i           ( result_tag_q    ),
-      .aux_i           ( result_aux_q    ),
-      .in_valid_i      ( out_valid       ),
-      .in_ready_o      ( out_ready       ),
-      .class_mask_i    ( fpnew_pkg::QNAN ), // unused
-      .is_class_i      ( 1'b0            ), // unused
-      .flush_i,
-      .result_o,
-      .status_o,
-      .extension_bit_o,
-      .class_mask_o    ( /* unused */  ),
-      .is_class_o      ( /* unused */  ),
-      .tag_o,
-      .aux_o,
-      .out_valid_o,
-      .out_ready_i,
-      .busy_o          ( pipe_busy     )
-    );
-  // Otherwise pass through outputs
-  end else begin : no_output_pipeline
-    assign result_o        = result_d;
-    assign status_o        = status_d;
-    assign extension_bit_o = 1'b1; // always NaN-box
-    assign tag_o           = result_tag_q;
-    assign aux_o           = result_aux_q;
-    assign out_valid_o     = out_valid;
-    assign out_ready       = out_ready_i;
-  end
+  // Output pipeline signals, index i holds signal after i register stages
+  logic               [0:NUM_OUT_REGS][WIDTH-1:0] out_pipe_result_q;
+  fpnew_pkg::status_t [0:NUM_OUT_REGS]            out_pipe_status_q;
+  TagType             [0:NUM_OUT_REGS]            out_pipe_tag_q;
+  AuxType             [0:NUM_OUT_REGS]            out_pipe_aux_q;
+  logic               [0:NUM_OUT_REGS]            out_pipe_valid_q;
+  // Ready signal is combinatorial for all stages
+  logic [0:NUM_OUT_REGS] out_pipe_ready;
 
-  // Busy flag
-  assign busy_o = in_valid_q | unit_busy | pipe_busy;
+  // Input stage: First element of pipeline is taken from inputs
+  assign out_pipe_result_q[0] = result_d;
+  assign out_pipe_status_q[0] = status_d;
+  assign out_pipe_tag_q[0]    = result_tag_q;
+  assign out_pipe_aux_q[0]    = result_aux_q;
+  assign out_pipe_valid_q[0]  = out_valid;
+  // Input stage: Propagate pipeline ready signal to inside pipe
+  assign out_ready = out_pipe_ready[0];
+  // Generate the register stages
+  for (genvar i = 0; i < NUM_OUT_REGS; i++) begin : gen_output_pipeline
+    // Internal register enable for this stage
+    logic reg_ena;
+    // Determine the ready signal of the current stage - advance the pipeline:
+    // 1. if the next stage is ready for our data
+    // 2. if the next stage only holds a bubble (not valid) -> we can pop it
+    assign out_pipe_ready[i] = out_pipe_ready[i+1] | ~out_pipe_valid_q[i+1];
+    // Valid: enabled by ready signal, synchronous clear with the flush signal
+    `FFLARNC(out_pipe_valid_q[i+1], out_pipe_valid_q[i], out_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
+    // Enable register if pipleine ready and a valid data item is present
+    assign reg_ena = out_pipe_ready[i] & out_pipe_valid_q[i];
+    // Generate the pipeline registers within the stages, use enable-registers
+    `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
+    `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
+    `FFL(out_pipe_tag_q[i+1],    out_pipe_tag_q[i],    reg_ena, TagType'('0))
+    `FFL(out_pipe_aux_q[i+1],    out_pipe_aux_q[i],    reg_ena, AuxType'('0))
+  end
+  // Output stage: Ready travels backwards from output side, driven by downstream circuitry
+  assign out_pipe_ready[NUM_OUT_REGS] = out_ready_i;
+  // Output stage: assign module outputs
+  assign result_o        = out_pipe_result_q[NUM_OUT_REGS];
+  assign status_o        = out_pipe_status_q[NUM_OUT_REGS];
+  assign extension_bit_o = 1'b1; // always NaN-Box result
+  assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
+  assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
+  assign busy_o          = (| {inp_pipe_valid_q, unit_busy, out_pipe_valid_q});
 endmodule

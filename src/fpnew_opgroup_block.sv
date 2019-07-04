@@ -79,9 +79,9 @@ module fpnew_opgroup_block #(
   // -------------------------
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : gen_parallel_slices
     // Some constants for this format
-    localparam logic ANY_MERGED = fpnew_pkg::any_enabled_multi(FmtUnitTypes);
+    localparam logic ANY_MERGED = fpnew_pkg::any_enabled_multi(FmtUnitTypes, FpFmtMask);
     localparam logic IS_FIRST_MERGED =
-        fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes);
+        fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes, FpFmtMask);
 
     // Generate slice only if format enabled
     if (FpFmtMask[fmt] && (FmtUnitTypes[fmt] == fpnew_pkg::PARALLEL)) begin : active_format
@@ -91,13 +91,13 @@ module fpnew_opgroup_block #(
       assign in_valid = in_valid_i & (dst_fmt_i == fmt); // enable selected format
 
       fpnew_opgroup_fmt_slice #(
-        .OpGroup       ( OpGroup          ),
-        .FpFormat      ( fmt              ),
-        .Width         ( Width            ),
-        .EnableVectors ( EnableVectors    ),
-        .NumPipeRegs   ( FmtPipeRegs[fmt] ),
-        .PipeConfig    ( PipeConfig       ),
-        .TagType       ( TagType          )
+        .OpGroup       ( OpGroup                      ),
+        .FpFormat      ( fpnew_pkg::fp_format_e'(fmt) ),
+        .Width         ( Width                        ),
+        .EnableVectors ( EnableVectors                ),
+        .NumPipeRegs   ( FmtPipeRegs[fmt]             ),
+        .PipeConfig    ( PipeConfig                   ),
+        .TagType       ( TagType                      )
       ) i_fmt_slice (
         .clk_i,
         .rst_ni,
@@ -123,12 +123,16 @@ module fpnew_opgroup_block #(
     end else if (FpFmtMask[fmt] && ANY_MERGED && !IS_FIRST_MERGED) begin : merged_unused
 
       // Ready is split up into formats
-      assign fmt_in_ready[fmt]  = fmt_in_ready[fpnew_pkg::get_first_enabled_multi(FmtUnitTypes)];
+      assign fmt_in_ready[fmt]  = fmt_in_ready[fpnew_pkg::get_first_enabled_multi(FmtUnitTypes,
+                                                                                  FpFmtMask)];
 
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
+      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
 
     // Tie off disabled formats
     end else if (!FpFmtMask[fmt] || (FmtUnitTypes[fmt] == fpnew_pkg::DISABLED)) begin : disable_fmt
@@ -136,16 +140,19 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
-      assign fmt_outputs[fmt]  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
+      assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
     end
   end
 
   // ----------------------
   // Generate Merged Slice
   // ----------------------
-  if (fpnew_pkg::any_enabled_multi(FmtUnitTypes)) begin : gen_merged_slice
+  if (fpnew_pkg::any_enabled_multi(FmtUnitTypes, FpFmtMask)) begin : gen_merged_slice
 
-    localparam FMT = fpnew_pkg::get_first_enabled_multi(FmtUnitTypes);
+    localparam FMT = fpnew_pkg::get_first_enabled_multi(FmtUnitTypes, FpFmtMask);
 
     logic in_valid;
 
