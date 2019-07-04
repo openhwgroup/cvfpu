@@ -21,6 +21,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Generation of merged slices when the first package format is disabled
 - Potential simulation/synthesis mismatch of the UF flag
 - Various linter warnings
+- [fpu_div_sqrt_mvp] Bumped to fix linter warnings
 - [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
 
 ### Removed

@@ -4,7 +4,7 @@ package:
 
 dependencies:
   common_cells: {git: "https://github.com/pulp-platform/common_cells.git",         version: 1.13.1}
-  fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", version: 1.0.2}
+  fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", version: 1.0.3}
 
 sources:
   - src/fpnew_pkg.sv
