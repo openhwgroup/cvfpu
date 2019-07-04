@@ -336,12 +336,12 @@ For best results, we *strongly* encourage the use of automatic retiming options 
 
 The configuration  `pipe_config_t` is an enumeration of type `logic [1:0]` holding the following implementation options for the pipelines in operational units:
 
-|   Enumerator  |                                             Description                                             |
-|---------------|-----------------------------------------------------------------------------------------------------|
-| `BEFORE`      | All pipeline registers are inserted at the inputs of the operational unit                           |
-| `AFTER`       | All pipeline registers are inserted at the outputs of the operational unit                          |
-| `INSIDE`      | All registers are inserted at roughly the middle of the operational unit (if not possible, `AFTER`) |
-| `DISTRIBUTED` | Registers are evenly distributed to `INSIDE`, `AFTER`, and `BEFORE` (if no `INSIDE`, all `AFTER`)   |
+|   Enumerator  |                                             Description                                              |
+|---------------|------------------------------------------------------------------------------------------------------|
+| `BEFORE`      | All pipeline registers are inserted at the inputs of the operational unit                            |
+| `AFTER`       | All pipeline registers are inserted at the outputs of the operational unit                           |
+| `INSIDE`      | All registers are inserted at roughly the middle of the operational unit (if not possible, `BEFORE`) |
+| `DISTRIBUTED` | Registers are evenly distributed to `INSIDE`, `BEFORE`, and `AFTER` (if no `INSIDE`, all `BEFORE`)   |
 
 
 
