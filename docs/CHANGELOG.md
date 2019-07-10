@@ -15,6 +15,12 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Fixed
 - Typo in changelog
 
+
+## [0.6.1] - 2019-07-10
+
+### Fixed
+- A bug where the div/sqrt unit could lose operations in flight
+
 ## [0.6.0] - 2019-07-04
 
 ### Changed
