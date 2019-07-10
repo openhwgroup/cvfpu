@@ -155,6 +155,7 @@ module fpnew_divsqrt_multi #(
   logic in_ready;               // input handshake with upstream
   logic div_valid, sqrt_valid;  // input signalling with unit
   logic unit_ready, unit_done;  // status signals from unit instance
+  logic op_starting;            // high in the cycle a new operation starts
   logic out_valid, out_ready;   // output handshake with downstream
   logic hold_result;            // whether to put result into hold register
   logic data_is_held;           // data in hold register is valid
@@ -167,8 +168,9 @@ module fpnew_divsqrt_multi #(
   assign inp_pipe_ready[NUM_INP_REGS] = in_ready;
 
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
-  assign div_valid  = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
-  assign sqrt_valid = in_valid_q & (op_q != fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign div_valid   = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign sqrt_valid  = in_valid_q & (op_q != fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign op_starting = div_valid | sqrt_valid;
 
   // FSM to safely apply and receive data from DIVSQRT unit
   always_comb begin : flag_fsm
@@ -243,9 +245,9 @@ module fpnew_divsqrt_multi #(
   AuxType result_aux_q;
 
   // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
-  `FFL(result_is_fp8_q, input_is_fp8,                 in_valid_q, '0)
-  `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], in_valid_q, '0)
-  `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], in_valid_q, '0)
+  `FFL(result_is_fp8_q, input_is_fp8,                 op_starting, '0)
+  `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], op_starting, '0)
+  `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], op_starting, '0)
 
   // -----------------
   // DIVSQRT instance
