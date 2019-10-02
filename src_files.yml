@@ -16,16 +16,3 @@ fpnew:
     src/fpnew_rounding.sv,
     src/fpnew_top.sv,
   ]
-  jg_slint_top_name: [
-    fpnew_top
-  ]
-  jg_slint_elab_opt: [
-  ]
-  jg_slint_postelab_cmds: [
-  ]
-  jg_slint_clocks: [
-    clk_i,
-  ]
-  jg_slint_resets: [
-    ~rst_ni,
-  ]
