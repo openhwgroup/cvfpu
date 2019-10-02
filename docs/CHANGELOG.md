@@ -11,8 +11,6 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ## [Unreleased]
 
 ### Added
-- Parameters in IP yml description for JG EDA tool [(#18)](https://github.com/pulp-platform/fpnew/pull/18)
-
 ### Changed
 ### Fixed
 - Typo in changelog
