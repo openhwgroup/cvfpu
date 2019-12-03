@@ -205,7 +205,11 @@ module fpnew_cast_multi #(
       );
 
       assign fmt_sign[fmt]     = operands_q[FP_WIDTH-1];
+	  `ifdef _VCP // PAK2580
+      assign fmt_exponent[fmt] = $signed({1'b0, operands_q[MAN_BITS+:EXP_BITS]});
+	  `else
       assign fmt_exponent[fmt] = signed'({1'b0, operands_q[MAN_BITS+:EXP_BITS]});
+	  `endif
       assign fmt_mantissa[fmt] = {info[fmt].is_normal, operands_q[MAN_BITS-1:0]}; // zero pad
       // Compensation for the difference in mantissa widths used for leading-zero count
       assign fmt_shift_compensation[fmt] = signed'(INT_MAN_WIDTH - 1 - MAN_BITS);
@@ -539,7 +543,13 @@ module fpnew_cast_multi #(
     .sign_i                  ( input_sign_q      ), // source format
     .round_sticky_bits_i     ( round_sticky_bits ),
     .rnd_mode_i              ( rnd_mode_q        ),
+`ifdef _VCP // PAK2591
+    .effective_subtraction_i (ariane_pkg::ALDEC_1B0), // no operation happened
+
+`else
     .effective_subtraction_i ( 1'b0              ), // no operation happened
+
+`endif
     .abs_rounded_o           ( rounded_abs       ),
     .sign_o                  ( rounded_sign      ),
     .exact_zero_o            ( result_true_zero  )
@@ -603,9 +613,26 @@ module fpnew_cast_multi #(
     if (FpFmtConfig[fmt]) begin : active_format
       always_comb begin : special_results
         logic [FP_WIDTH-1:0] special_res;
+`ifdef _VCP // PAK2577
+		logic [FP_WIDTH-1:0] special_res_tmp;
+		special_res_tmp = input_sign_q << FP_WIDTH-1;
+		
+        special_res[FP_WIDTH-1]				= info_q.is_zero
+                      						? special_res_tmp[FP_WIDTH-1] // signed zero
+                      						: 1'b0; // qNaN
+
+        special_res[FP_WIDTH-2 -:EXP_BITS] 	= info_q.is_zero
+                      						? special_res_tmp[FP_WIDTH-2 -:EXP_BITS] // signed zero
+                      						: QNAN_EXPONENT; // qNaN
+					  
+        special_res[0 +:MAN_BITS] 			= info_q.is_zero
+                      						? special_res_tmp[0 +:MAN_BITS] // signed zero
+                      						: QNAN_MANTISSA; // qNaN
+`else
         special_res = info_q.is_zero
                       ? input_sign_q << FP_WIDTH-1 // signed zero
                       : {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; // qNaN
+`endif
 
         // Initialize special result with ones (NaN-box)
         fmt_special_result[fmt]               = '1;

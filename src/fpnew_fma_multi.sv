@@ -192,7 +192,11 @@ module fpnew_fma_multi #(
       for (genvar op = 0; op < 3; op++) begin : gen_operands
         assign trimmed_ops[op]       = operands_q[op][FP_WIDTH-1:0];
         assign fmt_sign[fmt][op]     = operands_q[op][FP_WIDTH-1];
+		`ifdef _VCP // PAK2574
+        assign fmt_exponent[fmt][op] = signed'({1'b0, operands_q[op][MAN_BITS+EXP_BITS-1:MAN_BITS]});
+		`else
         assign fmt_exponent[fmt][op] = signed'({1'b0, operands_q[op][MAN_BITS+:EXP_BITS]});
+		`endif
         assign fmt_mantissa[fmt][op] = {info_q[fmt][op].is_normal, operands_q[op][MAN_BITS-1:0]} <<
                                        (SUPER_MAN_BITS - MAN_BITS); // move to left of mantissa
       end

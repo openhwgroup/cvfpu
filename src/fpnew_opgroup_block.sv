@@ -129,8 +129,13 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
+	  `ifdef _VCP // PAK2592
+      assign fmt_outputs[fmt].result  = {Width{fpnew_pkg::DONT_CARE}};
+      assign fmt_outputs[fmt].status  = {5{fpnew_pkg::DONT_CARE}};
+	  `else
       assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
+	  `endif
       assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
       assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
 
@@ -140,8 +145,13 @@ module fpnew_opgroup_block #(
       assign fmt_out_valid[fmt] = 1'b0; // don't emit values
       assign fmt_busy[fmt]      = 1'b0; // never busy
       // Outputs are don't care
+	  `ifdef _VCP // PAK2592
+      assign fmt_outputs[fmt].result  = {Width{fpnew_pkg::DONT_CARE}};
+      assign fmt_outputs[fmt].status  = {5{fpnew_pkg::DONT_CARE}};
+	  `else
       assign fmt_outputs[fmt].result  = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_outputs[fmt].status  = '{default: fpnew_pkg::DONT_CARE};
+	  `endif
       assign fmt_outputs[fmt].ext_bit = fpnew_pkg::DONT_CARE;
       assign fmt_outputs[fmt].tag     = TagType'(fpnew_pkg::DONT_CARE);
     end

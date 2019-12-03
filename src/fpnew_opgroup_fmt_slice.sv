@@ -196,7 +196,11 @@ module fpnew_opgroup_fmt_slice #(
       assign lane_out_valid[lane] = out_valid   & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
+	  `ifdef _VCP // DAM4990
+      assign local_result      = lane_out_valid[lane] ? op_result : {FP_WIDTH{lane_ext_bit[0]}};
+	  `else
       assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
+	  `endif
       assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
