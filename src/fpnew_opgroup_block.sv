@@ -153,6 +153,7 @@ module fpnew_opgroup_block #(
   if (fpnew_pkg::any_enabled_multi(FmtUnitTypes, FpFmtMask)) begin : gen_merged_slice
 
     localparam FMT = fpnew_pkg::get_first_enabled_multi(FmtUnitTypes, FpFmtMask);
+    localparam REG = fpnew_pkg::get_num_regs_multi(FmtPipeRegs, FmtUnitTypes, FpFmtMask);
 
     logic in_valid;
 
@@ -164,7 +165,7 @@ module fpnew_opgroup_block #(
       .FpFmtConfig   ( FpFmtMask        ),
       .IntFmtConfig  ( IntFmtMask       ),
       .EnableVectors ( EnableVectors    ),
-      .NumPipeRegs   ( FmtPipeRegs[FMT] ),
+      .NumPipeRegs   ( REG              ),
       .PipeConfig    ( PipeConfig       ),
       .TagType       ( TagType          )
     ) i_multifmt_slice (

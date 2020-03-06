@@ -470,4 +470,15 @@ package fpnew_pkg;
       return fp_format_e'(0);
   endfunction
 
+  // Returns the largest number of regs that is active and is set as MERGED
+  function automatic int unsigned get_num_regs_multi(fmt_unsigned_t regs,
+                                                     fmt_unit_types_t types,
+                                                     fmt_logic_t cfg);
+    automatic int unsigned res = 0;
+    for (int unsigned i = 0; i < NUM_FP_FORMATS; i++) begin
+      if (cfg[i] && types[i] == MERGED) res = maximum(res, regs[i]);
+    end
+    return res;
+  endfunction
+
 endpackage

@@ -12,6 +12,8 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Added
 ### Changed
+- Number of pipeline registers in multi-format units is the maximum of all contained formats instead of the first format marked `MERGED`
+
 ### Fixed
 - Typo in changelog
 
