@@ -16,6 +16,8 @@ module fpnew_top #(
   parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
   parameter type                            TagType        = logic,
+  parameter int unsigned                    DivSqrtUnroll  = 1,
+  parameter int unsigned                    DivSqrtRadix   = 2,
   // Do not change
   localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
@@ -111,7 +113,9 @@ module fpnew_top #(
       .FmtPipeRegs   ( Implementation.PipeRegs[opgrp]  ),
       .FmtUnitTypes  ( Implementation.UnitTypes[opgrp] ),
       .PipeConfig    ( Implementation.PipeConfig       ),
-      .TagType       ( TagType                         )
+      .TagType       ( TagType                         ),
+      .DivSqrtUnroll ( DivSqrtUnroll                   ),
+      .DivSqrtRadix  ( DivSqrtRadix                    )
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,

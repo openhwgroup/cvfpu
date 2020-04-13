@@ -22,6 +22,8 @@ module fpnew_opgroup_block #(
   parameter fpnew_pkg::fmt_unit_types_t FmtUnitTypes  = '{default: fpnew_pkg::PARALLEL},
   parameter fpnew_pkg::pipe_config_t    PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                        TagType       = logic,
+  parameter int unsigned                DivSqrtUnroll = 1,
+  parameter int unsigned                DivSqrtRadix  = 2,
   // Do not change
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup)
@@ -167,7 +169,9 @@ module fpnew_opgroup_block #(
       .EnableVectors ( EnableVectors    ),
       .NumPipeRegs   ( REG              ),
       .PipeConfig    ( PipeConfig       ),
-      .TagType       ( TagType          )
+      .TagType       ( TagType          ),
+      .DivSqrtUnroll ( DivSqrtUnroll    ),
+      .DivSqrtRadix  ( DivSqrtRadix     )
     ) i_multifmt_slice (
       .clk_i,
       .rst_ni,

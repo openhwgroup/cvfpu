@@ -23,6 +23,8 @@ module fpnew_opgroup_multifmt_slice #(
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                     TagType       = logic,
+  parameter int unsigned             DivSqrtUnroll = 1,
+  parameter int unsigned             DivSqrtRadix  = 2,
   // Do not change
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS
@@ -228,28 +230,35 @@ module fpnew_opgroup_multifmt_slice #(
         );
 
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
-        fpnew_divsqrt_multi #(
-          .FpFmtConfig ( LANE_FORMATS         ),
-          .NumPipeRegs ( NumPipeRegs          ),
-          .PipeConfig  ( PipeConfig           ),
+        logic is_a_boxed, is_b_boxed;
+        assign is_a_boxed = is_boxed_2op[dst_fmt_i][0];
+        assign is_b_boxed = is_boxed_2op[dst_fmt_i][1];
+
+        fp_div_sqrt #(
           .TagType     ( TagType              ),
-          .AuxType     ( logic [AUX_BITS-1:0] )
-        ) i_fpnew_divsqrt_multi (
+          .AuxType     ( logic [AUX_BITS-1:0] ),
+          .FpFmtConfig ( LANE_FORMATS         ),
+          .UNROLL      ( DivSqrtUnroll        ),
+          .RADIX       ( DivSqrtRadix         )
+        ) (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands[1:0] ), // 2 operands
-          .is_boxed_i      ( is_boxed_2op        ), // 2 operands
+          .operand_a_i     ( local_operands[0]   ),
+          .operand_b_i     ( local_operands[1]   ),
+          .format_i        ( dst_fmt_i           ),
+          .precision_i     ( '0                  ),
           .rnd_mode_i,
           .op_i,
-          .dst_fmt_i,
+          .is_a_boxed_i    ( is_a_boxed          ),
+          .is_b_boxed_i    ( is_b_boxed          ),
           .tag_i,
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
           .in_ready_o      ( lane_in_ready[lane] ),
           .flush_i,
           .result_o        ( op_result           ),
-          .status_o        ( op_status           ),
           .extension_bit_o ( lane_ext_bit[lane]  ),
+          .status_o        ( op_status           ),
           .tag_o           ( lane_tags[lane]     ),
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
