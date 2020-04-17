@@ -599,13 +599,13 @@ module fpnew_cast_multi #(
 
     localparam logic [EXP_BITS-1:0] QNAN_EXPONENT = '1;
     localparam logic [MAN_BITS-1:0] QNAN_MANTISSA = 2**(MAN_BITS-1);
-    logic [FP_WIDTH-1:0] special_res_temp = {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; 
+    localparam logic [FP_WIDTH-1:0] QNAN = {1'b0, QNAN_EXPONENT, QNAN_MANTISSA}; 
     if (FpFmtConfig[fmt]) begin : active_format
       always_comb begin : special_results
         logic [FP_WIDTH-1:0] special_res;
         special_res = info_q.is_zero
                       ? input_sign_q << FP_WIDTH-1 // signed zero
-                      : special_res_temp; // qNaN
+                      : QNAN; // qNaN
 
         // Initialize special result with ones (NaN-box)
         fmt_special_result[fmt]               = '1;
