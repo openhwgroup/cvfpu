@@ -92,7 +92,7 @@ module fpnew_opgroup_fmt_slice #(
       // Slice out the operands for this lane
       always_comb begin : prepare_input
         for (int i = 0; i < int'(NUM_OPERANDS); i++) begin
-          local_operands[i] = operands_i[i][(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH];
+          local_operands[i] = operands_i[i][($unsigned(lane)+1)*FP_WIDTH-1:$unsigned(lane)*FP_WIDTH];
         end
       end
 
@@ -210,7 +210,7 @@ module fpnew_opgroup_fmt_slice #(
     end
 
     // Insert lane result into slice result
-    assign slice_result[(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH] = local_result;
+    assign slice_result[($unsigned(lane)+1)*FP_WIDTH-1:$unsigned(lane)*FP_WIDTH] = local_result;
 
     // Create Classification results
     if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size

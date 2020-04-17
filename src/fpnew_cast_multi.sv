@@ -205,10 +205,10 @@ module fpnew_cast_multi #(
       );
 
       assign fmt_sign[fmt]     = operands_q[FP_WIDTH-1];
-      assign fmt_exponent[fmt] = signed'({1'b0, operands_q[MAN_BITS+:EXP_BITS]});
+      assign fmt_exponent[fmt] = $signed({1'b0, operands_q[MAN_BITS+:EXP_BITS]});
       assign fmt_mantissa[fmt] = {info[fmt].is_normal, operands_q[MAN_BITS-1:0]}; // zero pad
       // Compensation for the difference in mantissa widths used for leading-zero count
-      assign fmt_shift_compensation[fmt] = signed'(INT_MAN_WIDTH - 1 - MAN_BITS);
+      assign fmt_shift_compensation[fmt] = $signed(INT_MAN_WIDTH - 1 - MAN_BITS);
     end else begin : inactive_format
       assign info[fmt]                   = '{default: fpnew_pkg::DONT_CARE}; // format disabled
       assign fmt_sign[fmt]               = fpnew_pkg::DONT_CARE;             // format disabled
@@ -237,7 +237,7 @@ module fpnew_cast_multi #(
   // Construct input mantissa from integer
   assign int_value    = ifmt_input_val[int_fmt_q];
   assign int_sign     = int_value[INT_MAN_WIDTH-1] & ~op_mod_q; // only signed ints are negative
-  assign int_mantissa = int_sign ? unsigned'(-int_value) : int_value; // get magnitude of negative
+  assign int_mantissa = int_sign ? $unsigned(-int_value) : int_value; // get magnitude of negative
 
   // select mantissa with source format
   assign encoded_mant = src_is_int ? int_mantissa : fmt_mantissa[src_fmt_q];
@@ -250,9 +250,9 @@ module fpnew_cast_multi #(
   logic signed [INT_EXP_WIDTH-1:0] src_subnormal; // src is subnormal
   logic signed [INT_EXP_WIDTH-1:0] src_offset;    // src offset within mantissa
 
-  assign src_bias      = signed'(fpnew_pkg::bias(src_fmt_q));
+  assign src_bias      = $signed(fpnew_pkg::bias(src_fmt_q));
   assign src_exp       = fmt_exponent[src_fmt_q];
-  assign src_subnormal = signed'({1'b0, info[src_fmt_q].is_subnormal});
+  assign src_subnormal = $signed({1'b0, info[src_fmt_q].is_subnormal});
   assign src_offset    = fmt_shift_compensation[src_fmt_q];
 
   logic                            input_sign;   // input sign
@@ -276,23 +276,23 @@ module fpnew_cast_multi #(
     .cnt_o   ( renorm_shamt ),
     .empty_o ( mant_is_zero )
   );
-  assign renorm_shamt_sgn = signed'({1'b0, renorm_shamt});
+  assign renorm_shamt_sgn = $signed({1'b0, renorm_shamt});
 
   // Get the sign from the proper source
   assign input_sign = src_is_int ? int_sign : fmt_sign[src_fmt_q];
   // Realign input mantissa, append zeroes if destination is wider
   assign input_mant = encoded_mant << renorm_shamt;
   // Unbias exponent and compensate for shift
-  assign fp_input_exp  = signed'(src_exp + src_subnormal - src_bias -
+  assign fp_input_exp  = $signed(src_exp + src_subnormal - src_bias -
                                  renorm_shamt_sgn + src_offset); // compensate for shift
-  assign int_input_exp = signed'(INT_MAN_WIDTH - 1 - renorm_shamt_sgn);
+  assign int_input_exp = $signed(INT_MAN_WIDTH - 1 - renorm_shamt_sgn);
 
   assign input_exp     = src_is_int ? int_input_exp : fp_input_exp;
 
   logic signed [INT_EXP_WIDTH-1:0] destination_exp;  // re-biased exponent for destination
 
   // Rebias the exponent
-  assign destination_exp = input_exp + signed'(fpnew_pkg::bias(dst_fmt_q));
+  assign destination_exp = input_exp + $signed(fpnew_pkg::bias(dst_fmt_q));
 
   // ---------------
   // Internal pipeline
@@ -416,7 +416,7 @@ module fpnew_cast_multi #(
   // Perform adjustments to mantissa and exponent
   always_comb begin : cast_value
     // Default assignment
-    final_exp       = unsigned'(destination_exp_q); // take exponent as is, only look at lower bits
+    final_exp       = $unsigned(destination_exp_q); // take exponent as is, only look at lower bits
     preshift_mant   = '0;  // initialize mantissa container with zeroes
     denorm_shamt    = SUPER_MAN_BITS - fpnew_pkg::man_bits(dst_fmt_q2); // right of mantissa
     of_before_round = 1'b0;
@@ -428,9 +428,9 @@ module fpnew_cast_multi #(
     // Handle INT casts
     if (dst_is_int_q) begin
       // By default right shift mantissa to be an integer
-      denorm_shamt = unsigned'(MAX_INT_WIDTH - 1 - input_exp_q);
+      denorm_shamt = $unsigned(MAX_INT_WIDTH - 1 - input_exp_q);
       // overflow: when converting to unsigned the range is larger by one
-      if (input_exp_q >= signed'(fpnew_pkg::int_width(int_fmt_q2) - 1 + op_mod_q2)) begin
+      if (input_exp_q >= $signed(fpnew_pkg::int_width(int_fmt_q2) - 1 + op_mod_q2)) begin
         denorm_shamt    = '0; // prevent shifting
         of_before_round = 1'b1;
       // underflow
@@ -443,19 +443,19 @@ module fpnew_cast_multi #(
       // Overflow or infinities (for proper rounding)
       if ((destination_exp_q >= 2**fpnew_pkg::exp_bits(dst_fmt_q2)-1) ||
           (~src_is_int_q && info_q.is_inf)) begin
-        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q2)-2); // largest normal value
+        final_exp       = $unsigned(2**fpnew_pkg::exp_bits(dst_fmt_q2)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
       // Denormalize underflowing values
       end else if (destination_exp_q < 1 &&
-                   destination_exp_q >= -signed'(fpnew_pkg::man_bits(dst_fmt_q2))) begin
+                   destination_exp_q >= -$signed(fpnew_pkg::man_bits(dst_fmt_q2))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp_q); // adjust right shifting
+        denorm_shamt    = $unsigned(denorm_shamt + 1 - destination_exp_q); // adjust right shifting
         uf_before_round = 1'b1;
       // Limit the shift to retain sticky bits
-      end else if (destination_exp_q < -signed'(fpnew_pkg::man_bits(dst_fmt_q2))) begin
+      end else if (destination_exp_q < -$signed(fpnew_pkg::man_bits(dst_fmt_q2))) begin
         final_exp       = '0; // denormal result
-        denorm_shamt    = unsigned'(denorm_shamt + 2 + fpnew_pkg::man_bits(dst_fmt_q2)); // to sticky
+        denorm_shamt    = $unsigned(denorm_shamt + 2 + fpnew_pkg::man_bits(dst_fmt_q2)); // to sticky
         uf_before_round = 1'b1;
       end
     end
@@ -578,7 +578,7 @@ module fpnew_cast_multi #(
   assign of_after_round = fmt_of_after_round[dst_fmt_q2];
 
   // Negative integer result needs to be brought into two's complement
-  assign rounded_int_res      = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
+  assign rounded_int_res      = rounded_sign ? $unsigned(-rounded_abs) : rounded_abs;
   assign rounded_int_res_zero = (rounded_int_res == '0);
 
   // -------------------------

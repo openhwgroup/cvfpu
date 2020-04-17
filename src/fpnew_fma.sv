@@ -63,7 +63,7 @@ module fpnew_fma #(
   // Internal exponent width of FMA must accomodate all meaningful exponent values in order to avoid
   // datapath leakage. This is either given by the exponent bits or the width of the LZC result.
   // In most reasonable FP formats the internal exponent will be wider than the LZC result.
-  localparam int unsigned EXP_WIDTH = unsigned'(fpnew_pkg::maximum(EXP_BITS + 2, LZC_RESULT_WIDTH));
+  localparam int unsigned EXP_WIDTH = $unsigned(fpnew_pkg::maximum(EXP_BITS + 2, LZC_RESULT_WIDTH));
   // Shift amount width: maximum internal mantissa size is 3p+3 bits
   localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3);
   // Pipelines
@@ -273,19 +273,19 @@ module fpnew_fma #(
   logic signed [EXP_WIDTH-1:0] tentative_exponent;
 
   // Zero-extend exponents into signed container - implicit width extension
-  assign exponent_a = signed'({1'b0, operand_a.exponent});
-  assign exponent_b = signed'({1'b0, operand_b.exponent});
-  assign exponent_c = signed'({1'b0, operand_c.exponent});
+  assign exponent_a = $signed({1'b0, operand_a.exponent});
+  assign exponent_b = $signed({1'b0, operand_b.exponent});
+  assign exponent_c = $signed({1'b0, operand_c.exponent});
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
-  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal})); // 0 as subnorm
+  assign exponent_addend = $signed(exponent_c + $signed({1'b0, ~info_c.is_normal})); // 0 as subnorm
   // Biased product exponent is the sum of encoded exponents minus the bias.
   assign exponent_product = (info_a.is_zero || info_b.is_zero)
-                            ? 2 - signed'(BIAS) // in case the product is zero, set minimum exp.
-                            : signed'(exponent_a + info_a.is_subnormal
+                            ? 2 - $signed(BIAS) // in case the product is zero, set minimum exp.
+                            : $signed(exponent_a + info_a.is_subnormal
                                       + exponent_b + info_b.is_subnormal
-                                      - signed'(BIAS));
+                                      - $signed(BIAS));
   // Exponent difference is the addend exponent minus the product exponent
   assign exponent_difference = exponent_addend - exponent_product;
   // The tentative exponent will be the larger of the product or addend exponent
@@ -296,11 +296,11 @@ module fpnew_fma #(
 
   always_comb begin : addend_shift_amount
     // Product-anchored case, saturated shift (addend is only in the sticky bit)
-    if (exponent_difference <= signed'(-2 * PRECISION_BITS - 1))
+    if (exponent_difference <= $signed(-2 * PRECISION_BITS - 1))
       addend_shamt = 3 * PRECISION_BITS + 4;
     // Addend and product will have mutual bits to add
-    else if (exponent_difference <= signed'(PRECISION_BITS + 2))
-      addend_shamt = unsigned'(signed'(PRECISION_BITS) + 3 - exponent_difference);
+    else if (exponent_difference <= $signed(PRECISION_BITS + 2))
+      addend_shamt = $unsigned($signed(PRECISION_BITS) + 3 - exponent_difference);
     // Addend-anchored case, saturated shift (product is only in the sticky bit)
     else
       addend_shamt = 0;
@@ -499,7 +499,7 @@ module fpnew_fma #(
     .empty_o ( lzc_zeroes         )
   );
 
-  assign leading_zero_count_sgn = signed'({1'b0, leading_zero_count});
+  assign leading_zero_count_sgn = $signed({1'b0, leading_zero_count});
 
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
   always_comb begin : norm_shift_amount
@@ -513,7 +513,7 @@ module fpnew_fma #(
       // Subnormal result
       end else begin
         // Cap the shift distance to align mantissa with minimum exponent
-        norm_shamt          = unsigned'(signed'(PRECISION_BITS) + 2 + exponent_product_q);
+        norm_shamt          = $unsigned($signed(PRECISION_BITS) + 2 + exponent_product_q);
         normalized_exponent = 0; // subnormals encoded as 0
       end
     // Addend-anchored case
@@ -575,7 +575,7 @@ module fpnew_fma #(
 
   // Assemble result before rounding. In case of overflow, the largest normal value is set.
   assign pre_round_sign     = final_sign_q;
-  assign pre_round_exponent = (of_before_round) ? 2**EXP_BITS-2 : unsigned'(final_exponent[EXP_BITS-1:0]);
+  assign pre_round_exponent = (of_before_round) ? 2**EXP_BITS-2 : $unsigned(final_exponent[EXP_BITS-1:0]);
   assign pre_round_mantissa = (of_before_round) ? '1 : final_mantissa[MAN_BITS:1]; // bit 0 is R bit
   assign pre_round_abs      = {pre_round_exponent, pre_round_mantissa};
 

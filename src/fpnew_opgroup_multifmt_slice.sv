@@ -136,7 +136,7 @@ module fpnew_opgroup_multifmt_slice #(
   // Generate Lanes
   // ---------------
   for (genvar lane = 0; lane < int'(NUM_LANES); lane++) begin : gen_num_lanes
-    localparam int unsigned LANE = unsigned'(lane); // unsigned to please the linter
+    localparam int unsigned LANE = $unsigned(lane); // unsigned to please the linter
     // Get a mask of active formats for this lane
     localparam fpnew_pkg::fmt_logic_t ACTIVE_FORMATS =
         fpnew_pkg::get_lane_formats(Width, FpFmtConfig, LANE);
