@@ -298,7 +298,9 @@ module fpnew_opgroup_multifmt_slice #(
       assign lane_out_valid[lane] = out_valid & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
+      logic [LANE_WIDTH-1:0] local_result_temp;
+      assign local_result_temp = '{default: lane_ext_bit[0]};	  
+      assign local_result      = lane_out_valid[lane] ? op_result : local_result_temp;
       assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension

@@ -194,9 +194,10 @@ module fpnew_opgroup_fmt_slice #(
       // Handshakes are only done if the lane is actually used
       assign out_ready            = out_ready_i & ((lane == 0) | result_is_vector);
       assign lane_out_valid[lane] = out_valid   & ((lane == 0) | result_is_vector);
-
+      logic [FP_WIDTH-1:0] local_result_temp;
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
+      assign local_result_temp = '{default: lane_ext_bit[0]};
+      assign local_result      = lane_out_valid[lane] ? op_result : local_result_temp;
       assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
