@@ -83,10 +83,8 @@ module fpnew_opgroup_block #(
     localparam logic IS_FIRST_MERGED =
         fpnew_pkg::is_first_enabled_multi(fpnew_pkg::fp_format_e'(fmt), FmtUnitTypes, FpFmtMask);
 
-    logic [Width-1:0]   result_dont_care;
-    fpnew_pkg::status_t status_dont_care;
-    assign results_dont_care = '{default: fpnew_pkg::DONT_CARE};
-    assign status_dont_care = '{default: fpnew_pkg::DONT_CARE};
+    localparam logic [Width-1:0]   results_dont_care = '{default: fpnew_pkg::DONT_CARE};
+    localparam fpnew_pkg::status_t status_dont_care = '{default: fpnew_pkg::DONT_CARE};
 	  
     // Generate slice only if format enabled
     if (FpFmtMask[fmt] && (FmtUnitTypes[fmt] == fpnew_pkg::PARALLEL)) begin : active_format
