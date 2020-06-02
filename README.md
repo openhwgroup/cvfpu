@@ -30,7 +30,7 @@ Multiple integer formats with arbitrary number of bits (as source or destionatio
 - Conversions between FP formats and integers (signed & unsigned) and vice versa
 - Classification
 
-Multi-format FMA operations (i.e. multiplication in one format, accumulation in another) are optionally supported. 
+Multi-format FMA operations (i.e. multiplication in one format, accumulation in another) are optionally supported.
 
 Optionally, *packed-SIMD* versions of all the above operations can be generated for formats narrower than the FPU datapath width.
 E.g.: Support for double-precision (64bit) operations and two simultaneous single-precision (32bit) operations.
@@ -137,3 +137,11 @@ Furthermore, this repository tries to adhere to [SemVer](https://semver.org/), a
 ## Licensing
 
 FPnew is released under the *SolderPad Hardware License*, which is a permissive license based on Apache 2.0. Please refer to the [license file](LICENSE) for further information.
+
+## Acknowledgement
+
+This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 732631.
+
+For further information, visit [oprecomp.eu](http://oprecomp.eu).
+
+![OPRECOMP](docs/fig/oprecomp_logo_inline1.png)

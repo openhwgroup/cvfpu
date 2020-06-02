@@ -14,6 +14,15 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Changed
 ### Fixed
 
+## [0.6.2] - 2020-06-02
+
+### Changed
+- Number of pipeline registers in multi-format units is the maximum of all contained formats instead of the first format marked `MERGED`
+
+### Fixed
+- Typo in changelog
+- Missing type cast breaking simulation in VCS [(#24)](https://github.com/pulp-platform/fpnew/issues/24)
+
 
 ## [0.6.1] - 2019-07-10
 
@@ -34,7 +43,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Various linter warnings
 - Documentation to reflect on updated pipeline distribution order
 - [fpu_div_sqrt_mvp] Bumped to fix linter warnings
-- [Bender] Fixed dependencies for Bender [(#14)](https://github.com/pulp-platform/fpnew/pull/15)
+- [Bender] Fixed dependencies for Bender [(#15)](https://github.com/pulp-platform/fpnew/pull/15)
 
 ### Removed
 - Currently unused modules: `fpnew_pipe*`, `fpnew_{f2i,f2f,i2f}_cast`
