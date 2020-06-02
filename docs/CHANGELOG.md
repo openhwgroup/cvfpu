@@ -16,6 +16,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Fixed
 - Typo in changelog
+- Missing type cast breaking simulation in VCS
 
 
 ## [0.6.1] - 2019-07-10
