@@ -318,6 +318,9 @@ module fpnew_opgroup_multifmt_slice #(
       if (ACTIVE_FORMATS[fmt])
         assign fmt_slice_result[fmt][(LANE+1)*FP_WIDTH-1:LANE*FP_WIDTH] =
             local_result[FP_WIDTH-1:0];
+      else if ((LANE+1)*FP_WIDTH <= Width)
+        assign fmt_slice_result[fmt][(LANE+1)*FP_WIDTH-1:LANE*FP_WIDTH] =
+            '{default: lane_ext_bit[LANE]};
     end
 
     // Generate result packing depending on integer format
@@ -328,6 +331,8 @@ module fpnew_opgroup_multifmt_slice #(
         if (ACTIVE_INT_FORMATS[ifmt])
           assign ifmt_slice_result[ifmt][(LANE+1)*INT_WIDTH-1:LANE*INT_WIDTH] =
             local_result[INT_WIDTH-1:0];
+        else if ((LANE+1)*INT_WIDTH <= Width)
+          assign ifmt_slice_result[ifmt][(LANE+1)*INT_WIDTH-1:LANE*INT_WIDTH] = '0;
       end
     end
   end
