@@ -14,6 +14,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Changed
 ### Fixed
 - Undriven unused portions of signals in multi-format slices
+- Undriven portions of the result for non-divisible unit width & format width in multi-format slices
 
 ## [0.6.2] - 2020-06-02
 
