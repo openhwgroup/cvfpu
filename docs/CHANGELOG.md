@@ -11,6 +11,8 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ## [Unreleased]
 
 ### Added
+- Integer multiply on multi-format FMA
+
 ### Changed
 ### Fixed
 - Undriven unused portions of signals in multi-format slices

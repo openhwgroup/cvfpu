@@ -101,7 +101,11 @@ module fpnew_opgroup_multifmt_slice #(
   assign vectorial_op = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
 
   // Cast-and-Pack ops are encoded in operation and modifier
-  assign dst_fmt_is_int = (OpGroup == fpnew_pkg::CONV) & (op_i == fpnew_pkg::F2I);
+  assign dst_fmt_is_int = (OpGroup == fpnew_pkg::CONV) & (op_i == fpnew_pkg::F2I) ||
+                          (OpGroup == fpnew_pkg::ADDMUL & (op_i == fpnew_pkg::IMUL ||
+                                                           op_i == fpnew_pkg::IMULH ||
+                                                           op_i == fpnew_pkg::IMULHU ||
+                                                           op_i == fpnew_pkg::IMULHSU));
   assign dst_is_cpk     = (OpGroup == fpnew_pkg::CONV) & (op_i == fpnew_pkg::CPKAB ||
                                                           op_i == fpnew_pkg::CPKCD);
   assign dst_vec_op     = (OpGroup == fpnew_pkg::CONV) & {(op_i == fpnew_pkg::CPKCD), op_mod_i};
@@ -144,6 +148,9 @@ module fpnew_opgroup_multifmt_slice #(
         fpnew_pkg::get_lane_int_formats(Width, FpFmtConfig, IntFmtConfig, LANE);
     localparam int unsigned MAX_WIDTH = fpnew_pkg::max_fp_width(ACTIVE_FORMATS);
 
+    // Muladd-specific parameters
+    localparam fpnew_pkg::ifmt_logic_t ADDMUL_INT_FORMATS =
+        fpnew_pkg::get_fma_lane_int_formats(Width, FpFmtConfig, IntFmtConfig, LANE);
     // Cast-specific parameters
     localparam fpnew_pkg::fmt_logic_t CONV_FORMATS =
         fpnew_pkg::get_conv_lane_formats(Width, FpFmtConfig, LANE);
@@ -196,12 +203,13 @@ module fpnew_opgroup_multifmt_slice #(
 
       // Instantiate the operation from the selected opgroup
       if (OpGroup == fpnew_pkg::ADDMUL) begin : lane_instance
-        fpnew_fma_multi #(
-          .FpFmtConfig ( LANE_FORMATS         ),
-          .NumPipeRegs ( NumPipeRegs          ),
-          .PipeConfig  ( PipeConfig           ),
-          .TagType     ( TagType              ),
-          .AuxType     ( logic [AUX_BITS-1:0] )
+        fpnew_fma_multi_int #(
+          .FpFmtConfig  ( LANE_FORMATS         ),
+          .IntFmtConfig ( ADDMUL_INT_FORMATS   ),
+          .NumPipeRegs  ( NumPipeRegs          ),
+          .PipeConfig   ( PipeConfig           ),
+          .TagType      ( TagType              ),
+          .AuxType      ( logic [AUX_BITS-1:0] )
         ) i_fpnew_fma_multi (
           .clk_i,
           .rst_ni,
@@ -212,6 +220,7 @@ module fpnew_opgroup_multifmt_slice #(
           .op_mod_i,
           .src_fmt_i,
           .dst_fmt_i,
+          .int_fmt_i,
           .tag_i,
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
@@ -328,7 +337,7 @@ module fpnew_opgroup_multifmt_slice #(
     end
 
     // Generate result packing depending on integer format
-    if (OpGroup == fpnew_pkg::CONV) begin : int_results_enabled
+    if (OpGroup == fpnew_pkg::CONV || OpGroup == fpnew_pkg::ADDMUL) begin : int_results_enabled
       for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : pack_int_result
         // Set up some constants
         localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
@@ -354,7 +363,7 @@ module fpnew_opgroup_multifmt_slice #(
 
   // Mute int results if unused
   for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : int_results_disabled
-    if (OpGroup != fpnew_pkg::CONV) begin : mute_int_result
+    if (OpGroup != fpnew_pkg::CONV && OpGroup != fpnew_pkg::ADDMUL) begin : mute_int_result
       assign ifmt_slice_result[ifmt] = '0;
     end
   end

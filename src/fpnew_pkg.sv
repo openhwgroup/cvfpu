@@ -104,13 +104,14 @@ package fpnew_pkg;
     ADDMUL, DIVSQRT, NONCOMP, CONV
   } opgroup_e;
 
-  localparam int unsigned OP_BITS = 4;
+  localparam int unsigned OP_BITS = 5;
 
   typedef enum logic [OP_BITS-1:0] {
     FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
-    F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
+    F2F, F2I, I2F, CPKAB, CPKCD, // CONV operation group
+    IMUL, IMULH, IMULHU, IMULHSU // In ADDMUL
   } operation_e;
 
   // -------------------
@@ -356,11 +357,12 @@ package fpnew_pkg;
   // Returns the operation group of the given operation
   function automatic opgroup_e get_opgroup(operation_e op);
     unique case (op)
-      FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
-      DIV, SQRT:                   return DIVSQRT;
-      SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
-      F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
-      default:                     return NONCOMP;
+      FMADD, FNMSUB, ADD, MUL:      return ADDMUL;
+      DIV, SQRT:                    return DIVSQRT;
+      SGNJ, MINMAX, CMP, CLASSIFY:  return NONCOMP;
+      F2F, F2I, I2F, CPKAB, CPKCD:  return CONV;
+      IMUL, IMULH, IMULHU, IMULHSU: return ADDMUL;
+      default:                      return NONCOMP;
     endcase
   endfunction
 
@@ -413,6 +415,28 @@ package fpnew_pkg;
           res[ifmt] |= icfg[ifmt] && lanefmts[fmt];
     return res;
   endfunction
+
+  // Returns a mask of active INT formats that are present in lane lane_no of a multiformat slice
+  function automatic ifmt_logic_t get_fma_lane_int_formats(int unsigned width,
+                                                           fmt_logic_t  cfg,
+                                                           ifmt_logic_t icfg,
+                                                           int unsigned lane_no);
+    automatic ifmt_logic_t res;
+    automatic fmt_logic_t lanefmts;
+    automatic fp_encoding_t superfmt;
+    res = '0;
+    lanefmts = get_lane_formats(width, cfg, lane_no);
+    superfmt = super_format(lanefmts);
+
+    for (int unsigned ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++)
+      for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
+        // Mask active int formats with the width of the float formats
+        if ((fp_width(fp_format_e'(fmt)) == int_width(int_format_e'(ifmt))) &&
+             (int_width(int_format_e'(ifmt)) <= superfmt.man_bits + 1))
+          res[ifmt] |= icfg[ifmt] && lanefmts[fmt];
+    return res;
+  endfunction
+
 
   // Returns a mask of active FP formats that are present in lane lane_no of a CONV slice
   function automatic fmt_logic_t get_conv_lane_formats(int unsigned width,
