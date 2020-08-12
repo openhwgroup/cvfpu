@@ -1,4 +1,4 @@
-// Copyright 2019, 2020 ETH Zurich and University of Bologna.
+// Copyright 2019-2020 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -328,7 +328,7 @@ module fpnew_fma #(
 
   logic [NUM_INT_FORMATS-1:0][INT_MAN_WIDTH-1:0]    ifmt_input_val;
   logic                                             int_sign;
-  logic [INT_MAN_WIDTH-1:0]                         int_value, int_mantissa;
+  logic [INT_MAN_WIDTH-1:0]                         int_value;
 
   // FP Input initialization
   for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : fmt_init_inputs
@@ -344,6 +344,7 @@ module fpnew_fma #(
         .NumOperands ( 1                            )
       ) i_fpnew_classifier_cast (
         .operands_i ( operands_q[0][FP_WIDTH-1:0] ),
+//        .operands_i ( operands_q[0]                 ),
         .is_boxed_i ( is_boxed_q[fmt]               ),
         .info_o     ( info_cast[fmt]                )
       );
@@ -369,14 +370,17 @@ module fpnew_fma #(
     // sign-extend value only if it's signed
     ifmt_input_val[0]                     = '{default: operands_q[0][INT32_WIDTH-1] & ~op_mod_q};
     ifmt_input_val[0][INT32_WIDTH-1:0]    = operands_q[0][INT32_WIDTH-1:0];
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+    always_comb begin
       localparam int unsigned INT64_WIDTH = 64;
       // sign-extend value only if it's signed
       ifmt_input_val[1]                   = '{default: operands_q[0][INT64_WIDTH-1] & ~op_mod_q};
       ifmt_input_val[1][INT64_WIDTH-1:0]  = operands_q[0][INT64_WIDTH-1:0];
-    end else begin : inactive_format
-      ifmt_input_val[1]                   = '{default: fpnew_pkg::DONT_CARE}; // format disabled
     end
+  end else begin : inactive_format
+    assign ifmt_input_val[1]                   = '{default: fpnew_pkg::DONT_CARE}; // format disabled
   end
 
   // Construct input mantissa from integer
@@ -401,7 +405,7 @@ module fpnew_fma #(
 
   logic                            input_sign;   // input sign
   logic signed [INT_EXP_WIDTH-1:0] input_exp;    // unbiased true exponent
-  logic        [INT_MAN_WIDTH-1:0] input_mant;   // normalized input mantissa
+  // logic        [INT_MAN_WIDTH-1:0] input_mant;   // normalized input mantissa
   logic                            mant_is_zero, mant_is_zero_d, mant_is_zero_q; // for integer zeroes
 
   logic signed [INT_EXP_WIDTH-1:0] fp_input_exp;
@@ -444,7 +448,7 @@ module fpnew_fma #(
   logic [INT_EXP_WIDTH-1:0] final_exp;        // after eventual adjustments
 
   logic [2*INT_MAN_WIDTH:0]  preshift_mant, preshift_mant_tmp;    // mantissa before final shift
-  logic [2*INT_MAN_WIDTH:0]  destination_mant, destination_mant_tmp, reversed_destination_mant__tmp; // mantissa from shifter, with rnd bit
+  logic [2*INT_MAN_WIDTH:0]  destination_mant_tmp; // mantissa from shifter, with rnd bit
   logic [SUPER_MAN_BITS-1:0] final_mant;       // mantissa after adjustments
   logic [MAX_INT_WIDTH-1:0]  final_int;        // integer shifted in position
 
@@ -718,14 +722,14 @@ module fpnew_fma #(
       // sign-extend reusult
     ifmt_pre_round_abs[0]                = '{default: final_int[INT32_WIDTH-1]};
     ifmt_pre_round_abs[0][INT32_WIDTH-1:0] = final_int[INT32_WIDTH-1:0];
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
-      localparam int unsigned INT64_WIDTH = 64;
-      // sign-extend value only if it's signed
-      ifmt_pre_round_abs[1]                = '{default: final_int[INT64_WIDTH-1]};
-      ifmt_pre_round_abs[1][INT64_WIDTH-1:0] = final_int[INT64_WIDTH-1:0];
-    end else begin : inactive_format
-      ifmt_pre_round_abs[1]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
-    end
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+    localparam int unsigned INT64_WIDTH = 64;
+    // sign-extend value only if it's signed
+    assign ifmt_pre_round_abs[1][INT64_WIDTH-1:0] = final_int[INT64_WIDTH-1:0];
+  end else begin : inactive_format_ifmt_pre_round_abs
+    assign ifmt_pre_round_abs[1]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
   end
 
   // Select output with destination format and operation
@@ -837,24 +841,27 @@ module fpnew_fma #(
     // Initialize special result with sign-extension
     ifmt_special_result[0]                = '{default: special_res[INT32_WIDTH-1]};
     ifmt_special_result[0][INT32_WIDTH-1:0] = special_res;
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+    always_comb begin
       localparam int unsigned INT64_WIDTH = 64;
       automatic logic [INT64_WIDTH-1:0] special_res64;
 
-    // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
-    special_res64[INT64_WIDTH-2:0] = '1;       // alone yields 2**(INT_WIDTH-1)-1
-    special_res64[INT64_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
+      // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
+      special_res64[INT64_WIDTH-2:0] = '1;       // alone yields 2**(INT_WIDTH-1)-1
+      special_res64[INT64_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
 
-    // Negative special case (except for nans) tie to -max or 0
-    if (input_sign && !info_cast[src_fmt_q].is_nan)
-      special_res64 = ~special_res64;
+      // Negative special case (except for nans) tie to -max or 0
+      if (input_sign && !info_cast[src_fmt_q].is_nan)
+        special_res64 = ~special_res64;
 
-    // Initialize special result with sign-extension
-    ifmt_special_result[1]                = '{default: special_res64[INT64_WIDTH-1]};
-    ifmt_special_result[1][INT64_WIDTH-1:0] = special_res64;
-    end else begin : inactive_format
-      ifmt_special_result[1] = '{default: fpnew_pkg::DONT_CARE};
+      // Initialize special result with sign-extension
+      ifmt_special_result[1]                = '{default: special_res64[INT64_WIDTH-1]};
+      ifmt_special_result[1][INT64_WIDTH-1:0] = special_res64;
     end
+  end else begin : inactive_format_ifmt_special_result
+    assign ifmt_special_result[1] = '{default: fpnew_pkg::DONT_CARE};
   end
 
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
@@ -1200,6 +1207,7 @@ module fpnew_fma #(
             end
             else begin
               next_state = FSM_EXP_ADD;
+              // next_state  = FSM_WAIT;
             end
           end
         end
@@ -1522,15 +1530,14 @@ module fpnew_fma #(
           shift_in                         = sum[(3*PRECISION_BITS+4)/3-1:0];
           shift_amount                     = norm_shamt;
           sum_shifted                      = shift_out[(3*PRECISION_BITS+4):0];
-          {carry_add_d, operands_d[2].mantissa, operands_d[0].mantissa, mantissa_b_new, tmp_d}
-              = shift_out[(3*PRECISION_BITS+4):0];
-
+          {carry_add_d, operands_d[2].mantissa, operands_d[0].mantissa, mantissa_b_new, tmp_d} = shift_out[(3*PRECISION_BITS+4):0];
           {mantissa_b_msb_d, operands_d[1].mantissa} = mantissa_b_new;
           next_state                       = FSM_NORMALIZATION;
         end
         else begin
           shift_in                         = sum[(3*PRECISION_BITS+4)*2/3-1:(3*PRECISION_BITS+4)/3];
           shift_amount                     = norm_shamt;
+//          {tmp_shift_d, addend_after_shift_d[(3*PRECISION_BITS+4)*2/3-1:0]} = shift_out;
           next_state                       = FSM_ROUNDING;
           addend_after_shift_d[EXP_WIDTH-1:0] = normalized_exponent_new;
           {carry_add_d, operands_d[2].mantissa, operands_d[0].mantissa, mantissa_b_new, tmp_d} =
@@ -1608,6 +1615,7 @@ module fpnew_fma #(
         shift_amount          = norm_shamt;
         sum_shifted_tmp       = shift_out;
         sum_shifted = (sum_shifted_tmp << (3*PRECISION_BITS+4)*2/3) |
+//            ({tmp_shift_q, addend_after_shift_q[(3*PRECISION_BITS+4)*2/3-1:0]} << (3*PRECISION_BITS+4)/3)
              {carry_add_q, operands_q[2].mantissa, operands_q[0].mantissa, mantissa_b_old, tmp_q};
 
         {final_mantissa, sum_sticky_bits} = sum_shifted;
@@ -1869,7 +1877,7 @@ module fpnew_fma #(
   //non_comb
   assign is_class_o = (op_q == fpnew_pkg::CLASSIFY);
 
-  //to be defined
   assign tag_o           = tag_q;
   assign aux_o           = aux_q;
+
 endmodule
