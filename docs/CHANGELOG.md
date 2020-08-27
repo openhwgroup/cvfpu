@@ -13,6 +13,8 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Added
 ### Changed
 ### Fixed
+- Fix undriven signals for inactive case in `fpnew_fma_multi`
+- Fix potentially uncovered case item in `fpnew_pkg`
 - Undriven unused portions of signals in multi-format slices
 - Undriven portions of the result for non-divisible unit width & format width in multi-format slices
 
