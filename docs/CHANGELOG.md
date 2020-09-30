@@ -17,6 +17,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 - Fix potentially uncovered case item in `fpnew_pkg`
 - Undriven unused portions of signals in multi-format slices
 - Undriven portions of the result for non-divisible unit width & format width in multi-format slices
+- [fpu_div_sqrt_mvp] Bumped to fix signalling for underflows
 
 ## [0.6.2] - 2020-06-02
 
