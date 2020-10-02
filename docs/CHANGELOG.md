@@ -14,6 +14,17 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Changed
 ### Fixed
 
+
+## [0.6.3] - 2020-10-02
+
+### Fixed
+- Fix undriven signals for inactive case in `fpnew_fma_multi`
+- Fix potentially uncovered case item in `fpnew_pkg`
+- Undriven unused portions of signals in multi-format slices
+- Undriven portions of the result for non-divisible unit width & format width in multi-format slices
+- [fpu_div_sqrt_mvp] Bumped to fix signalling for underflows
+
+
 ## [0.6.2] - 2020-06-02
 
 ### Changed
@@ -28,6 +39,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Fixed
 - A bug where the div/sqrt unit could lose operations in flight
+
 
 ## [0.6.0] - 2019-07-04
 
