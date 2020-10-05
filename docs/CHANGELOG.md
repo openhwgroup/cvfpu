@@ -15,6 +15,13 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Fixed
 
 
+## [0.6.4] - 2020-10-05
+
+### Fixed
+- Updated dependencies for Bender and IPApproX [(#37)](https://github.com/pulp-platform/fpnew/issues/37)
+- [fpu_div_sqrt_mvp] Bump for formal version number
+
+
 ## [0.6.3] - 2020-10-02
 
 ### Fixed
