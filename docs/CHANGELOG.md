@@ -13,7 +13,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Added
 ### Changed
 ### Fixed
-
+- [common_cells] Bump to fix compilation order
 
 ## [0.6.4] - 2020-10-05
 
