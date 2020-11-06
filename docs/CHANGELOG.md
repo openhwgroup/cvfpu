@@ -15,6 +15,12 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Fixed
 - [common_cells] Bump to fix compilation order
 
+
+## [0.6.5] - 2020-11-06
+
+### Fixed
+- [common_cells] Bump to fix compilation order
+
 ## [0.6.4] - 2020-10-05
 
 ### Fixed
