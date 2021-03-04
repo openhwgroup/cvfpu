@@ -31,6 +31,7 @@ module fpnew_noncomp #(
   input fpnew_pkg::operation_e     op_i,
   input logic                      op_mod_i,
   input TagType                    tag_i,
+  input logic                      mask_i,
   input AuxType                    aux_i,
   // Input Handshake
   input  logic                     in_valid_i,
@@ -43,6 +44,7 @@ module fpnew_noncomp #(
   output fpnew_pkg::classmask_e    class_mask_o,
   output logic                     is_class_o,
   output TagType                   tag_o,
+  output logic                     mask_o,
   output AuxType                   aux_o,
   // Output handshake
   output logic                     out_valid_o,
@@ -87,6 +89,7 @@ module fpnew_noncomp #(
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                 inp_pipe_op_q;
   logic                  [0:NUM_INP_REGS]                 inp_pipe_op_mod_q;
   TagType                [0:NUM_INP_REGS]                 inp_pipe_tag_q;
+  logic                  [0:NUM_INP_REGS]                 inp_pipe_mask_q;
   AuxType                [0:NUM_INP_REGS]                 inp_pipe_aux_q;
   logic                  [0:NUM_INP_REGS]                 inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -99,6 +102,7 @@ module fpnew_noncomp #(
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_op_mod_q[0]   = op_mod_i;
   assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_mask_q[0]     = mask_i;
   assign inp_pipe_aux_q[0]      = aux_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
   // Input stage: Propagate pipeline ready signal to updtream circuitry
@@ -122,6 +126,7 @@ module fpnew_noncomp #(
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_op_mod_q[i+1],   inp_pipe_op_mod_q[i],   reg_ena, '0)
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
 
@@ -352,6 +357,7 @@ module fpnew_noncomp #(
   fpnew_pkg::classmask_e [0:NUM_OUT_REGS] out_pipe_class_mask_q;
   logic                  [0:NUM_OUT_REGS] out_pipe_is_class_q;
   TagType                [0:NUM_OUT_REGS] out_pipe_tag_q;
+  logic                  [0:NUM_OUT_REGS] out_pipe_mask_q;
   AuxType                [0:NUM_OUT_REGS] out_pipe_aux_q;
   logic                  [0:NUM_OUT_REGS] out_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -364,6 +370,7 @@ module fpnew_noncomp #(
   assign out_pipe_class_mask_q[0]    = class_mask_d;
   assign out_pipe_is_class_q[0]      = is_class_d;
   assign out_pipe_tag_q[0]           = inp_pipe_tag_q[NUM_INP_REGS];
+  assign out_pipe_mask_q[0]          = inp_pipe_mask_q[NUM_INP_REGS];
   assign out_pipe_aux_q[0]           = inp_pipe_aux_q[NUM_INP_REGS];
   assign out_pipe_valid_q[0]         = inp_pipe_valid_q[NUM_INP_REGS];
   // Input stage: Propagate pipeline ready signal to inside pipe
@@ -387,6 +394,7 @@ module fpnew_noncomp #(
     `FFL(out_pipe_class_mask_q[i+1],    out_pipe_class_mask_q[i],    reg_ena, fpnew_pkg::QNAN)
     `FFL(out_pipe_is_class_q[i+1],      out_pipe_is_class_q[i],      reg_ena, '0)
     `FFL(out_pipe_tag_q[i+1],           out_pipe_tag_q[i],           reg_ena, TagType'('0))
+    `FFL(out_pipe_mask_q[i+1],          out_pipe_mask_q[i],          reg_ena, '0)
     `FFL(out_pipe_aux_q[i+1],           out_pipe_aux_q[i],           reg_ena, AuxType'('0))
   end
   // Output stage: Ready travels backwards from output side, driven by downstream circuitry
@@ -398,6 +406,7 @@ module fpnew_noncomp #(
   assign class_mask_o    = out_pipe_class_mask_q[NUM_OUT_REGS];
   assign is_class_o      = out_pipe_is_class_q[NUM_OUT_REGS];
   assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign mask_o          = out_pipe_mask_q[NUM_OUT_REGS];
   assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
   assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
   assign busy_o          = (| {inp_pipe_valid_q, out_pipe_valid_q});

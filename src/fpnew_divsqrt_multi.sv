@@ -33,6 +33,7 @@ module fpnew_divsqrt_multi #(
   input  fpnew_pkg::operation_e       op_i,
   input  fpnew_pkg::fp_format_e       dst_fmt_i,
   input  TagType                      tag_i,
+  input  logic                        mask_i,
   input  AuxType                      aux_i,
   // Input Handshake
   input  logic                        in_valid_i,
@@ -43,6 +44,7 @@ module fpnew_divsqrt_multi #(
   output fpnew_pkg::status_t          status_o,
   output logic                        extension_bit_o,
   output TagType                      tag_o,
+  output logic                        mask_o,
   output AuxType                      aux_o,
   // Output handshake
   output logic                        out_valid_o,
@@ -82,6 +84,7 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
+  logic                  [0:NUM_INP_REGS]                       inp_pipe_mask_q;
   AuxType                [0:NUM_INP_REGS]                       inp_pipe_aux_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -93,6 +96,7 @@ module fpnew_divsqrt_multi #(
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
   assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_mask_q[0]     = mask_i;
   assign inp_pipe_aux_q[0]      = aux_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
   // Input stage: Propagate pipeline ready signal to updtream circuitry
@@ -115,6 +119,7 @@ module fpnew_divsqrt_multi #(
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
   // Output stage: assign selected pipe outputs to signals for later use
@@ -242,11 +247,13 @@ module fpnew_divsqrt_multi #(
   // Hold additional information while the operation is in progress
   logic result_is_fp8_q;
   TagType result_tag_q;
+  logic result_mask_q;
   AuxType result_aux_q;
 
   // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
   `FFL(result_is_fp8_q, input_is_fp8,                 op_starting, '0)
   `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], op_starting, '0)
+  `FFL(result_mask_q,   inp_pipe_mask_q[NUM_INP_REGS],op_starting, '0)
   `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], op_starting, '0)
 
   // -----------------
@@ -296,6 +303,7 @@ module fpnew_divsqrt_multi #(
   logic               [0:NUM_OUT_REGS][WIDTH-1:0] out_pipe_result_q;
   fpnew_pkg::status_t [0:NUM_OUT_REGS]            out_pipe_status_q;
   TagType             [0:NUM_OUT_REGS]            out_pipe_tag_q;
+  logic               [0:NUM_OUT_REGS]            out_pipe_mask_q;
   AuxType             [0:NUM_OUT_REGS]            out_pipe_aux_q;
   logic               [0:NUM_OUT_REGS]            out_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -305,6 +313,7 @@ module fpnew_divsqrt_multi #(
   assign out_pipe_result_q[0] = result_d;
   assign out_pipe_status_q[0] = status_d;
   assign out_pipe_tag_q[0]    = result_tag_q;
+  assign out_pipe_mask_q[0]   = result_mask_q;
   assign out_pipe_aux_q[0]    = result_aux_q;
   assign out_pipe_valid_q[0]  = out_valid;
   // Input stage: Propagate pipeline ready signal to inside pipe
@@ -325,6 +334,7 @@ module fpnew_divsqrt_multi #(
     `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
     `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
     `FFL(out_pipe_tag_q[i+1],    out_pipe_tag_q[i],    reg_ena, TagType'('0))
+    `FFL(out_pipe_mask_q[i+1],   out_pipe_mask_q[i],   reg_ena, '0)
     `FFL(out_pipe_aux_q[i+1],    out_pipe_aux_q[i],    reg_ena, AuxType'('0))
   end
   // Output stage: Ready travels backwards from output side, driven by downstream circuitry
@@ -334,6 +344,7 @@ module fpnew_divsqrt_multi #(
   assign status_o        = out_pipe_status_q[NUM_OUT_REGS];
   assign extension_bit_o = 1'b1; // always NaN-Box result
   assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign mask_o          = out_pipe_mask_q[NUM_OUT_REGS];
   assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
   assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
   assign busy_o          = (| {inp_pipe_valid_q, unit_busy, out_pipe_valid_q});

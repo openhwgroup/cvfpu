@@ -24,7 +24,9 @@ module fpnew_opgroup_block #(
   parameter type                        TagType       = logic,
   // Do not change
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
-  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup)
+  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
+  localparam int unsigned NUM_LANES    = fpnew_pkg::max_num_lanes(Width, FpFmtMask, EnableVectors),
+  localparam type         MaskType     = logic [NUM_LANES-1:0]
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
@@ -39,6 +41,7 @@ module fpnew_opgroup_block #(
   input fpnew_pkg::int_format_e                   int_fmt_i,
   input logic                                     vectorial_op_i,
   input TagType                                   tag_i,
+  input MaskType                                  simd_mask_i,
   // Input Handshake
   input  logic                                    in_valid_i,
   output logic                                    in_ready_o,
@@ -90,6 +93,11 @@ module fpnew_opgroup_block #(
 
       assign in_valid = in_valid_i & (dst_fmt_i == fmt); // enable selected format
 
+      // Forward masks related to the right SIMD lane
+      localparam int unsigned INTERNAL_LANES = fpnew_pkg::num_lanes(Width, fpnew_pkg::fp_format_e'(fmt), EnableVectors);
+      logic [INTERNAL_LANES-1:0] mask_slice;
+      always_comb for (int b = 0; b < INTERNAL_LANES; b++) mask_slice[b] = simd_mask_i[(NUM_LANES/INTERNAL_LANES)*b];
+
       fpnew_opgroup_fmt_slice #(
         .OpGroup       ( OpGroup                      ),
         .FpFormat      ( fpnew_pkg::fp_format_e'(fmt) ),
@@ -108,6 +116,7 @@ module fpnew_opgroup_block #(
         .op_mod_i,
         .vectorial_op_i,
         .tag_i,
+        .simd_mask_i    ( mask_slice               ),
         .in_valid_i     ( in_valid                 ),
         .in_ready_o     ( fmt_in_ready[fmt]        ),
         .flush_i,
@@ -181,6 +190,7 @@ module fpnew_opgroup_block #(
       .int_fmt_i,
       .vectorial_op_i,
       .tag_i,
+      .simd_mask_i     ( simd_mask_i              ),
       .in_valid_i      ( in_valid                 ),
       .in_ready_o      ( fmt_in_ready[FMT]        ),
       .flush_i,
