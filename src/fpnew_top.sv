@@ -19,6 +19,7 @@ module fpnew_top #(
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
   parameter type                            TagType        = logic,
   parameter int unsigned                    NumLanes       = fpnew_pkg::max_num_lanes(Features.Width, Features.FpFmtMask, Features.EnableVectors),
+  parameter int unsigned                    TrueSIMDClass  = 0,
   parameter type                            MaskType       = logic [NumLanes-1:0],
   // Do not change
   localparam int unsigned WIDTH        = Features.Width,
@@ -116,7 +117,8 @@ module fpnew_top #(
       .FmtPipeRegs   ( Implementation.PipeRegs[opgrp]  ),
       .FmtUnitTypes  ( Implementation.UnitTypes[opgrp] ),
       .PipeConfig    ( Implementation.PipeConfig       ),
-      .TagType       ( TagType                         )
+      .TagType       ( TagType                         ),
+      .TrueSIMDClass ( TrueSIMDClass                   )
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,

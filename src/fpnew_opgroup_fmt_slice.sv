@@ -22,6 +22,7 @@ module fpnew_opgroup_fmt_slice #(
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                     TagType       = logic,
+  parameter int unsigned             TrueSIMDClass = 0,
   // Do not change
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
   localparam int unsigned NUM_LANES    = fpnew_pkg::num_lanes(Width, FpFormat, EnableVectors),
@@ -55,6 +56,7 @@ module fpnew_opgroup_fmt_slice #(
 );
 
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
+  localparam int unsigned SIMD_WIDTH = unsigned'(Width/NUM_LANES);
 
 
   logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
@@ -222,7 +224,10 @@ module fpnew_opgroup_fmt_slice #(
     assign slice_result[(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH] = local_result;
 
     // Create Classification results
-    if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
+    if (TrueSIMDClass && SIMD_WIDTH >= 10) begin : vectorial_true_class // true vectorial class blocks are 10bits in size
+      assign slice_vec_class_result[lane*SIMD_WIDTH +: 10] = lane_class_mask[lane];
+      assign slice_vec_class_result[(lane+1)*SIMD_WIDTH-1 -: SIMD_WIDTH-10] = '0;
+    end else if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
       assign local_sign = (lane_class_mask[lane] == fpnew_pkg::NEGINF ||
                            lane_class_mask[lane] == fpnew_pkg::NEGNORM ||
                            lane_class_mask[lane] == fpnew_pkg::NEGSUBNORM ||
@@ -255,9 +260,11 @@ module fpnew_opgroup_fmt_slice #(
 
   localparam int unsigned CLASS_VEC_BITS = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
 
-  // Pad out unused vec_class bits
-  if (CLASS_VEC_BITS < Width) begin : pad_vectorial_class
-    assign slice_vec_class_result[Width-1:CLASS_VEC_BITS] = '0;
+  // Pad out unused vec_class bits if each classify result is on 8 bits
+  if (!(TrueSIMDClass && SIMD_WIDTH >= 10)) begin
+    if (CLASS_VEC_BITS < Width) begin : pad_vectorial_class
+      assign slice_vec_class_result[Width-1:CLASS_VEC_BITS] = '0;
+    end
   end
 
   // localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
