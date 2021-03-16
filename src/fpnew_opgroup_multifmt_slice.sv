@@ -70,7 +70,7 @@ module fpnew_opgroup_multifmt_slice #(
       fpnew_pkg::maximum($clog2(NUM_FORMATS), $clog2(NUM_INT_FORMATS));
   localparam int unsigned AUX_BITS = FMT_BITS + 2; // also add vectorial and integer flags
 
-  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
+  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid, divsqrt_done, divsqrt_ready; // Handshake signals for the lanes
   logic                 vectorial_op;
   logic [FMT_BITS-1:0]  dst_fmt; // destination format to pass along with operation
   logic [AUX_BITS-1:0]  aux_data;
@@ -99,6 +99,8 @@ module fpnew_opgroup_multifmt_slice #(
   logic [FMT_BITS-1:0] result_fmt;
   logic                result_fmt_is_int, result_is_cpk;
   logic [1:0]          result_vec_op; // info for vectorial results (for packing)
+
+  logic simd_synch_rdy, simd_synch_done;
 
   // -----------
   // Input Side
@@ -255,6 +257,10 @@ module fpnew_opgroup_multifmt_slice #(
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
           .in_ready_o      ( lane_in_ready[lane] ),
+          .divsqrt_done_o   ( divsqrt_done[lane] ),
+          .simd_synch_done_i( simd_synch_done    ),
+          .divsqrt_ready_o  ( divsqrt_ready[lane]),
+          .simd_synch_rdy_i( simd_synch_rdy    ),
           .flush_i,
           .result_o        ( op_result           ),
           .status_o        ( op_status           ),
@@ -410,6 +416,10 @@ module fpnew_opgroup_multifmt_slice #(
   end else begin : no_conv
     assign {result_vec_op, result_is_cpk} = '0;
   end
+
+  // Synch lanes if there is more than one
+  assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
+  assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
 
   // ------------
   // Output Side
