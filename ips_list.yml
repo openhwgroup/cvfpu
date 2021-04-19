@@ -19,7 +19,7 @@
 #
 
 common_cells:
-  commit: v1.20.0
+  commit: v1.21.0
   domain: [soc, cluster]
 
 fpu_div_sqrt_mvp:
