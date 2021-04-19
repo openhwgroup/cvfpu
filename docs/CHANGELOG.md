@@ -18,7 +18,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ## [0.6.6] - 2021-04-19
 
 ### Changed
-- [common_cells] Bump common cells version
+- [common_cells] Bump common cells version [(#44)](https://github.com/pulp-platform/fpnew/issues/44)
 
 ## [0.6.5] - 2020-11-06
 
