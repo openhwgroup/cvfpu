@@ -500,7 +500,7 @@ module fpnew_dotp #(
       end else begin
         // Cap the shift distance to align mantissa with minimum exponent
         norm_shamt          = unsigned'(signed'(2*PRECISION_BITS) + 2 + exponent_product_x_q);
-        normalized_exponent = 0; // subnormals encoded as 0
+        normalized_exponent = -2; // subnormals flushed to 0 - TODO(lbertaccini): Modify to add denormal support
       end
     // Addend-anchored case
     end else begin
