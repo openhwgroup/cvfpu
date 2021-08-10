@@ -542,7 +542,7 @@ module fpnew_dotp #(
         final_mantissa = '0; // flush denormals to zero
         final_exponent = '0;
       end
-      // Otherwise we're denormal
+    // Otherwise we're denormal
     end else begin
       if ((sum_shifted[4*PRECISION_BITS+4]) && (normalized_exponent == -1) && carry_shift) begin // check the carry bit
         {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
