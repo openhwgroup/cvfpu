@@ -519,19 +519,9 @@ module fpnew_dotp #(
       sum_shifted = {carry_shift, sum_shifted[4*PRECISION_BITS+4:1]};
   end
 
-  logic denormal_res;
-  logic maybe_denormal_res;
-  logic debug_a;
-  logic debug_a_bis;
-  logic debug_b;
   // The addend-anchored case needs a 1-bit normalization since the leading-one can be to the left
   // or right of the (non-carry) MSB of the sum.
   always_comb begin : small_norm
-    denormal_res = 1'b0;
-    maybe_denormal_res = 1'b0;
-    debug_a = 1'b0;
-    debug_b = 1'b0;
-    debug_a_bis = 1'b0;
     // Default assignment, discarding carry bit
     {final_mantissa, sum_sticky_bits} = sum_shifted;
     final_exponent                    = normalized_exponent + carry_shift;
@@ -541,11 +531,9 @@ module fpnew_dotp #(
       if (sum_shifted[4*PRECISION_BITS+4]) begin // check the carry bit
         {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
         final_exponent                    = normalized_exponent + 1 + carry_shift;
-        debug_a = 1'b1;
       // The normalized sum is normal, nothing to do
       end else if ((sum_shifted[4*PRECISION_BITS+3]) && (normalized_exponent > 0)) begin // check the sum MSB
         // do nothing
-        debug_b =1'b1;
       // The normalized sum is still denormal, align left - unless the result is not already subnormal
       end else if (normalized_exponent > 1) begin
         maybe_denormal_res = 1'b1;
@@ -561,7 +549,6 @@ module fpnew_dotp #(
       if ((sum_shifted[4*PRECISION_BITS+4]) && (normalized_exponent == -1) && carry_shift) begin // check the carry bit
         {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
         final_exponent                    = normalized_exponent + 1 + carry_shift;
-        debug_a_bis = 1'b1;
       end else begin
         denormal_res = 1'b1;
         final_mantissa = '0; // flush denormals to zero
