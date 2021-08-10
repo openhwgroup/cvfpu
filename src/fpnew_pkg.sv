@@ -23,6 +23,7 @@ package fpnew_pkg;
   // | FP16       | IEEE binary16    | 16 bit | 5        | 10
   // | FP8        | binary8          |  8 bit | 5        | 2
   // | FP16ALT    | binary16alt      | 16 bit | 8        | 7
+  // | FP8        | binary8alt       |  8 bit | 4        | 3
   // *NOTE:* Add new formats only at the end of the enumeration for backwards compatibilty!
 
   // Encoding for a format
@@ -31,7 +32,7 @@ package fpnew_pkg;
     int unsigned man_bits;
   } fp_encoding_t;
 
-  localparam int unsigned NUM_FP_FORMATS = 5; // change me to add formats
+  localparam int unsigned NUM_FP_FORMATS = 6; // change me to add formats
   localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 
   // FP formats
@@ -40,7 +41,8 @@ package fpnew_pkg;
     FP64    = 'd1,
     FP16    = 'd2,
     FP8     = 'd3,
-    FP16ALT = 'd4
+    FP16ALT = 'd4,
+    FP8ALT  = 'd5
     // add new formats here
   } fp_format_e;
 
@@ -50,14 +52,15 @@ package fpnew_pkg;
     '{11, 52}, // IEEE binary64 (double)
     '{5,  10}, // IEEE binary16 (half)
     '{5,  2},  // custom binary8
-    '{8,  7}   // custom binary16alt
+    '{8,  7},  // custom binary16alt
+    '{4,  3}   // custom binary8alt
     // add new formats here
   };
 
   typedef logic [0:NUM_FP_FORMATS-1]       fmt_logic_t;    // Logic indexed by FP format (for masks)
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
 
-  localparam fmt_logic_t CPK_FORMATS = 5'b11000; // FP32 and FP64 can provide CPK only
+  localparam fmt_logic_t CPK_FORMATS = 6'b110000; // FP32 and FP64 can provide CPK only
 
   // ---------
   // INT TYPES
@@ -208,7 +211,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b0,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11000,
+    FpFmtMask:     6'b110000,
     IntFmtMask:    4'b0011
   };
 
@@ -216,7 +219,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11000,
+    FpFmtMask:     6'b110000,
     IntFmtMask:    4'b0010
   };
 
@@ -224,7 +227,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b0,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10000,
+    FpFmtMask:     6'b100000,
     IntFmtMask:    4'b0010
   };
 
@@ -232,7 +235,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11111,
+    FpFmtMask:     6'b111110,
     IntFmtMask:    4'b1111
   };
 
@@ -240,7 +243,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10111,
+    FpFmtMask:     6'b101110,
     IntFmtMask:    4'b1110
   };
 
@@ -248,7 +251,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10001,
+    FpFmtMask:     6'b100010,
     IntFmtMask:    4'b0110
   };
 
