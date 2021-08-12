@@ -9,6 +9,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Author: Stefan Mach <smach@iis.ee.ethz.ch>
 // Author: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
 
 `include "common_cells/registers.svh"
