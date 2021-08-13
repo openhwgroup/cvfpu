@@ -235,7 +235,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     6'b111110,
+    FpFmtMask:     6'b111111,
     IntFmtMask:    4'b1111
   };
 
@@ -243,7 +243,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     6'b101110,
+    FpFmtMask:     6'b101111,
     IntFmtMask:    4'b1110
   };
 
@@ -346,6 +346,34 @@ package fpnew_pkg;
         res.exp_bits = unsigned'(maximum(res.exp_bits, exp_bits(fp_format_e'(fmt))));
         res.man_bits = unsigned'(maximum(res.man_bits, man_bits(fp_format_e'(fmt))));
       end
+    return res;
+  endfunction
+
+  function automatic fp_format_e expanded_format(fp_format_e input_format);
+    automatic fp_format_e res;
+    case (input_format)
+      FP32    : res = FP64;
+      FP64    : res = FP64;
+      FP16    : res = FP32;
+      FP8     : res = FP16;
+      FP16ALT : res = FP32;
+      FP8ALT  : res = FP16;
+      default : res = FP64;
+    endcase
+    return res;
+  endfunction
+
+  function automatic fp_format_e expanded_alt_format(fp_format_e input_format);
+    automatic fp_format_e res;
+    case (input_format)
+      FP32    : res = FP64;
+      FP64    : res = FP64;
+      FP16    : res = FP32;
+      FP8     : res = FP16ALT;
+      FP16ALT : res = FP32;
+      FP8ALT  : res = FP16ALT;
+      default : res = FP64;
+    endcase
     return res;
   endfunction
 
