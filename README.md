@@ -138,6 +138,32 @@ Furthermore, this repository tries to adhere to [SemVer](https://semver.org/), a
 
 FPnew is released under the *SolderPad Hardware License*, which is a permissive license based on Apache 2.0. Please refer to the [license file](LICENSE) for further information.
 
+
+## Publication
+
+If you use FPnew in your work, you can cite us:
+
+<details>
+<summary>FPnew Publication</summary>
+<p>
+
+```
+@article{mach2020fpnew,
+  title={Fpnew: An open-source multiformat floating-point unit architecture for energy-proportional transprecision computing},
+  author={Mach, Stefan and Schuiki, Fabian and Zaruba, Florian and Benini, Luca},
+  journal={IEEE Transactions on Very Large Scale Integration (VLSI) Systems},
+  volume={29},
+  number={4},
+  pages={774--787},
+  year={2020},
+  publisher={IEEE}
+}
+```
+
+</p>
+</details>
+
+
 ## Acknowledgement
 
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 732631.
