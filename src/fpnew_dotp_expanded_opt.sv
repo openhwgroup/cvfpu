@@ -14,7 +14,7 @@
 
 `include "common_cells/registers.svh"
 
-module fpnew_dotp_expanded #(
+module fpnew_dotp_expanded_opt #(
   parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(0),
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
@@ -72,7 +72,7 @@ module fpnew_dotp_expanded #(
   localparam int unsigned DST_PRECISION_BITS = DST_MAN_BITS + 1;
   localparam int unsigned ADDITIONAL_PRECISION_BITS = DST_PRECISION_BITS - 2 * PRECISION_BITS;
   // The lower 2p+3 bits of the internal DOTP result will be needed for leading-zero detection
-  localparam int unsigned LOWER_SUM_WIDTH  = 2 * PRECISION_BITS + 3 + ADDITIONAL_PRECISION_BITS; // TODO (lbertaccini): Check this for denormal support (3p+3)?
+  localparam int unsigned LOWER_SUM_WIDTH  = DST_PRECISION_BITS + 3; // TODO (lbertaccini): Check this for denormal support (3p+3)?
   localparam int unsigned LZC_RESULT_WIDTH = $clog2(LOWER_SUM_WIDTH);
   // Internal exponent width of DOTP must accomodate all meaningful exponent values in order to avoid
   // datapath leakage. This is either given by the exponent bits or the width of the LZC result.
@@ -80,7 +80,7 @@ module fpnew_dotp_expanded #(
   localparam int unsigned EXP_WIDTH = unsigned'(fpnew_pkg::maximum(EXP_BITS + 2, LZC_RESULT_WIDTH));
   localparam int unsigned DST_EXP_WIDTH = unsigned'(fpnew_pkg::maximum(DST_EXP_BITS + 2, LZC_RESULT_WIDTH));
   // Shift amount width: maximum internal mantissa size is 3p+3 bits
-  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(4 * PRECISION_BITS + 4 + 2*ADDITIONAL_PRECISION_BITS);
+  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3 + ADDITIONAL_PRECISION_BITS);
   // Pipelines
   localparam NUM_INP_REGS = PipeConfig == fpnew_pkg::BEFORE
                             ? NumPipeRegs
@@ -223,8 +223,6 @@ module fpnew_dotp_expanded #(
   assign signalling_nan  = (| {info_a.is_signalling, info_b.is_signalling, info_c.is_signalling, info_d.is_signalling});
   // Effective subtraction in DOTP occurs when the signs of the two products differ
   assign effective_subtraction = (operand_a.sign ^ operand_b.sign) ^ (operand_c.sign ^ operand_d.sign);
-  // The tentative sign of the DOTP shall be the sign of the first product
-  assign tentative_sign = operand_a.sign ^ operand_b.sign;
 
   // ----------------------
   // Special case handling
@@ -274,7 +272,9 @@ module fpnew_dotp_expanded #(
   // ---------------------------
   logic signed [EXP_WIDTH-1:0] exponent_a, exponent_b, exponent_c, exponent_d;
   logic signed [DST_EXP_WIDTH-1:0] exponent_product_x, exponent_product_y, exponent_difference;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_product_min, exponent_product_max;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent;
+  logic                            max_exponent;
 
   // Zero-extend exponents into signed container - implicit width extension
   assign exponent_a = signed'({1'b0, operand_a.exponent});
@@ -297,23 +297,27 @@ module fpnew_dotp_expanded #(
                                         + exponent_b + info_b.is_subnormal
                                         - 2*signed'(fpnew_pkg::bias(FpFormat))
                                         + signed'(fpnew_pkg::bias(DstFpFormat))); // rebias for dst fmt
+  // Find maximum exponent, the minimum will be shifted for the addition
+  assign max_exponent = (exponent_product_y >= exponent_product_x) ? 1'b1 : 1'b0;
+  // The tentative sign of the DOTP shall be the sign of the first product
+  assign tentative_sign = (max_exponent) ? (operand_c.sign ^ operand_d.sign) : operand_a.sign ^ operand_b.sign;
   // Exponent difference is the product_y exponent minus the product_x exponent
-  assign exponent_difference = exponent_product_y - exponent_product_x;
+  assign exponent_difference = (max_exponent) ? exponent_product_y - exponent_product_x
+                                              : exponent_product_x - exponent_product_y;
+  assign exponent_product_max = (max_exponent) ? exponent_product_y : exponent_product_x;
+  assign exponent_product_min = (max_exponent) ? exponent_product_x : exponent_product_y;
   // The tentative exponent will be the larger of the product_x or the product_y exponent
-  assign tentative_exponent = (exponent_difference > 0) ? exponent_product_y : exponent_product_x;
+  assign tentative_exponent = (max_exponent) ? exponent_product_y : exponent_product_x;
 
   // Shift amount for product_y based on exponents (unsigned as only right shifts)
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt;
   always_comb begin : addend_shift_amount
-    // Product-anchored case, saturated shift (product_y is only in the sticky bit)
-    if (exponent_difference < signed'(-2 * PRECISION_BITS - 1 - ADDITIONAL_PRECISION_BITS)) begin
-      addend_shamt = 4 * PRECISION_BITS + 4 + 2 * ADDITIONAL_PRECISION_BITS;
     // product_y and product_x will have mutual bits to add
-    end else if (exponent_difference <= signed'(DST_PRECISION_BITS + 2)) begin
-      addend_shamt = unsigned'(signed'(2 * PRECISION_BITS) + 2 - exponent_difference + ADDITIONAL_PRECISION_BITS); // TODO(lbertaccini): is it still +3 or +2?
+    if (exponent_difference <= signed'(DST_PRECISION_BITS + 3)) begin
+      addend_shamt = unsigned'(signed'(exponent_difference)); // TODO(lbertaccini): is it still +3 or +2?
     // Addend-anchored case, saturated shift (product is only in the sticky bit)
     end else begin
-      addend_shamt = 0;
+      addend_shamt = DST_PRECISION_BITS + 3;
     end
   end
 
@@ -322,9 +326,7 @@ module fpnew_dotp_expanded #(
   // ------------------
   logic [PRECISION_BITS-1:0]   mantissa_a, mantissa_b, mantissa_c, mantissa_d;
   logic [2*PRECISION_BITS-1:0] product_x, product_y;  // the p*p product is 2p bits wide
-  logic [4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0] product_x_shifted; // addends are 4p+4 bit wide (including G/R)
-                                                                        // plus twice the difference between the
-                                                                        // mantissae of the in/out format
+  logic [2*PRECISION_BITS-1:0] product_max, product_min;  // the p*p product is 2p bits wide
 
   // Add implicit bits to mantissae
   assign mantissa_a = {info_a.is_normal, operand_a.mantissa};
@@ -337,49 +339,48 @@ module fpnew_dotp_expanded #(
   // Mantissa multiplier (c*d)
   assign product_y = mantissa_c * mantissa_d;
 
-  // Product is placed into a 4p+4 bit wide vector, padded with 2 bits for round and sticky:
-  // | 000...0000 | product | RS |
-  //  <-  2p+2  -> <-  2p -> < 2>
-  assign product_x_shifted = product_x << (2+ADDITIONAL_PRECISION_BITS+1); // constant shift
+  // ------------------
+  // Shift data path
+  // ------------------
+  logic [DST_PRECISION_BITS+2:0] product_max_shifted;
+  logic [DST_PRECISION_BITS+2:0] product_min_after_shift;
+  logic [2*PRECISION_BITS-1:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
+  logic                          sticky_before_add;   // they are compressed into a single sticky bit
+  logic [DST_PRECISION_BITS+2:0] product_min_shifted;
+  logic                          inject_carry_in;     // inject carry for subtractions if needed
+  // Place larger value in product_max and the smaller in product_min
+  assign product_max = (max_exponent) ? product_y : product_x;
+  assign product_min = (max_exponent) ? product_x : product_y;
 
-  // -----------------
-  // Addend data path
-  // -----------------
-  logic [4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0] addend_after_shift;  // upper 4p+4 bits are needed to go on
-  logic [PRECISION_BITS-1+ADDITIONAL_PRECISION_BITS:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
-  logic                        sticky_before_add;   // they are compressed into a single sticky bit
-  logic [4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0] addend_shifted;      // addends are 4p+4 bit wide (including G/R)
-  logic                        inject_carry_in;     // inject carry for subtractions if needed
+  // Product max is placed into a 2p+3 bit wide vector, padded with 3 bits for rounding purposes:
+  // | product_max  |  rnd  |
+  //  <-  2p_dst  -> <  3   >
+  assign product_max_shifted = product_max << (3 + ADDITIONAL_PRECISION_BITS); // constant shift
 
-  // In parallel, the addend is right-shifted according to the exponent difference. Up to p bits
+  // In parallel, the min product is right-shifted according to the exponent difference. Up to p bits
   // are shifted out and compressed into a sticky bit.
-  // BEFORE THE SHIFT:
-  // | mantissa_c | 000..000 |
-  //  <-   2p   -> <- 3p+4 ->
-  // AFTER THE SHIFT:
-  // | 000..........000 | mantissa_c | 000...............0GR |  sticky bits  |
-  //  <- addend_shamt -> <-   2p   -> <- 2p+4-addend_shamt -> <-  up to p  ->
-  assign {addend_after_shift, addend_sticky_bits} =
-      (product_y << (3 * PRECISION_BITS + 4 + 3*ADDITIONAL_PRECISION_BITS+1)) >> addend_shamt;
+  // | product_min   |  rnd   | sticky_bits |
+  //  <-   2p_dst  -> <  3   > <     p      >
+  assign {product_min_after_shift, addend_sticky_bits} =
+      (product_min << (2*PRECISION_BITS + 3 + ADDITIONAL_PRECISION_BITS)) >> addend_shamt;
 
   assign sticky_before_add     = (| addend_sticky_bits);
-  // assign addend_after_shift[0] = sticky_before_add;
 
   // In case of a subtraction, the addend is inverted
-  assign addend_shifted  = (effective_subtraction) ? ~addend_after_shift : addend_after_shift;
+  assign product_min_shifted  = (effective_subtraction) ? ~product_min_after_shift : product_min_after_shift;
   assign inject_carry_in = effective_subtraction & ~sticky_before_add;
 
   // ------
   // Adder
   // ------
-  logic [4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1:0] sum_raw;   // added one bit for the carry
-  logic                        sum_carry; // observe carry bit from sum for sign fixing
-  logic [4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0] sum;       // discard carry as sum won't overflow
-  logic                        final_sign;
+  logic [DST_PRECISION_BITS+3:0] sum_raw;   // added one bit for the carry
+  logic                          sum_carry; // observe carry bit from sum for sign fixing
+  logic [DST_PRECISION_BITS+2:0] sum;       // discard carry as sum won't overflow
+  logic                          final_sign;
 
   //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw = product_x_shifted + addend_shifted + inject_carry_in;
-  assign sum_carry = sum_raw[4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1];
+  assign sum_raw = product_max_shifted + product_min_shifted + inject_carry_in;
+  assign sum_carry = sum_raw[DST_PRECISION_BITS+3];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
   assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
@@ -394,25 +395,26 @@ module fpnew_dotp_expanded #(
   // ---------------
   // Pipeline output signals as non-arrays
   logic                            effective_subtraction_q;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_product_x_q;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_product_min_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_q;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_q;
   logic [SHIFT_AMOUNT_WIDTH-1:0]   addend_shamt_q;
   logic                            sticky_before_add_q;
-  logic [4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0]     sum_q;
+  logic [DST_PRECISION_BITS+2:0]   sum_q;
   logic                            final_sign_q;
   fpnew_pkg::roundmode_e           rnd_mode_q;
   logic                            result_is_special_q;
   fp_dst_t                         special_result_q;
   fpnew_pkg::status_t              special_status_q;
+  logic                            sum_carry_q;
   // Internal pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_MID_REGS]                         mid_pipe_eff_sub_q;
-  logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]      mid_pipe_exp_prod_q;
+  logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]      mid_pipe_exp_min_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]      mid_pipe_exp_diff_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]      mid_pipe_tent_exp_q;
   logic                  [0:NUM_MID_REGS][SHIFT_AMOUNT_WIDTH-1:0] mid_pipe_add_shamt_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_sticky_q;
-  logic                  [0:NUM_MID_REGS][4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1:0]   mid_pipe_sum_q;
+  logic                  [0:NUM_MID_REGS][DST_PRECISION_BITS+2:0] mid_pipe_sum_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_final_sign_q;
   fpnew_pkg::roundmode_e [0:NUM_MID_REGS]                         mid_pipe_rnd_mode_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_res_is_spec_q;
@@ -421,12 +423,13 @@ module fpnew_dotp_expanded #(
   TagType                [0:NUM_MID_REGS]                         mid_pipe_tag_q;
   AuxType                [0:NUM_MID_REGS]                         mid_pipe_aux_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_valid_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_sum_carry_q;
   // Ready signal is combinatorial for all stages
   logic [0:NUM_MID_REGS] mid_pipe_ready;
 
   // Input stage: First element of pipeline is taken from upstream logic
   assign mid_pipe_eff_sub_q[0]     = effective_subtraction;
-  assign mid_pipe_exp_prod_q[0]    = exponent_product_x;
+  assign mid_pipe_exp_min_q[0]     = exponent_product_min;
   assign mid_pipe_exp_diff_q[0]    = exponent_difference;
   assign mid_pipe_tent_exp_q[0]    = tentative_exponent;
   assign mid_pipe_add_shamt_q[0]   = addend_shamt;
@@ -440,6 +443,7 @@ module fpnew_dotp_expanded #(
   assign mid_pipe_tag_q[0]         = inp_pipe_tag_q[NUM_INP_REGS];
   assign mid_pipe_aux_q[0]         = inp_pipe_aux_q[NUM_INP_REGS];
   assign mid_pipe_valid_q[0]       = inp_pipe_valid_q[NUM_INP_REGS];
+  assign mid_pipe_sum_carry_q[0]   = sum_carry;
   // Input stage: Propagate pipeline ready signal to input pipe
   assign inp_pipe_ready[NUM_INP_REGS] = mid_pipe_ready[0];
 
@@ -457,7 +461,7 @@ module fpnew_dotp_expanded #(
     assign reg_ena = mid_pipe_ready[i] & mid_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
-    `FFL(mid_pipe_exp_prod_q[i+1],    mid_pipe_exp_prod_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_exp_min_q[i+1],     mid_pipe_exp_min_q[i],     reg_ena, '0)
     `FFL(mid_pipe_exp_diff_q[i+1],    mid_pipe_exp_diff_q[i],    reg_ena, '0)
     `FFL(mid_pipe_tent_exp_q[i+1],    mid_pipe_tent_exp_q[i],    reg_ena, '0)
     `FFL(mid_pipe_add_shamt_q[i+1],   mid_pipe_add_shamt_q[i],   reg_ena, '0)
@@ -470,10 +474,11 @@ module fpnew_dotp_expanded #(
     `FFL(mid_pipe_spec_stat_q[i+1],   mid_pipe_spec_stat_q[i],   reg_ena, '0)
     `FFL(mid_pipe_tag_q[i+1],         mid_pipe_tag_q[i],         reg_ena, TagType'('0))
     `FFL(mid_pipe_aux_q[i+1],         mid_pipe_aux_q[i],         reg_ena, AuxType'('0))
+    `FFL(mid_pipe_sum_carry_q[i+1],   mid_pipe_sum_carry_q[i],   reg_ena, '0)
   end
   // Output stage: assign selected pipe outputs to signals for later use
   assign effective_subtraction_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
-  assign exponent_product_x_q    = mid_pipe_exp_prod_q[NUM_MID_REGS];
+  assign exponent_product_min_q  = mid_pipe_exp_min_q[NUM_MID_REGS];
   assign exponent_difference_q   = mid_pipe_exp_diff_q[NUM_MID_REGS];
   assign tentative_exponent_q    = mid_pipe_tent_exp_q[NUM_MID_REGS];
   assign addend_shamt_q          = mid_pipe_add_shamt_q[NUM_MID_REGS];
@@ -484,6 +489,7 @@ module fpnew_dotp_expanded #(
   assign result_is_special_q     = mid_pipe_res_is_spec_q[NUM_MID_REGS];
   assign special_result_q        = mid_pipe_spec_res_q[NUM_MID_REGS];
   assign special_status_q        = mid_pipe_spec_stat_q[NUM_MID_REGS];
+  assign sum_carry_q             = mid_pipe_sum_carry_q[NUM_MID_REGS];
 
   // --------------
   // Normalization
@@ -496,14 +502,17 @@ module fpnew_dotp_expanded #(
   logic        [SHIFT_AMOUNT_WIDTH-1:0] norm_shamt; // Normalization shift amount
   logic signed [DST_EXP_WIDTH-1:0]      normalized_exponent;
 
-  logic [4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1:0] sum_shifted;       // result after first normalization shift
-  logic [DST_PRECISION_BITS:0] final_mantissa;    // final mantissa before rounding with round bit
-  logic [(3*PRECISION_BITS+2)+2-DST_PRECISION_BITS+PRECISION_BITS + ADDITIONAL_PRECISION_BITS+1:0] sum_sticky_bits;   // remaining 3p+3 sticky bits after normalization
-  logic                        sticky_after_norm; // sticky bit after normalization
+  logic [DST_PRECISION_BITS+3:0] sum_shifted;       // result after first normalization shift
+  logic [DST_PRECISION_BITS:0]   final_mantissa;    // final mantissa before rounding with round bit
+  logic [1:0] sum_sticky_bits;   // remaining 3p+3 sticky bits after normalization
+  logic                          sticky_after_norm; // sticky bit after normalization
+  logic                          effective_carry_sum;
+
+  assign effective_carry_sum = ~effective_subtraction_q && sum_carry_q;
 
   logic signed [DST_EXP_WIDTH-1:0] final_exponent;
 
-  assign sum_lower = sum_q[LOWER_SUM_WIDTH-1+1:0+1];
+  assign sum_lower = sum_q[LOWER_SUM_WIDTH-1:0];
 
   // Leading zero counter for cancellations
   lzc #(
@@ -518,25 +527,30 @@ module fpnew_dotp_expanded #(
   assign leading_zero_count_sgn = signed'({1'b0, leading_zero_count});
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
   always_comb begin : norm_shift_amount
-    // Product-anchored case or cancellations require LZC
-    if ((exponent_difference_q <= 0) || (effective_subtraction_q && (exponent_difference_q <= 2) && !sum[2*PRECISION_BITS+3+ADDITIONAL_PRECISION_BITS+1])) begin
-      // Normal result (biased exponent > 0 and not a zero)
-      if ((exponent_product_x_q - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
-        // Undo initial product shift, remove the counted zeroes
-        norm_shamt          = 2*PRECISION_BITS + 2 + leading_zero_count + ADDITIONAL_PRECISION_BITS;
-        normalized_exponent = exponent_product_x_q - leading_zero_count_sgn + 1; // account for shift
-      // Subnormal result
-      end else begin
-        // Cap the shift distance to align mantissa with minimum exponent
-        norm_shamt          = unsigned'(signed'(2*PRECISION_BITS) + 2 + exponent_product_x_q + ADDITIONAL_PRECISION_BITS);
-        normalized_exponent = -2; // subnormals encoded as 0
-      end
-    // Addend-anchored case
-    end else begin
+    // // Product-anchored case or cancellations require LZC
+    // if (effective_subtraction_q && (exponent_difference_q <= 2)) begin
+    //   // Normal result (biased exponent > 0 and not a zero)
+    //   if ((exponent_product_min_q - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
+    //     // Undo initial product shift, remove the counted zeroes
+    //     norm_shamt          = leading_zero_count + 2;
+    //     normalized_exponent = exponent_product_min_q - leading_zero_count_sgn + 1; // account for shift
+    //   // Subnormal result
+    //   end else begin
+    //     // Cap the shift distance to align mantissa with minimum exponent
+    //     norm_shamt          = '0;
+    //     normalized_exponent = -2; // subnormals encoded as 0
+    //   end
+    // // Addend-anchored case
+    // end else begin
       // TODO (lbertaccini): Check here
-      norm_shamt          = addend_shamt_q + 1; // Undo the initial shift
-      normalized_exponent = tentative_exponent_q;
+    if (effective_carry_sum) begin
+      norm_shamt          = 0;
+      normalized_exponent = tentative_exponent_q + 1;
+    end else begin
+      norm_shamt          = leading_zero_count;
+      normalized_exponent = tentative_exponent_q - leading_zero_count_sgn + 1;
     end
+    // end
   end
 
   // Do the large normalization shift
@@ -544,23 +558,27 @@ module fpnew_dotp_expanded #(
   always_comb begin : sum_shift
     {carry_shift, sum_shifted}       = sum_q << (norm_shamt);
     if (carry_shift)
-      sum_shifted = {carry_shift, sum_shifted[4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1:1]};
+      sum_shifted = {carry_shift, sum_shifted[DST_PRECISION_BITS + 3:1]};
   end
 
   // The addend-anchored case needs a 1-bit normalization since the leading-one can be to the left
   // or right of the (non-carry) MSB of the sum.
   always_comb begin : small_norm
+
     // Default assignment, discarding carry bit
     {final_mantissa, sum_sticky_bits} = sum_shifted;
     final_exponent                    = normalized_exponent + carry_shift;
 
     // The normalized sum has overflown, align right and fix exponent
-    if (normalized_exponent > -1) begin
-      if (sum_shifted[4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1]) begin // check the carry bit
+    if (effective_carry_sum) begin
+      {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
+      final_exponent                    = normalized_exponent + 1 + carry_shift;
+    end else if (normalized_exponent > -1) begin
+      if (sum_shifted[DST_PRECISION_BITS + 3]) begin // check the carry bit
         {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
         final_exponent                    = normalized_exponent + 1 + carry_shift;
       // The normalized sum is normal, nothing to do
-      end else if ((sum_shifted[4*PRECISION_BITS+3+2*ADDITIONAL_PRECISION_BITS+1]) && (normalized_exponent > 0)) begin // check the sum MSB
+      end else if ((sum_shifted[DST_PRECISION_BITS + 2]) && (normalized_exponent > 0)) begin // check the sum MSB
         // do nothing
       // The normalized sum is still denormal, align left - unless the result is not already subnormal
       end else if (normalized_exponent > 1) begin
@@ -572,7 +590,7 @@ module fpnew_dotp_expanded #(
       end
       // Otherwise we're denormal
     end else begin
-      if ((sum_shifted[4*PRECISION_BITS+4+2*ADDITIONAL_PRECISION_BITS+1]) && (normalized_exponent == -1) && carry_shift) begin // check the carry bit
+      if ((sum_shifted[DST_PRECISION_BITS + 3]) && (normalized_exponent == -1) && carry_shift) begin // check the carry bit
         {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
         final_exponent                    = normalized_exponent + 1 + carry_shift;
       end else begin
