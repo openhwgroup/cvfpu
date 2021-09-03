@@ -146,6 +146,12 @@ package fpnew_pkg;
     logic NX; // Inexact
   } status_t;
 
+  // CSR encoded alternate fp formats
+  typedef struct packed {
+    logic src; // Source format selection
+    logic dst; // Destination format selection
+  } fmt_mode_t;
+
   // Information about a floating point value
   typedef struct packed {
     logic is_normal;     // is the value normal
