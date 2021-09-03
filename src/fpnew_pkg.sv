@@ -23,7 +23,7 @@ package fpnew_pkg;
   // | FP16       | IEEE binary16    | 16 bit | 5        | 10
   // | FP8        | binary8          |  8 bit | 5        | 2
   // | FP16ALT    | binary16alt      | 16 bit | 8        | 7
-  // | FP8        | binary8alt       |  8 bit | 4        | 3
+  // | FP8ALT     | binary8alt       |  8 bit | 4        | 3
   // *NOTE:* Add new formats only at the end of the enumeration for backwards compatibilty!
 
   // Encoding for a format
