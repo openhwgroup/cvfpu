@@ -76,9 +76,9 @@ module fpnew_opgroup_multifmt_slice #(
   logic [2:0] target_aux_d, target_aux_q;
   logic       is_up_cast, is_down_cast;
 
-  logic [NUM_FORMATS-1:0][Width-1:0]     fmt_slice_result;
-  logic [NUM_INT_FORMATS-1:0][Width-1:0] ifmt_slice_result;
-  logic [Width-1:0]                      conv_slice_result;
+  logic [NUM_FORMATS-1:0][Width-1:0]      fmt_slice_result;
+  logic [NUM_INT_FORMATS-1:0][Width-1:0]  ifmt_slice_result;
+  logic [NUM_FORMATS-1:0][3:0][Width-1:0] fmt_conv_cpk_result;
 
 
   logic [Width-1:0] conv_target_d, conv_target_q; // vectorial conversions update a register
@@ -104,7 +104,7 @@ module fpnew_opgroup_multifmt_slice #(
   assign dst_fmt_is_int = (OpGroup == fpnew_pkg::CONV) & (op_i == fpnew_pkg::F2I);
   assign dst_is_cpk     = (OpGroup == fpnew_pkg::CONV) & (op_i == fpnew_pkg::CPKAB ||
                                                           op_i == fpnew_pkg::CPKCD);
-  assign dst_vec_op     = (OpGroup == fpnew_pkg::CONV) & {(op_i == fpnew_pkg::CPKCD), op_mod_i};
+  assign dst_vec_op     = {2{(OpGroup == fpnew_pkg::CONV)}} & {(op_i == fpnew_pkg::CPKCD), op_mod_i};
 
   assign is_up_cast   = (fpnew_pkg::fp_width(dst_fmt_i) > fpnew_pkg::fp_width(src_fmt_i));
   assign is_down_cast = (fpnew_pkg::fp_width(dst_fmt_i) < fpnew_pkg::fp_width(src_fmt_i));
@@ -395,8 +395,28 @@ module fpnew_opgroup_multifmt_slice #(
 
     // decode the aux data
     assign {result_vec_op, result_is_cpk} = byp_pipe_aux_q[NumPipeRegs];
+
+    if (OpGroup == fpnew_pkg::CONV) begin : conv_group
+      for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : pack_conv_cpk_result
+        // Set up some constants
+        localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
+        always_comb begin : conv_cpk
+          fmt_conv_cpk_result[fmt][0] = conv_target_q; // rd load of vfcpka
+          fmt_conv_cpk_result[fmt][1] = conv_target_q; // rd load of vfcpkb
+          fmt_conv_cpk_result[fmt][2] = conv_target_q; // rd load of vfcpkc
+          fmt_conv_cpk_result[fmt][3] = conv_target_q; // rd load of vfcpkd
+
+          fmt_conv_cpk_result[fmt][0][2*FP_WIDTH-1:0*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpka
+          fmt_conv_cpk_result[fmt][1][4*FP_WIDTH-1:2*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkb
+          fmt_conv_cpk_result[fmt][2][6*FP_WIDTH-1:4*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkc
+          fmt_conv_cpk_result[fmt][3][8*FP_WIDTH-1:6*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkd
+        end
+      end
+    end
+
   end else begin : no_conv
     assign {result_vec_op, result_is_cpk} = '0;
+    assign fmt_conv_cpk_result = '0;
   end
 
   // ------------
@@ -404,9 +424,9 @@ module fpnew_opgroup_multifmt_slice #(
   // ------------
   assign {result_fmt_is_int, result_is_vector, result_fmt} = lane_aux[0];
 
-  assign result_o = result_fmt_is_int
-                    ? ifmt_slice_result[result_fmt]
-                    : fmt_slice_result[result_fmt];
+  assign result_o = result_fmt_is_int ? ifmt_slice_result[result_fmt]                  :
+                        result_is_cpk ? fmt_conv_cpk_result[result_fmt][result_vec_op] :
+                                        fmt_slice_result[result_fmt];
 
   assign extension_bit_o = lane_ext_bit[0]; // don't care about upper ones
   assign tag_o           = lane_tags[0];    // don't care about upper ones
