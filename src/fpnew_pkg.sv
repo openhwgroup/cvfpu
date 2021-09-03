@@ -108,17 +108,18 @@ package fpnew_pkg;
   // --------------
   // FP OPERATIONS
   // --------------
-  localparam int unsigned NUM_OPGROUPS = 4;
+  localparam int unsigned NUM_OPGROUPS = 5;
 
   // Each FP operation belongs to an operation group
-  typedef enum logic [1:0] {
-    ADDMUL, DIVSQRT, NONCOMP, CONV
+  typedef enum logic [2:0] {
+    ADDMUL, DOTP, DIVSQRT, NONCOMP, CONV
   } opgroup_e;
 
-  localparam int unsigned OP_BITS = 4;
+  localparam int unsigned OP_BITS = 5;
 
   typedef enum logic [OP_BITS-1:0] {
     FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
+    SDOTP, VSUM,                 // DOTP operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
     F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
@@ -272,6 +273,7 @@ package fpnew_pkg;
   localparam fpu_implementation_t DEFAULT_NOREGS = '{
     PipeRegs:   '{default: 0},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
+                  '{default: MERGED},   // DOTP
                   '{default: MERGED},   // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
@@ -281,6 +283,7 @@ package fpnew_pkg;
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
     PipeRegs:   '{default: 1},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
+                  '{default: MERGED},   // DOTP
                   '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
@@ -402,6 +405,7 @@ package fpnew_pkg;
   function automatic opgroup_e get_opgroup(operation_e op);
     unique case (op)
       FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
+      SDOTP, VSUM:                 return DOTP;
       DIV, SQRT:                   return DIVSQRT;
       SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
       F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
@@ -413,6 +417,7 @@ package fpnew_pkg;
   function automatic int unsigned num_operands(opgroup_e grp);
     unique case (grp)
       ADDMUL:  return 3;
+      DOTP:    return 3; // splitting into 5 operands done in wrapper
       DIVSQRT: return 2;
       NONCOMP: return 2;
       CONV:    return 3; // vectorial casts use 3 operands
