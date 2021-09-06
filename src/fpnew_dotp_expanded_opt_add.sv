@@ -283,7 +283,7 @@ module fpnew_dotp_expanded_opt_add #(
   // TODO(lbertaccini): Test special cases
   always_comb begin : special_cases
     // Default assignments
-    special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+    special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(DST_MAN_BITS-1)}; // canonical qNaN
     special_status    = '0;
     result_is_special = 1'b0;
 
