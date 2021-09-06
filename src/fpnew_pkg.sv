@@ -32,7 +32,7 @@ package fpnew_pkg;
     int unsigned man_bits;
   } fp_encoding_t;
 
-  localparam int unsigned NUM_FP_FORMATS = 6; // change me to add formats
+  localparam int unsigned NUM_FP_FORMATS = 8; // change me to add formats
   localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 
   // FP formats
@@ -42,7 +42,9 @@ package fpnew_pkg;
     FP16    = 'd2,
     FP8     = 'd3,
     FP16ALT = 'd4,
-    FP8ALT  = 'd5
+    FP8ALT  = 'd5,
+    FP128   = 'd6,
+    FP256   = 'd7
     // add new formats here
   } fp_format_e;
 
@@ -53,7 +55,9 @@ package fpnew_pkg;
     '{5,  10}, // IEEE binary16 (half)
     '{5,  2},  // custom binary8
     '{8,  7},  // custom binary16alt
-    '{4,  3}   // custom binary8alt
+    '{4,  3},  // custom binary8alt
+    '{15, 112}, // IEEE binary 128 (quad)
+    '{19, 236} // IEEE binary 128 (oct)
     // add new formats here
   };
 
@@ -118,7 +122,7 @@ package fpnew_pkg;
   localparam int unsigned OP_BITS = 5;
 
   typedef enum logic [OP_BITS-1:0] {
-    FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
+    FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group\
     SDOTP, VSUM,                 // DOTP operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group

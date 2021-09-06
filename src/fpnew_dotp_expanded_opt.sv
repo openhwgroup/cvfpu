@@ -504,7 +504,7 @@ module fpnew_dotp_expanded_opt #(
 
   logic [DST_PRECISION_BITS+3:0] sum_shifted;       // result after first normalization shift
   logic [DST_PRECISION_BITS:0]   final_mantissa;    // final mantissa before rounding with round bit
-  logic [1:0] sum_sticky_bits;   // remaining 3p+3 sticky bits after normalization
+  logic [1:0]                    sum_sticky_bits;   // remaining 3p+3 sticky bits after normalization
   logic                          sticky_after_norm; // sticky bit after normalization
   logic                          effective_carry_sum;
 
