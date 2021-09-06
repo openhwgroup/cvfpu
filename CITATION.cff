@@ -1,0 +1,10 @@
+@article{mach2020fpnew,
+  title={Fpnew: An open-source multiformat floating-point unit architecture for energy-proportional transprecision computing},
+  author={Mach, Stefan and Schuiki, Fabian and Zaruba, Florian and Benini, Luca},
+  journal={IEEE Transactions on Very Large Scale Integration (VLSI) Systems},
+  volume={29},
+  number={4},
+  pages={774--787},
+  year={2020},
+  publisher={IEEE}
+}
