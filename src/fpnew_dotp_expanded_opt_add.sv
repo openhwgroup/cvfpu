@@ -238,10 +238,10 @@ module fpnew_dotp_expanded_opt_add #(
     unique case (inp_pipe_op_q[NUM_INP_REGS])
       fpnew_pkg::SDOTP: ; // do nothing
       fpnew_pkg::VSUM: begin // Set multiplicands coming from rs1 to +1
-        operand_a = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
-        operand_c = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
-        info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
-        info_c    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
+        operand_b = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
+        operand_d = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
+        info_b    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
+        info_d    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
       default: begin // propagate don't cares
         operand_a  = '{default: fpnew_pkg::DONT_CARE};
