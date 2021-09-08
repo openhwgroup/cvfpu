@@ -540,7 +540,7 @@ module fpnew_dotp_expanded_opt_add #(
 
   // Input stage: First element of pipeline is taken from upstream logic
   assign mid_pipe_eff_sub_q[0]     = effective_subtraction_dotp;
-  assign mid_pipe_operand_e_q[0]   = operand_e;
+  assign mid_pipe_operand_e_q[0]   = inp_pipe_dst_operands_q;
   assign mid_pipe_exp_diff_z_q[0]  = exponent_difference_z;
   assign mid_pipe_exp_x_q[0]       = exponent_x;
   assign mid_pipe_sticky_before_add_z_q[0] = sticky_before_add_z;
