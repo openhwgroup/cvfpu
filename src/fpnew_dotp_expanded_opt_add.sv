@@ -737,10 +737,10 @@ module fpnew_dotp_expanded_opt_add #(
     // The normalized sum is normal, nothing to do
     end else if (sum_shifted[DST_PRECISION_BITS*3+7]) begin // check the sum MSB
       // do nothing
-    end else if (sum_shifted[DST_PRECISION_BITS*3+6]) begin
+    end else if (sum_shifted[DST_PRECISION_BITS*3+6] && (normalized_exponent >= 1)) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
       final_exponent                    = normalized_exponent - 1;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+5]) begin
+    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent >= 2)) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 2;
       final_exponent                    = normalized_exponent - 2;
     // The normalized sum is still denormal, align left - unless the result is not already subnormal
