@@ -1,5 +1,5 @@
 package:
-  name: FPnew
+  name: fpnew
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
