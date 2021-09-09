@@ -576,8 +576,9 @@ module fpnew_dotp_expanded_opt_add_multi #(
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_z;
 
   // x comes from the dotp, y comes from operand_e
-  assign exponent_x = tentative_exponent + 1;
-  assign exponent_y = exponent_e;
+  assign exponent_x = signed'(tentative_exponent + 1);
+  assign exponent_y = signed'(exponent_e + $signed({1'b0, ~info_e.is_normal})); // 0 as subnorm
+
   // Exponent difference is the addend exponent minus the product exponent
   assign exponent_difference_z = exponent_y - exponent_x;
   // The tentative exponent will be the larger of the product or addend exponent
@@ -611,6 +612,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
   // ---------------
   // Pipeline output signals as non-arrays
   logic                            effective_subtraction_dotp_q;
+  logic                            info_e_is_normal_q;
   logic [DST_WIDTH-1:0]            operand_e_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_z_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_x_q;
@@ -632,6 +634,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
   logic                            sum_carry_q;
   // Internal pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_MID_REGS]                           mid_pipe_eff_sub_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_normal_q;
   logic                  [0:NUM_MID_REGS][DST_WIDTH-1:0]            mid_pipe_operand_e_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_diff_z_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_x_q;
@@ -659,11 +662,12 @@ module fpnew_dotp_expanded_opt_add_multi #(
 
   // Input stage: First element of pipeline is taken from upstream logic
   assign mid_pipe_eff_sub_q[0]     = effective_subtraction_dotp;
+  assign mid_pipe_info_e_is_normal_q[0]     = info_e.is_normal;
   assign mid_pipe_operand_e_q[0]   = inp_pipe_dst_operands_q;
   assign mid_pipe_exp_diff_z_q[0]  = exponent_difference_z;
   assign mid_pipe_exp_x_q[0]       = exponent_x;
   assign mid_pipe_sticky_before_add_z_q[0] = sticky_before_add_z;
-  assign mid_pipe_mant_y_after_shift_q[0] = mantissa_y_after_shift;
+  assign mid_pipe_mant_y_after_shift_q[0]  = mantissa_y_after_shift;
   assign mid_pipe_op_e_sign_q[0]   = operand_e.sign;
   assign mid_pipe_exp_min_q[0]     = exponent_product_min;
   assign mid_pipe_exp_diff_q[0]    = exponent_difference;
@@ -698,6 +702,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
     assign reg_ena = mid_pipe_ready[i] & mid_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_info_e_is_normal_q[i+1], mid_pipe_info_e_is_normal_q[i], reg_ena, '0)
     `FFL(mid_pipe_operand_e_q[i+1],   mid_pipe_operand_e_q[i],   reg_ena, '0)
     `FFL(mid_pipe_exp_diff_z_q[i+1],  mid_pipe_exp_diff_z_q[i],  reg_ena, '0)
     `FFL(mid_pipe_exp_x_q[i+1],       mid_pipe_exp_x_q[i],       reg_ena, '0)
@@ -723,6 +728,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
   // Output stage: assign selected pipe outputs to signals for later use
   assign sum_carry_q             = mid_pipe_sum_carry_q[NUM_MID_REGS];
   assign operand_e_q             = mid_pipe_operand_e_q[NUM_MID_REGS];
+  assign info_e_is_normal_q      = mid_pipe_info_e_is_normal_q[NUM_MID_REGS];
   assign effective_subtraction_dotp_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
   assign exponent_difference_z_q = mid_pipe_exp_diff_z_q[NUM_MID_REGS];
   assign exponent_x_q            = mid_pipe_exp_x_q[NUM_MID_REGS];
@@ -840,7 +846,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
     // Addend-anchored case
     end else begin
       norm_shamt          = addend_shamt_z; // Undo the initial shift
-      normalized_exponent = tentative_exponent_z + 1;
+      normalized_exponent = tentative_exponent_z + info_e_is_normal_q;
     end
   end
 
@@ -876,19 +882,28 @@ module fpnew_dotp_expanded_opt_add_multi #(
       final_exponent                    = normalized_exponent - 1;
     // Otherwise we're denormal
     end else begin
+      if (normalized_exponent > 0) begin
+        {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
+      end else begin
+        // do nothing
+      end
       final_exponent = '0;
     end
   end
 
   // Update the sticky bit with the shifted-out bits
   // assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+  logic [1:0] dbg_rnd;
   always_comb begin
     sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+    dbg_rnd = '0;
     if (sticky_before_add_q && !effective_subtraction_dotp_q && !sticky_before_add_z_q && effective_subtraction_z && (sum_sticky_bits == '0)) begin
       sticky_after_norm = 1'b0;
+      dbg_rnd[0] = 1'b1;
     end
     if (sticky_before_add_q && effective_subtraction_dotp_q && !sticky_before_add_z_q && !effective_subtraction_z && (sum_sticky_bits == '0)) begin
       sticky_after_norm = 1'b0;
+      dbg_rnd[1] = 1'b1;
     end
   end
 
