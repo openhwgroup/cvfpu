@@ -853,6 +853,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
     // Default assignment, discarding carry bit
     {final_mantissa, sum_sticky_bits} = sum_shifted;
     final_exponent                    = normalized_exponent;
+
     // The normalized sum has overflown, align right and fix exponent
     if (sum_shifted[DST_PRECISION_BITS*3+8]) begin // check the carry bit
       {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
@@ -860,11 +861,14 @@ module fpnew_dotp_expanded_opt_add_multi #(
     // The normalized sum is normal, nothing to do
     end else if (sum_shifted[DST_PRECISION_BITS*3+7]) begin // check the sum MSB
       // do nothing
-    end else if (sum_shifted[DST_PRECISION_BITS*3+6] && (normalized_exponent >= 1)) begin
+    end else if (sum_shifted[DST_PRECISION_BITS*3+6] && (normalized_exponent > 1)) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
       final_exponent                    = normalized_exponent - 1;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent >= 2)) begin
+    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent > 2)) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 2;
+      final_exponent                    = normalized_exponent - 2;
+    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent == 2)) begin
+      {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
       final_exponent                    = normalized_exponent - 2;
     // The normalized sum is still denormal, align left - unless the result is not already subnormal
     end else if (normalized_exponent > 1) begin
@@ -877,7 +881,16 @@ module fpnew_dotp_expanded_opt_add_multi #(
   end
 
   // Update the sticky bit with the shifted-out bits
-  assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+  // assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+  always_comb begin
+    sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+    if (sticky_before_add_q && !effective_subtraction_dotp_q && !sticky_before_add_z_q && effective_subtraction_z && (sum_sticky_bits == '0)) begin
+      sticky_after_norm = 1'b0;
+    end
+    if (sticky_before_add_q && effective_subtraction_dotp_q && !sticky_before_add_z_q && !effective_subtraction_z && (sum_sticky_bits == '0)) begin
+      sticky_after_norm = 1'b0;
+    end
+  end
 
   // ----------------------------
   // Rounding and classification
