@@ -400,16 +400,18 @@ module fpnew_opgroup_multifmt_slice #(
       for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : pack_conv_cpk_result
         // Set up some constants
         localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
-        always_comb begin : conv_cpk
-          fmt_conv_cpk_result[fmt][0] = conv_target_q; // rd load of vfcpka
-          fmt_conv_cpk_result[fmt][1] = conv_target_q; // rd load of vfcpkb
-          fmt_conv_cpk_result[fmt][2] = conv_target_q; // rd load of vfcpkc
-          fmt_conv_cpk_result[fmt][3] = conv_target_q; // rd load of vfcpkd
 
-          fmt_conv_cpk_result[fmt][0][2*FP_WIDTH-1:0*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpka
-          fmt_conv_cpk_result[fmt][1][4*FP_WIDTH-1:2*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkb
-          fmt_conv_cpk_result[fmt][2][6*FP_WIDTH-1:4*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkc
-          fmt_conv_cpk_result[fmt][3][8*FP_WIDTH-1:6*FP_WIDTH] = fmt_slice_result[fmt][2*FP_WIDTH-1:0*FP_WIDTH]; // vfcpkd
+        for (genvar op_idx = 0; op_idx < 4; op_idx++) begin : pack_conv_cpk_result_operands
+          localparam int unsigned UPPER_LEFT = fpnew_pkg::minimum(Width, 2*(op_idx+1)*FP_WIDTH);
+          localparam int unsigned LOWER_LEFT = fpnew_pkg::minimum(Width, 2*op_idx*FP_WIDTH);
+          localparam int unsigned UPPER_RIGHT = fpnew_pkg::minimum(Width, 2*FP_WIDTH);
+
+          always_comb begin : pack_conv_cpk
+            fmt_conv_cpk_result[fmt][op_idx] = conv_target_q; // rd pre-load
+            if(LOWER_LEFT != UPPER_LEFT) begin
+              fmt_conv_cpk_result[fmt][op_idx][UPPER_LEFT-1:LOWER_LEFT] = fmt_slice_result[fmt][UPPER_RIGHT-1:0*FP_WIDTH]; // vfcpk
+            end
+          end
         end
       end
     end
