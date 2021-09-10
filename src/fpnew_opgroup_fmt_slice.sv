@@ -51,19 +51,22 @@ module fpnew_opgroup_fmt_slice #(
 
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
   localparam int unsigned NUM_LANES = fpnew_pkg::num_lanes(Width, FpFormat, EnableVectors);
+  localparam int unsigned AUX_BITS = 2;
 
 
   logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
-  logic                 vectorial_op;
+  logic                 vectorial_op, cmp_op;
 
   logic [NUM_LANES*FP_WIDTH-1:0] slice_result;
   logic [Width-1:0]              slice_regular_result, slice_class_result, slice_vec_class_result;
+  logic [NUM_LANES-1:0]          slice_cmp_result;
 
   fpnew_pkg::status_t    [NUM_LANES-1:0] lane_status;
   logic                  [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
   fpnew_pkg::classmask_e [NUM_LANES-1:0] lane_class_mask;
   TagType                [NUM_LANES-1:0] lane_tags; // only the first one is actually used
-  logic                  [NUM_LANES-1:0] lane_vectorial, lane_busy, lane_is_class; // dito
+  logic                  [NUM_LANES-1:0] lane_busy, lane_is_class; // dito
+  logic    [NUM_LANES-1:0][AUX_BITS-1:0] lane_aux; // dito
 
   logic result_is_vector, result_is_class;
 
@@ -72,6 +75,7 @@ module fpnew_opgroup_fmt_slice #(
   // -----------
   assign in_ready_o   = lane_in_ready[0]; // Upstream ready is given by first lane
   assign vectorial_op = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
+  assign cmp_op       = (op_i == fpnew_pkg::CMP);
 
   // ---------------
   // Generate Lanes
@@ -87,7 +91,9 @@ module fpnew_opgroup_fmt_slice #(
       logic [NUM_OPERANDS-1:0][FP_WIDTH-1:0] local_operands; // lane-local operands
       logic [FP_WIDTH-1:0]                   op_result;      // lane-local results
       fpnew_pkg::status_t                    op_status;
+      logic [AUX_BITS-1:0]                   local_aux_data_input;
 
+      assign local_aux_data_input = {vectorial_op, cmp_op};
       assign in_valid = in_valid_i & ((lane == 0) | vectorial_op); // upper lanes only for vectors
       // Slice out the operands for this lane
       always_comb begin : prepare_input
@@ -99,11 +105,11 @@ module fpnew_opgroup_fmt_slice #(
       // Instantiate the operation from the selected opgroup
       if (OpGroup == fpnew_pkg::ADDMUL) begin : lane_instance
         fpnew_fma #(
-          .FpFormat    ( FpFormat    ),
-          .NumPipeRegs ( NumPipeRegs ),
-          .PipeConfig  ( PipeConfig  ),
-          .TagType     ( TagType     ),
-          .AuxType     ( logic       )
+          .FpFormat    ( FpFormat             ),
+          .NumPipeRegs ( NumPipeRegs          ),
+          .PipeConfig  ( PipeConfig           ),
+          .TagType     ( TagType              ),
+          .AuxType     ( logic [AUX_BITS-1:0] )
         ) i_fma (
           .clk_i,
           .rst_ni,
@@ -113,7 +119,7 @@ module fpnew_opgroup_fmt_slice #(
           .op_i,
           .op_mod_i,
           .tag_i,
-          .aux_i           ( vectorial_op         ), // Remember whether operation was vectorial
+          .aux_i           ( local_aux_data_input ), // Remember whether operation was vectorial
           .in_valid_i      ( in_valid             ),
           .in_ready_o      ( lane_in_ready[lane]  ),
           .flush_i,
@@ -121,7 +127,7 @@ module fpnew_opgroup_fmt_slice #(
           .status_o        ( op_status            ),
           .extension_bit_o ( lane_ext_bit[lane]   ),
           .tag_o           ( lane_tags[lane]      ),
-          .aux_o           ( lane_vectorial[lane] ),
+          .aux_o           ( lane_aux[lane] ),
           .out_valid_o     ( out_valid            ),
           .out_ready_i     ( out_ready            ),
           .busy_o          ( lane_busy[lane]      )
@@ -160,11 +166,11 @@ module fpnew_opgroup_fmt_slice #(
         // assign lane_is_class[lane] = 1'b0;
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
         fpnew_noncomp #(
-          .FpFormat   (FpFormat),
-          .NumPipeRegs(NumPipeRegs),
-          .PipeConfig (PipeConfig),
-          .TagType    (TagType),
-          .AuxType    (logic)
+          .FpFormat   ( FpFormat             ),
+          .NumPipeRegs( NumPipeRegs          ),
+          .PipeConfig ( PipeConfig           ),
+          .TagType    ( TagType              ),
+          .AuxType    ( logic [AUX_BITS-1:0] )
         ) i_noncomp (
           .clk_i,
           .rst_ni,
@@ -174,7 +180,7 @@ module fpnew_opgroup_fmt_slice #(
           .op_i,
           .op_mod_i,
           .tag_i,
-          .aux_i           ( vectorial_op          ), // Remember whether operation was vectorial
+          .aux_i           ( local_aux_data_input  ), // Remember whether operation was vectorial
           .in_valid_i      ( in_valid              ),
           .in_ready_o      ( lane_in_ready[lane]   ),
           .flush_i,
@@ -184,7 +190,7 @@ module fpnew_opgroup_fmt_slice #(
           .class_mask_o    ( lane_class_mask[lane] ),
           .is_class_o      ( lane_is_class[lane]   ),
           .tag_o           ( lane_tags[lane]       ),
-          .aux_o           ( lane_vectorial[lane]  ),
+          .aux_o           ( lane_aux[lane]        ),
           .out_valid_o     ( out_valid             ),
           .out_ready_i     ( out_ready             ),
           .busy_o          ( lane_busy[lane]       )
@@ -211,6 +217,9 @@ module fpnew_opgroup_fmt_slice #(
 
     // Insert lane result into slice result
     assign slice_result[(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH] = local_result;
+
+    // Insert lane result into slice result for CMP operations
+    assign slice_cmp_result[unsigned'(lane)] = local_result[0];
 
     // Create Classification results
     if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
@@ -239,7 +248,8 @@ module fpnew_opgroup_fmt_slice #(
   // ------------
   // Output Side
   // ------------
-  assign result_is_vector = lane_vectorial[0];
+  assign result_is_vector = lane_aux[0][0];
+  assign result_is_cmp    = lane_aux[0][1];
   assign result_is_class  = lane_is_class[0];
 
   assign slice_regular_result = $signed({extension_bit_o, slice_result});
@@ -256,7 +266,8 @@ module fpnew_opgroup_fmt_slice #(
   assign slice_class_result = result_is_vector ? slice_vec_class_result : lane_class_mask[0];
 
   // Select the proper result
-  assign result_o = result_is_class ? slice_class_result : slice_regular_result;
+  assign result_o = result_is_class ? slice_class_result     :
+                    result_is_cmp   ? {'0, slice_cmp_result} : slice_regular_result;
 
   assign extension_bit_o                              = lane_ext_bit[0]; // upper lanes unused
   assign tag_o                                        = lane_tags[0];    // upper lanes unused
