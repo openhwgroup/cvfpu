@@ -979,7 +979,7 @@ module fpnew_dotp_expanded_opt_add_multi #(
     .sign_i                  ( pre_round_sign          ),
     .round_sticky_bits_i     ( round_sticky_bits       ),
     .rnd_mode_i              ( rnd_mode_q              ),
-    .effective_subtraction_i ( effective_subtraction_dotp_q ),
+    .effective_subtraction_i ( effective_subtraction_z ),
     .abs_rounded_o           ( rounded_abs             ),
     .sign_o                  ( rounded_sign            ),
     .exact_zero_o            ( result_zero             )
