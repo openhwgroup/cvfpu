@@ -60,7 +60,8 @@ package fpnew_pkg;
   typedef logic [0:NUM_FP_FORMATS-1]       fmt_logic_t;    // Logic indexed by FP format (for masks)
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
 
-  localparam fmt_logic_t CPK_FORMATS = 6'b110000; // FP32 and FP64 can provide CPK only
+  localparam fmt_logic_t CPK_FORMATS  = 6'b110000; // FP32 and FP64 can provide CPK only
+  localparam fmt_logic_t DOTP_FORMATS = 6'b001111; // FP32 and FP64 cannot be provided for DOTP
 
   // ---------
   // INT TYPES
@@ -112,14 +113,14 @@ package fpnew_pkg;
 
   // Each FP operation belongs to an operation group
   typedef enum logic [2:0] {
-    ADDMUL, DOTP, DIVSQRT, NONCOMP, CONV
+    ADDMUL, DIVSQRT, NONCOMP, CONV, DOTP
   } opgroup_e;
 
   localparam int unsigned OP_BITS = 5;
 
   typedef enum logic [OP_BITS-1:0] {
-    FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     SDOTP, VSUM,                 // DOTP operation group
+    FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
     F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
@@ -273,20 +274,20 @@ package fpnew_pkg;
   localparam fpu_implementation_t DEFAULT_NOREGS = '{
     PipeRegs:   '{default: 0},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
-                  '{default: MERGED},   // DOTP
                   '{default: MERGED},   // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
-                  '{default: MERGED}},  // CONV
+                  '{default: MERGED},   // CONV
+                  '{default: MERGED}},  // DOTP
     PipeConfig: BEFORE
   };
 
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
     PipeRegs:   '{default: 1},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
-                  '{default: MERGED},   // DOTP
                   '{default: DISABLED}, // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
-                  '{default: MERGED}},  // CONV
+                  '{default: MERGED},   // CONV
+                  '{default: MERGED}},  // DOTP
     PipeConfig: BEFORE
   };
 
@@ -320,6 +321,15 @@ package fpnew_pkg;
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (cfg[i])
         res = unsigned'(maximum(res, fp_width(fp_format_e'(i))));
+    return res;
+  endfunction
+
+
+  function automatic int unsigned max_dotp_dst_fp_width(fmt_logic_t cfg);
+    automatic int unsigned res = 0;
+    for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
+      if (cfg[i])
+        res = unsigned'(maximum(res, fp_format_e'(i)));
     return res;
   endfunction
 
@@ -372,20 +382,6 @@ package fpnew_pkg;
     return res;
   endfunction
 
-  function automatic fp_format_e expanded_alt_format(fp_format_e input_format);
-    automatic fp_format_e res;
-    case (input_format)
-      FP32    : res = FP64;
-      FP64    : res = FP64;
-      FP16    : res = FP32;
-      FP8     : res = FP16ALT;
-      FP16ALT : res = FP32;
-      FP8ALT  : res = FP16ALT;
-      default : res = FP64;
-    endcase
-    return res;
-  endfunction
-
   // -------------------------------------------
   // Helper functions for INT formats and values
   // -------------------------------------------
@@ -405,10 +401,10 @@ package fpnew_pkg;
   function automatic opgroup_e get_opgroup(operation_e op);
     unique case (op)
       FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
-      SDOTP, VSUM:                 return DOTP;
       DIV, SQRT:                   return DIVSQRT;
       SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
       F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
+      SDOTP, VSUM:                 return DOTP;
       default:                     return NONCOMP;
     endcase
   endfunction
@@ -417,10 +413,10 @@ package fpnew_pkg;
   function automatic int unsigned num_operands(opgroup_e grp);
     unique case (grp)
       ADDMUL:  return 3;
-      DOTP:    return 3; // splitting into 5 operands done in wrapper
       DIVSQRT: return 2;
       NONCOMP: return 2;
       CONV:    return 3; // vectorial casts use 3 operands
+      DOTP:    return 3; // splitting into 5 operands done in wrapper
       default: return 0;
     endcase
   endfunction
@@ -473,6 +469,28 @@ package fpnew_pkg;
       // Mask active formats with the number of lanes for that format, CPK at least twice
       res[fmt] = cfg[fmt] && ((width / fp_width(fp_format_e'(fmt)) > lane_no) ||
                              (CPK_FORMATS[fmt] && (lane_no < 2)));
+    return res;
+  endfunction
+
+  // Returns a mask of active FP formats that are currenlty supported for DOTP operations
+  function automatic fmt_logic_t get_dotp_lane_formats(int unsigned width,
+                                                       fmt_logic_t cfg,
+                                                       int unsigned lane_no);
+    automatic fmt_logic_t res;
+    for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
+      // Mask active formats with the number of lanes for that format, CPK at least twice
+      res[fmt] = cfg[fmt] && ((width / (fp_width(fp_format_e'(fmt))*2) > lane_no) && DOTP_FORMATS[fmt]);
+    return res;
+  endfunction
+
+  // Returns the dotp dest FP format string
+  function automatic fmt_logic_t get_dotp_dst_fmts(fmt_logic_t cfg);
+    automatic fmt_logic_t res;
+    unique case (cfg) // goes through some of the allowed configurations
+      6'b001111:  res=6'b101010; // fp8(alt) -> fp16(alt) & fp16(alt) -> fp32
+      6'b000101:  res=6'b001010; // fp8(alt) -> fp16(alt)
+      default: return '0;
+    endcase
     return res;
   endfunction
 
