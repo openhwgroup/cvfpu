@@ -16,7 +16,7 @@
 `include "common_cells/registers.svh"
 
 module fpnew_sdotp_multi #(
-  // One-hot config string: | FP32 | FP64 | FP16 | FP8 | ____ | FP16ALT | FP8ALT | FP128 | FP256 |
+  // One-hot config string: | FP32 | FP64 | FP16 | FP8 | FP16ALT | FP8ALT |
   parameter fpnew_pkg::fmt_logic_t   SrcDotpFpFmtConfig = '1, // FP32 and wider formats are not allowed
                                                               // Supported source formats (FP8, FP8ALT, FP16, FP16ALT)
   parameter fpnew_pkg::fmt_logic_t   DstDotpFpFmtConfig = '1, // FP8 and FP8alt are not supported
@@ -75,8 +75,8 @@ module fpnew_sdotp_multi #(
     assert(DST_WIDTH <= 32)          else $fatal(1, "The widest supported source format is FP32\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH >= 16)          else $fatal(1, "The narrowest supported destination formats are FP16/FP16ALT\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH == 2*SRC_WIDTH) else $fatal(1, "Destination width should be twice the source width\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SrcDotpFpFmtConfig ==? 8'b00??_??00) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DstDotpFpFmtConfig ==? 8'b?0?0_?000) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(SrcDotpFpFmtConfig ==? 6'b00????) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(DstDotpFpFmtConfig ==? 6'b?0?0?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
   end
   `endif
 
