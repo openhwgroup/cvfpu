@@ -68,7 +68,7 @@ module fpnew_opgroup_fmt_slice #(
   logic                  [NUM_LANES-1:0] lane_busy, lane_is_class; // dito
   logic    [NUM_LANES-1:0][AUX_BITS-1:0] lane_aux; // dito
 
-  logic result_is_vector, result_is_class;
+  logic result_is_vector, result_is_class, result_is_cmp;
 
   // -----------
   // Input Side
