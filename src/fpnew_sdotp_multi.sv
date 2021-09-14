@@ -313,7 +313,8 @@ module fpnew_sdotp_multi #(
     info_d    = info_q[src_fmt_q][3];
     info_e    = info_q[dst_fmt_q][4];
 
-    // op_mod_q inverts sign of operand C and thus inverts the sign of the second product
+    // op_mod_q inverts sign of operand A and C and thus inverts the sign of the dot product
+    operand_a.sign = operand_a.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
     operand_c.sign = operand_c.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
 
     unique case (inp_pipe_op_q[NUM_INP_REGS])
