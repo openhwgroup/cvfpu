@@ -556,7 +556,7 @@ module fpnew_sdotp_multi #(
   logic                            sum_carry; // observe carry bit from sum for sign fixing
   logic [2*DST_PRECISION_BITS+2:0] sum;       // discard carry as sum won't overflow
   logic                            final_sign;
-  logic                            zero_plus_zero;
+  logic                            dotp_result_exact_zero;
 
   //Mantissa adder (ab+c). In normal addition, it cannot overflow.
   assign sum_raw = product_max_shifted + product_min_shifted + inject_carry_in;
@@ -565,13 +565,12 @@ module fpnew_sdotp_multi #(
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
   assign sum        = (effective_subtraction_dotp && ~sum_carry) ? -sum_raw : sum_raw;
 
-  assign zero_plus_zero = (info_a.is_zero || info_b.is_zero) && (info_c.is_zero || info_d.is_zero);
+  assign dotp_result_exact_zero = (sum == '0) && sum_carry && !sticky_before_add && effective_subtraction_dotp;
   // In case of a mispredicted subtraction result, do a sign flip
-  assign final_sign = (zero_plus_zero && effective_subtraction_dotp)
-                            ? (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
-                            : (effective_subtraction_dotp && (sum_carry == tentative_sign))
-                                    ? 1'b1
-                                    : (effective_subtraction_dotp ? 1'b0 : tentative_sign);
+  assign final_sign = dotp_result_exact_zero ? (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
+                                        : (effective_subtraction_dotp && (sum_carry == tentative_sign))
+                                              ? 1'b1
+                                              : (effective_subtraction_dotp ? 1'b0 : tentative_sign);
 
   // -------------
   // Second Shift
@@ -618,7 +617,8 @@ module fpnew_sdotp_multi #(
   // Pipeline output signals as non-arrays
   logic                            effective_subtraction_dotp_q;
   logic                            info_e_is_normal_q;
-  logic                            zero_plus_zero_q;
+  logic                            info_e_is_zero_q;
+  logic                            dotp_result_exact_zero_q;
   logic [DST_WIDTH-1:0]            operand_e_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_z_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_x_q;
@@ -641,7 +641,8 @@ module fpnew_sdotp_multi #(
   // Internal pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_MID_REGS]                           mid_pipe_eff_sub_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_normal_q;
-  logic                  [0:NUM_MID_REGS]                           mid_pipe_zero_plus_zero_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_zero_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_dotp_result_exact_zero_q;
   logic                  [0:NUM_MID_REGS][DST_WIDTH-1:0]            mid_pipe_operand_e_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_diff_z_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_x_q;
@@ -670,7 +671,8 @@ module fpnew_sdotp_multi #(
   // Input stage: First element of pipeline is taken from upstream logic
   assign mid_pipe_eff_sub_q[0]     = effective_subtraction_dotp;
   assign mid_pipe_info_e_is_normal_q[0]    = info_e.is_normal;
-  assign mid_pipe_zero_plus_zero_q[0]      = zero_plus_zero;
+  assign mid_pipe_info_e_is_zero_q[0]      = info_e.is_zero;
+  assign mid_pipe_dotp_result_exact_zero_q[0] = dotp_result_exact_zero;
   assign mid_pipe_operand_e_q[0]   = inp_pipe_dst_operands_q;
   assign mid_pipe_exp_diff_z_q[0]  = exponent_difference_z;
   assign mid_pipe_exp_x_q[0]       = exponent_x;
@@ -711,7 +713,8 @@ module fpnew_sdotp_multi #(
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
     `FFL(mid_pipe_info_e_is_normal_q[i+1], mid_pipe_info_e_is_normal_q[i], reg_ena, '0)
-    `FFL(mid_pipe_zero_plus_zero_q[i+1], mid_pipe_zero_plus_zero_q[i], reg_ena, '0)
+    `FFL(mid_pipe_info_e_is_zero_q[i+1], mid_pipe_info_e_is_zero_q[i], reg_ena, '0)
+    `FFL(mid_pipe_dotp_result_exact_zero_q[i+1], mid_pipe_dotp_result_exact_zero_q[i], reg_ena, '0)
     `FFL(mid_pipe_operand_e_q[i+1],   mid_pipe_operand_e_q[i],   reg_ena, '0)
     `FFL(mid_pipe_exp_diff_z_q[i+1],  mid_pipe_exp_diff_z_q[i],  reg_ena, '0)
     `FFL(mid_pipe_exp_x_q[i+1],       mid_pipe_exp_x_q[i],       reg_ena, '0)
@@ -738,7 +741,8 @@ module fpnew_sdotp_multi #(
   assign sum_carry_q             = mid_pipe_sum_carry_q[NUM_MID_REGS];
   assign operand_e_q             = mid_pipe_operand_e_q[NUM_MID_REGS];
   assign info_e_is_normal_q      = mid_pipe_info_e_is_normal_q[NUM_MID_REGS];
-  assign zero_plus_zero_q        = mid_pipe_zero_plus_zero_q[NUM_MID_REGS];
+  assign info_e_is_zero_q        = mid_pipe_info_e_is_zero_q[NUM_MID_REGS];
+  assign dotp_result_exact_zero_q = mid_pipe_dotp_result_exact_zero_q[NUM_MID_REGS];
   assign effective_subtraction_dotp_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
   assign exponent_difference_z_q = mid_pipe_exp_diff_z_q[NUM_MID_REGS];
   assign exponent_x_q            = mid_pipe_exp_x_q[NUM_MID_REGS];
@@ -1042,11 +1046,13 @@ module fpnew_sdotp_multi #(
   // Final results for output pipeline
   logic [DST_WIDTH-1:0] result_d;
   fpnew_pkg::status_t   status_d;
+  logic bypass_dotp;
+
+  assign bypass_dotp = dotp_result_exact_zero_q && !info_e_is_zero_q;
 
   // Select output depending on special case detection
-  assign result_d = result_is_special_q ? special_result_q :
-                                          (effective_subtraction_dotp_q && sum_carry_q && (sum_q == '0) && !zero_plus_zero_q) ? operand_e_q
-                                                                                                         : regular_result;
+  assign result_d = result_is_special_q ? special_result_q
+                                        : (bypass_dotp ? operand_e_q : regular_result);
   assign status_d = result_is_special_q ? special_status_q : regular_status;
 
   // ----------------
