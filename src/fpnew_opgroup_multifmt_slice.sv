@@ -179,15 +179,14 @@ module fpnew_opgroup_multifmt_slice #(
       // Slice out the operands for this lane, upper bits are ignored in the unit
       always_comb begin : prepare_input
         for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
-          if (OpGroup == fpnew_pkg::DOTP) begin
-            local_operands[i] = operands_i[i] >> LANE*2*fpnew_pkg::fp_width(src_fmt_i); // expanded format is twice the width of src_fmt
-          end else begin
-            local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
-          end
+          local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
         end
 
-        // override operand 0 for some conversions
-        if (OpGroup == fpnew_pkg::CONV) begin
+        if (OpGroup == fpnew_pkg::DOTP) begin
+          for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
+            local_operands[i] = operands_i[i] >> LANE*2*fpnew_pkg::fp_width(src_fmt_i); // expanded format is twice the width of src_fmt
+          end
+        end else if (OpGroup == fpnew_pkg::CONV) begin // override operand 0 for some conversions
           // Source is an integer
           if (op_i == fpnew_pkg::I2F) begin
             local_operands[0] = operands_i[0] >> LANE*fpnew_pkg::int_width(int_fmt_i);
@@ -200,7 +199,7 @@ module fpnew_opgroup_multifmt_slice #(
           // CPK
           end else if (dst_is_cpk) begin
             if (lane == 1) begin
-              local_operands[0][LANE_WIDTH-1:0] = operands_i[1][LANE_WIDTH-1:0]; // using opB as second argument
+              local_operands[0] = operands_i[1];
             end
           end
         end
@@ -459,22 +458,21 @@ module fpnew_opgroup_multifmt_slice #(
     // decode the aux data
     assign {result_vec_op, result_is_cpk} = byp_pipe_aux_q[NumPipeRegs];
 
-    if (OpGroup == fpnew_pkg::CONV) begin : conv_group
-      for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : pack_conv_cpk_result
-        // Set up some constants
-        localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
+    for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : pack_conv_cpk_result
+      localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
 
-        for (genvar op_idx = 0; op_idx < 4; op_idx++) begin : pack_conv_cpk_result_operands
-          localparam int unsigned UPPER_LEFT = fpnew_pkg::minimum(Width, 2*(op_idx+1)*FP_WIDTH);
-          localparam int unsigned LOWER_LEFT = fpnew_pkg::minimum(Width, 2*op_idx*FP_WIDTH);
-          localparam int unsigned UPPER_RIGHT = fpnew_pkg::minimum(Width, 2*FP_WIDTH);
+      for (genvar op_idx = 0; op_idx < 4; op_idx++) begin : pack_conv_cpk_result_operands
+        localparam int unsigned UPPER_LEFT  = 2*(op_idx+1)*FP_WIDTH;
+        localparam int unsigned LOWER_LEFT  = 2*op_idx*FP_WIDTH;
+        localparam int unsigned UPPER_RIGHT = 2*FP_WIDTH;
 
+        if(UPPER_LEFT <= Width) begin
           always_comb begin : pack_conv_cpk
             fmt_conv_cpk_result[fmt][op_idx] = conv_target_q; // rd pre-load
-            if((LOWER_LEFT < UPPER_LEFT) && (LOWER_LEFT >= 0)) begin
-              fmt_conv_cpk_result[fmt][op_idx][UPPER_LEFT-1:LOWER_LEFT] = fmt_slice_result[fmt][UPPER_RIGHT-1:0*FP_WIDTH]; // vfcpk
-            end
+            fmt_conv_cpk_result[fmt][op_idx][UPPER_LEFT-1:LOWER_LEFT] = fmt_slice_result[fmt][UPPER_RIGHT-1:0*FP_WIDTH]; // vfcpk
           end
+        end else begin
+          assign fmt_conv_cpk_result[fmt][op_idx] = '0;
         end
       end
     end
