@@ -69,20 +69,6 @@ module fpnew_sdotp_multi #(
   // ----------
   // Constants
   // ----------
-  // Sanity check the parameters. Not every configuration makes sense.
-  `ifndef VERILATOR
-  initial begin
-    assert(DST_WIDTH != 0)           else $fatal(1, "Destination width cannot be 0\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SRC_WIDTH != 0)           else $fatal(1, "Source width cannot be 0\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SRC_WIDTH <= 16)          else $fatal(1, "The widest supported source formats are FP16/FP16ALT\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DST_WIDTH <= 32)          else $fatal(1, "The widest supported source format is FP32\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DST_WIDTH >= 16)          else $fatal(1, "The narrowest supported destination formats are FP16/FP16ALT\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DST_WIDTH == 2*SRC_WIDTH) else $fatal(1, "Destination width should be twice the source width\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SrcDotpFpFmtConfig ==? 6'b00????) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DstDotpFpFmtConfig ==? 6'b?0?0?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-  end
-  `endif
-
   // The super-format that can hold all formats
   localparam fpnew_pkg::fp_encoding_t SUPER_FORMAT = fpnew_pkg::super_format(SrcDotpFpFmtConfig);
   localparam fpnew_pkg::fp_encoding_t SUPER_DST_FORMAT = fpnew_pkg::super_format(DstDotpFpFmtConfig);
@@ -992,10 +978,6 @@ module fpnew_sdotp_multi #(
     if (sum_shifted[DST_PRECISION_BITS*3+8]) begin // check the carry bit
       {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
       final_exponent                    = normalized_exponent + 1;
-      // if (op_q == fpnew_pkg::VSUM)
-      //   final_exponent                    = normalized_exponent;
-      // else
-      //   final_exponent                    = normalized_exponent + 1;
     // The normalized sum is normal, nothing to do
     end else if (sum_shifted[DST_PRECISION_BITS*3+7] && (normalized_exponent > 1)) begin // check the sum MSB
       // do nothing
