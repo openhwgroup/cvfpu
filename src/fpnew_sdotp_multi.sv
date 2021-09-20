@@ -673,8 +673,8 @@ module fpnew_sdotp_multi #(
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_z;
 
   // x comes from the dotp, y comes from operand_e
-  assign exponent_x = (inp_pipe_op_q[NUM_INP_REGS]) ? signed'(tentative_exponent)
-                                                    : signed'(tentative_exponent + 1);
+  assign exponent_x = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM) ? signed'(tentative_exponent)
+                                                                       : signed'(tentative_exponent + 1);
   assign exponent_y = signed'(exponent_e + $signed({1'b0, ~info_e.is_normal})); // 0 as subnorm
 
   // Exponent difference is the addend exponent minus the product exponent
