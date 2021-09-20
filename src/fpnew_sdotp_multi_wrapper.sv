@@ -66,7 +66,10 @@ module fpnew_dotp_wrapper #(
   // -----------------
   // Input processing
   // -----------------
-  logic     [NUM_FORMATS-1:0][N_SRC_FMT_OPERANDS-1:0][SRC_WIDTH-1:0] local_src_fmt_operands;  // lane-local operands
+  logic                             [NUM_FORMATS-1:0][DST_WIDTH-1:0] local_src_fmt_operand_a;  // lane-local operands
+  logic                             [NUM_FORMATS-1:0][SRC_WIDTH-1:0] local_src_fmt_operand_b;  // lane-local operands
+  logic                             [NUM_FORMATS-1:0][DST_WIDTH-1:0] local_src_fmt_operand_c;  // lane-local operands
+  logic                             [NUM_FORMATS-1:0][SRC_WIDTH-1:0] local_src_fmt_operand_d;  // lane-local operands
   logic                                              [DST_WIDTH-1:0] local_dst_fmt_operands;  // lane-local operands
   logic [NUM_FORMATS-1:0][N_SRC_FMT_OPERANDS+N_DST_FMT_OPERANDS-1:0] local_is_boxed;  // lane-local operands
 
@@ -87,7 +90,7 @@ module fpnew_dotp_wrapper #(
     localparam int unsigned FP_WIDTH_MIN     = fpnew_pkg::minimum(SRC_WIDTH, FP_WIDTH);
     localparam int unsigned FP_WIDTH_DST_MIN = fpnew_pkg::minimum(DST_WIDTH, FP_WIDTH);
 
-    logic [N_SRC_FMT_OPERANDS-1:0][FP_WIDTH_MIN-1:0] tmp_operands;  // lane-local operands
+    logic [N_SRC_FMT_OPERANDS-1:0][FP_WIDTH_MIN-1:0]     tmp_operands;  // lane-local operands
 
     always_comb begin : nanbox
       // shift operands to correct position
@@ -96,14 +99,21 @@ module fpnew_dotp_wrapper #(
       tmp_operands[2] = operands_i[0] >> 1*FP_WIDTH;
       tmp_operands[3] = operands_i[1] >> 1*FP_WIDTH;
       // nan-box if needed
-      local_src_fmt_operands[fmt][0] = '1;
-      local_src_fmt_operands[fmt][1] = '1;
-      local_src_fmt_operands[fmt][2] = '1;
-      local_src_fmt_operands[fmt][3] = '1;
-      local_src_fmt_operands[fmt][0][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
-      local_src_fmt_operands[fmt][1][FP_WIDTH_MIN-1:0] = tmp_operands[1][FP_WIDTH_MIN-1:0];
-      local_src_fmt_operands[fmt][2][FP_WIDTH_MIN-1:0] = tmp_operands[2][FP_WIDTH_MIN-1:0];
-      local_src_fmt_operands[fmt][3][FP_WIDTH_MIN-1:0] = tmp_operands[3][FP_WIDTH_MIN-1:0];
+      local_src_fmt_operand_a[fmt] = '1;
+      local_src_fmt_operand_b[fmt] = '1;
+      local_src_fmt_operand_c[fmt] = '1;
+      local_src_fmt_operand_d[fmt] = '1;
+      if (op_i == fpnew_pkg::VSUM) begin
+        local_src_fmt_operand_a[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[1][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_c[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[2][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[3][FP_WIDTH_MIN-1:0];
+      end else begin
+        local_src_fmt_operand_a[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[0][FP_WIDTH_DST_MIN-1:0];
+        local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0]     = '1;
+        local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[1][FP_WIDTH_DST_MIN-1:0];
+        local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0]     = '1;
+      end
       // take is_boxed info from external or set to 1 if boxed for dotp operation
       local_is_boxed[fmt][0] = is_boxed_i[fmt][0];
       local_is_boxed[fmt][1] = is_boxed_i[fmt][1];
@@ -130,9 +140,12 @@ module fpnew_dotp_wrapper #(
   ) i_fpnew_sdotp_multi (
     .clk_i,
     .rst_ni,
-    .operands_i      ( local_src_fmt_operands[src_fmt_i][3:0] ), // 4 operands
-    .dst_operands_i  ( local_dst_fmt_operands                 ), // 1 operand
-    .is_boxed_i      ( local_is_boxed                         ),
+    .operand_a_i     ( local_src_fmt_operand_a[src_fmt_i] ),
+    .operand_b_i     ( local_src_fmt_operand_b[src_fmt_i] ),
+    .operand_c_i     ( local_src_fmt_operand_c[src_fmt_i] ),
+    .operand_d_i     ( local_src_fmt_operand_d[src_fmt_i] ),
+    .dst_operands_i  ( local_dst_fmt_operands             ), // 1 operand
+    .is_boxed_i      ( local_is_boxed                     ),
     .rnd_mode_i,
     .op_i,
     .op_mod_i,
