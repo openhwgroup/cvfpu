@@ -487,8 +487,8 @@ package fpnew_pkg;
   function automatic fmt_logic_t get_dotp_dst_fmts(fmt_logic_t cfg);
     automatic fmt_logic_t res;
     unique case (cfg) // goes through some of the allowed configurations
-      6'b001111:  res=6'b101010; // fp8(alt) -> fp16(alt) & fp16(alt) -> fp32
-      6'b000101:  res=6'b001010; // fp8(alt) -> fp16(alt)
+      6'b001111:  res=6'b101111; // fp8(alt) -> fp16(alt) & fp16(alt) -> fp32
+      6'b000101:  res=6'b001111; // fp8(alt) -> fp16(alt)
       default: return '0;
     endcase
     return res;
