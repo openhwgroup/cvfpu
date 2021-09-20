@@ -78,8 +78,8 @@ module fpnew_sdotp_multi #(
     assert(DST_WIDTH <= 32)          else $fatal(1, "The widest supported source format is FP32\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH >= 16)          else $fatal(1, "The narrowest supported destination formats are FP16/FP16ALT\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH == 2*SRC_WIDTH) else $fatal(1, "Destination width should be twice the source width\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SrcDotpFpFmtConfig ==? 6'b00??_??) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DstDotpFpFmtConfig ==? 6'b?0?0_?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(SrcDotpFpFmtConfig ==? 6'b00????) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(DstDotpFpFmtConfig ==? 6'b?0?0?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
   end
   `endif
 
@@ -376,8 +376,8 @@ module fpnew_sdotp_multi #(
     operand_c = {fmt_sign[src_fmt_q][2], fmt_exponent[src_fmt_q][2], fmt_mantissa[src_fmt_q][2]};
     operand_d = {fmt_sign[src_fmt_q][3], fmt_exponent[src_fmt_q][3], fmt_mantissa[src_fmt_q][3]};
     operand_e = {fmt_dst_sign[dst_fmt_q], fmt_dst_exponent[dst_fmt_q], fmt_dst_mantissa[dst_fmt_q]};
-    operand_a_vsum = {fmt_vsum_sign[dst_fmt_q][0], fmt_vsum_exponent[dst_fmt_q][0], fmt_vsum_mantissa[dst_fmt_q][0]};
-    operand_c_vsum = {fmt_vsum_sign[dst_fmt_q][1], fmt_vsum_exponent[dst_fmt_q][1], fmt_vsum_mantissa[dst_fmt_q][1]};
+    operand_a_vsum = {fmt_vsum_sign[src_fmt_q][0], fmt_vsum_exponent[src_fmt_q][0], fmt_vsum_mantissa[src_fmt_q][0]};
+    operand_c_vsum = {fmt_vsum_sign[src_fmt_q][1], fmt_vsum_exponent[src_fmt_q][1], fmt_vsum_mantissa[src_fmt_q][1]};
     info_a    = info_q[src_fmt_q][0];
     info_b    = info_q[src_fmt_q][1];
     info_c    = info_q[src_fmt_q][2];
