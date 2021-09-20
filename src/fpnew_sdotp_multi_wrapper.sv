@@ -104,15 +104,15 @@ module fpnew_dotp_wrapper #(
       local_src_fmt_operand_c[fmt] = '1;
       local_src_fmt_operand_d[fmt] = '1;
       if (op_i == fpnew_pkg::VSUM) begin
-        local_src_fmt_operand_a[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
-        local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[1][FP_WIDTH_MIN-1:0];
-        local_src_fmt_operand_c[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[2][FP_WIDTH_MIN-1:0];
-        local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[3][FP_WIDTH_MIN-1:0];
-      end else begin
         local_src_fmt_operand_a[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[0][FP_WIDTH_DST_MIN-1:0];
         local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0]     = '1;
         local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[1][FP_WIDTH_DST_MIN-1:0];
         local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0]     = '1;
+      end else begin
+        local_src_fmt_operand_a[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[1][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_c[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[2][FP_WIDTH_MIN-1:0];
+        local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[3][FP_WIDTH_MIN-1:0];
       end
       // take is_boxed info from external or set to 1 if boxed for dotp operation
       local_is_boxed[fmt][0] = is_boxed_i[fmt][0];
