@@ -35,7 +35,11 @@ module fpnew_sdotp_multi #(
   input  logic                        clk_i,
   input  logic                        rst_ni,
   // Input signals
-  input  logic [3:0][SRC_WIDTH-1:0]   operands_i, // 4 operands
+  // A, C will contain useful bits in [SRC_WIDTH-1:0] for EXSDOTP, EXVSUM and [DST_WIDTH-1:0] for VSUM (nonexpanding)
+  input  logic [DST_WIDTH-1:0]        operand_a_i,
+  input  logic [SRC_WIDTH-1:0]        operand_b_i,
+  input  logic [DST_WIDTH-1:0]        operand_c_i,
+  input  logic [SRC_WIDTH-1:0]        operand_d_i,
   input  logic [DST_WIDTH-1:0]        dst_operands_i, // accumulation
   input  logic [NUM_FORMATS-1:0][4:0] is_boxed_i, // 4 operands
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
@@ -61,7 +65,6 @@ module fpnew_sdotp_multi #(
   // Indication of valid data in flight
   output logic                        busy_o
 );
-  parameter fpnew_pkg::fp_format_e   FpFormat = fpnew_pkg::FP16;
 
   // ----------
   // Constants
@@ -75,8 +78,8 @@ module fpnew_sdotp_multi #(
     assert(DST_WIDTH <= 32)          else $fatal(1, "The widest supported source format is FP32\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH >= 16)          else $fatal(1, "The narrowest supported destination formats are FP16/FP16ALT\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
     assert(DST_WIDTH == 2*SRC_WIDTH) else $fatal(1, "Destination width should be twice the source width\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(SrcDotpFpFmtConfig ==? 6'b00????) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
-    assert(DstDotpFpFmtConfig ==? 6'b?0?0?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(SrcDotpFpFmtConfig ==? 6'b00??_??) else $fatal(1, "Enabled unsupported format among the source formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
+    assert(DstDotpFpFmtConfig ==? 6'b?0?0_?0) else $fatal(1, "Enabled unsupported format among the destination formats\n\tSupported source formats (FP8, FP8ALT, FP16, FP16ALT)\n\tSupported destination formats (FP16, FP16ALT, FP32)");
   end
   `endif
 
@@ -92,7 +95,7 @@ module fpnew_sdotp_multi #(
   // Precision bits 'p' include the implicit bit
   localparam int unsigned PRECISION_BITS = SUPER_MAN_BITS + 1;
   localparam int unsigned DST_PRECISION_BITS = SUPER_DST_MAN_BITS + 1;
-  localparam int unsigned ADDITIONAL_PRECISION_BITS = DST_PRECISION_BITS - 2 * PRECISION_BITS;
+  localparam int unsigned ADDITIONAL_PRECISION_BITS = fpnew_pkg::maximum(DST_PRECISION_BITS - 2 * PRECISION_BITS, 0);
   // The lower 2p+3 bits of the internal DOTP result will be needed for leading-zero detection
   localparam int unsigned LOWER_SUM_WIDTH  = 2*DST_PRECISION_BITS + 7;
   localparam int unsigned LZC_RESULT_WIDTH = $clog2(LOWER_SUM_WIDTH);
@@ -138,13 +141,19 @@ module fpnew_sdotp_multi #(
   // Input pipeline
   // ---------------
   // Selected pipeline output signals as non-arrays
-  logic [3:0][SRC_WIDTH-1:0] operands_q;
-  logic [DST_WIDTH-1:0] dst_operands_q;
+  logic [DST_WIDTH-1:0]  operand_a_q;
+  logic [SRC_WIDTH-1:0]  operand_b_q;
+  logic [DST_WIDTH-1:0]  operand_c_q;
+  logic [SRC_WIDTH-1:0]  operand_d_q;
+  logic [DST_WIDTH-1:0]  dst_operands_q;
   fpnew_pkg::fp_format_e src_fmt_q;
   fpnew_pkg::fp_format_e dst_fmt_q;
 
   // Input pipeline signals, index i holds signal after i register stages
-  logic                  [0:NUM_INP_REGS][3:0][SRC_WIDTH-1:0]   inp_pipe_operands_q;
+  logic                  [0:NUM_INP_REGS][DST_WIDTH-1:0]        inp_pipe_operand_a_q;
+  logic                  [0:NUM_INP_REGS][SRC_WIDTH-1:0]        inp_pipe_operand_b_q;
+  logic                  [0:NUM_INP_REGS][DST_WIDTH-1:0]        inp_pipe_operand_c_q;
+  logic                  [0:NUM_INP_REGS][SRC_WIDTH-1:0]        inp_pipe_operand_d_q;
   logic                  [0:NUM_INP_REGS][DST_WIDTH-1:0]        inp_pipe_dst_operands_q;
   logic                  [0:NUM_INP_REGS][NUM_FORMATS-1:0][4:0] inp_pipe_is_boxed_q;
   fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q;
@@ -159,7 +168,10 @@ module fpnew_sdotp_multi #(
   logic [0:NUM_INP_REGS] inp_pipe_ready;
 
   // Input stage: First element of pipeline is taken from inputs
-  assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_operand_a_q[0] = operand_a_i;
+  assign inp_pipe_operand_b_q[0] = operand_b_i;
+  assign inp_pipe_operand_c_q[0] = operand_c_i;
+  assign inp_pipe_operand_d_q[0] = operand_d_i;
   assign inp_pipe_dst_operands_q[0] = dst_operands_i;
   assign inp_pipe_is_boxed_q[0] = is_boxed_i;
   assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
@@ -185,7 +197,10 @@ module fpnew_sdotp_multi #(
     // Enable register if pipleine ready and a valid data item is present
     assign reg_ena = inp_pipe_ready[i] & inp_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
-    `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_operand_a_q[i+1], inp_pipe_operand_a_q[i], reg_ena, '0)
+    `FFL(inp_pipe_operand_b_q[i+1], inp_pipe_operand_b_q[i], reg_ena, '0)
+    `FFL(inp_pipe_operand_c_q[i+1], inp_pipe_operand_c_q[i], reg_ena, '0)
+    `FFL(inp_pipe_operand_d_q[i+1], inp_pipe_operand_d_q[i], reg_ena, '0)
     `FFL(inp_pipe_dst_operands_q[i+1], inp_pipe_dst_operands_q[i], reg_ena, '0)
     `FFL(inp_pipe_is_boxed_q[i+1], inp_pipe_is_boxed_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
@@ -197,10 +212,19 @@ module fpnew_sdotp_multi #(
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
   // Output stage: assign selected pipe outputs to signals for later use
-  assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
+  assign operand_a_q = inp_pipe_operand_a_q[NUM_INP_REGS];
+  assign operand_b_q = inp_pipe_operand_b_q[NUM_INP_REGS];
+  assign operand_c_q = inp_pipe_operand_c_q[NUM_INP_REGS];
+  assign operand_d_q = inp_pipe_operand_d_q[NUM_INP_REGS];
   assign dst_operands_q = inp_pipe_dst_operands_q[NUM_INP_REGS];
   assign src_fmt_q  = inp_pipe_src_fmt_q[NUM_INP_REGS];
   assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
+
+  logic [3:0][SRC_WIDTH-1:0] operands_post_inp_pipe;
+  assign operands_post_inp_pipe[3] = operand_d_q;
+  assign operands_post_inp_pipe[2] = operand_c_q[SRC_WIDTH-1:0];
+  assign operands_post_inp_pipe[1] = operand_b_q;
+  assign operands_post_inp_pipe[0] = operand_a_q[SRC_WIDTH-1:0];
 
   // -----------------
   // Input processing
@@ -214,6 +238,7 @@ module fpnew_sdotp_multi #(
   logic        [NUM_FORMATS-1:0][3:0][SUPER_MAN_BITS-1:0] fmt_mantissa;
 
   fpnew_pkg::fp_info_t [NUM_FORMATS-1:0][4:0] info_q;
+  fpnew_pkg::fp_info_t [NUM_FORMATS-1:0][1:0] info_vsum_q;
 
   // FP Input initialization (Src)
   for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : fmt_src_init_inputs
@@ -235,10 +260,10 @@ module fpnew_sdotp_multi #(
         .info_o     ( info_q[fmt][3:0]                            )
       );
       for (genvar op = 0; op < 4; op++) begin : gen_operands
-        assign trimmed_ops[op]       = operands_q[op][FP_WIDTH-1:0];
-        assign fmt_sign[fmt][op]     = operands_q[op][FP_WIDTH-1];
-        assign fmt_exponent[fmt][op] = signed'({1'b0, operands_q[op][MAN_BITS+:EXP_BITS]});
-        assign fmt_mantissa[fmt][op] = {info_q[fmt][op].is_normal, operands_q[op][MAN_BITS-1:0]} <<
+        assign trimmed_ops[op]       = operands_post_inp_pipe[op][FP_WIDTH-1:0];
+        assign fmt_sign[fmt][op]     = operands_post_inp_pipe[op][FP_WIDTH-1];
+        assign fmt_exponent[fmt][op] = signed'({1'b0, operands_post_inp_pipe[op][MAN_BITS+:EXP_BITS]});
+        assign fmt_mantissa[fmt][op] = {info_q[fmt][op].is_normal, operands_post_inp_pipe[op][MAN_BITS-1:0]} <<
                                        (SUPER_MAN_BITS - MAN_BITS); // move to left of mantissa
       end
     end else begin : inactive_src_format
@@ -246,6 +271,48 @@ module fpnew_sdotp_multi #(
       assign fmt_sign[fmt]     = fpnew_pkg::DONT_CARE;             // format disabled
       assign fmt_exponent[fmt] = '{default: fpnew_pkg::DONT_CARE}; // format disabled
       assign fmt_mantissa[fmt] = '{default: fpnew_pkg::DONT_CARE}; // format disabled
+    end
+  end
+
+  // ----------------------------
+  // Non-expanding VSUM operands
+  // ----------------------------
+  logic        [NUM_FORMATS-1:0][1:0]                         fmt_vsum_sign;
+  logic signed [NUM_FORMATS-1:0][1:0][SUPER_DST_EXP_BITS-1:0] fmt_vsum_exponent;
+  logic        [NUM_FORMATS-1:0][1:0][SUPER_DST_MAN_BITS-1:0] fmt_vsum_mantissa;
+
+  // FP Input initialization (Src)
+  for (genvar fmt = 0; fmt < int'(NUM_FORMATS); fmt++) begin : fmt_vsum_init_inputs
+    // Set up some constants
+    localparam int unsigned FP_WIDTH = fpnew_pkg::fp_width(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
+
+    if (DstDotpFpFmtConfig[fmt]) begin : active_vsum_format
+      logic [1:0][FP_WIDTH-1:0] trimmed_vsum_ops;
+
+      // Classify input
+      fpnew_classifier #(
+        .FpFormat    ( fpnew_pkg::fp_format_e'(fmt) ),
+        .NumOperands ( 2                            )
+      ) i_fpnew_classifier (
+        .operands_i ( trimmed_vsum_ops                        ),
+        .is_boxed_i ( {inp_pipe_is_boxed_q[NUM_INP_REGS][fmt][2], inp_pipe_is_boxed_q[NUM_INP_REGS][fmt][0]} ),
+        .info_o     ( info_vsum_q[fmt]                          )
+      );
+      assign trimmed_vsum_ops       = {operand_c_q[FP_WIDTH-1:0], operand_a_q[FP_WIDTH-1:0]};
+      assign fmt_vsum_sign[fmt]     = {operand_c_q[FP_WIDTH-1], operand_a_q[FP_WIDTH-1]};
+      assign fmt_vsum_exponent[fmt][1] = signed'({1'b0, operand_c_q[MAN_BITS+:EXP_BITS]});
+      assign fmt_vsum_exponent[fmt][0] = signed'({1'b0, operand_a_q[MAN_BITS+:EXP_BITS]});
+      assign fmt_vsum_mantissa[fmt][1] = {info_vsum_q[fmt][1].is_normal, operand_c_q[MAN_BITS-1:0]} <<
+                                         (SUPER_DST_MAN_BITS - MAN_BITS); // move to left of mantissa
+      assign fmt_vsum_mantissa[fmt][0] = {info_vsum_q[fmt][0].is_normal, operand_a_q[MAN_BITS-1:0]} <<
+                                        (SUPER_DST_MAN_BITS - MAN_BITS); // move to left of mantissa
+    end else begin : inactive_dst_format
+      assign info_vsum_q[fmt]       = '{default: fpnew_pkg::DONT_CARE}; // format disabled
+      assign fmt_vsum_sign[fmt]     = fpnew_pkg::DONT_CARE;             // format disabled
+      assign fmt_vsum_exponent[fmt] = '{default: fpnew_pkg::DONT_CARE}; // format disabled
+      assign fmt_vsum_mantissa[fmt] = '{default: fpnew_pkg::DONT_CARE}; // format disabled
     end
   end
 
@@ -290,7 +357,9 @@ module fpnew_sdotp_multi #(
 
   fp_src_t             operand_a, operand_b, operand_c, operand_d;
   fp_dst_t             operand_e;
+  fp_dst_t             operand_a_vsum, operand_c_vsum;
   fpnew_pkg::fp_info_t info_a,    info_b,    info_c,    info_d,    info_e;
+  logic                a_sign, c_sign;
 
   // Operation selection and operand adjustment
   // | \c op_q  | \c op_mod_q | Operation Adjustment
@@ -307,6 +376,8 @@ module fpnew_sdotp_multi #(
     operand_c = {fmt_sign[src_fmt_q][2], fmt_exponent[src_fmt_q][2], fmt_mantissa[src_fmt_q][2]};
     operand_d = {fmt_sign[src_fmt_q][3], fmt_exponent[src_fmt_q][3], fmt_mantissa[src_fmt_q][3]};
     operand_e = {fmt_dst_sign[dst_fmt_q], fmt_dst_exponent[dst_fmt_q], fmt_dst_mantissa[dst_fmt_q]};
+    operand_a_vsum = {fmt_vsum_sign[dst_fmt_q][0], fmt_vsum_exponent[dst_fmt_q][0], fmt_vsum_mantissa[dst_fmt_q][0]};
+    operand_c_vsum = {fmt_vsum_sign[dst_fmt_q][1], fmt_vsum_exponent[dst_fmt_q][1], fmt_vsum_mantissa[dst_fmt_q][1]};
     info_a    = info_q[src_fmt_q][0];
     info_b    = info_q[src_fmt_q][1];
     info_c    = info_q[src_fmt_q][2];
@@ -316,10 +387,25 @@ module fpnew_sdotp_multi #(
     // op_mod_q inverts sign of operand A and C and thus inverts the sign of the dot product
     operand_a.sign = operand_a.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
     operand_c.sign = operand_c.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
+    a_sign    = operand_a.sign;
+    c_sign    = operand_c.sign;
+    // op_mod_q inverts sign of operand A and C and thus inverts the sign of the vsum
+    operand_a_vsum.sign = operand_a_vsum.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
+    operand_c_vsum.sign = operand_c_vsum.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];
 
     unique case (inp_pipe_op_q[NUM_INP_REGS])
       fpnew_pkg::SDOTP:  ; // do nothing
       fpnew_pkg::VSUM: begin // Set multiplicands coming from rs1 to +1
+        operand_b = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
+        operand_d = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
+        info_b    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
+        info_d    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
+        info_a    = info_vsum_q[dst_fmt_q][0];
+        info_c    = info_vsum_q[dst_fmt_q][1];
+        a_sign    = operand_a_vsum.sign;
+        c_sign    = operand_c_vsum.sign;
+      end
+      fpnew_pkg::EXVSUM: begin // Set multiplicands coming from rs1 to +1
         operand_b = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
         operand_d = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
         info_b    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
@@ -351,16 +437,13 @@ module fpnew_sdotp_multi #(
   assign any_operand_nan = (| {info_a.is_nan,        info_b.is_nan,        info_c.is_nan,        info_d.is_nan,        info_e.is_nan});
   assign signalling_nan  = (| {info_a.is_signalling, info_b.is_signalling, info_c.is_signalling, info_d.is_signalling, info_e.is_signalling});
   // Effective subtraction in DOTP occurs when the signs of the two products differ
-  assign effective_subtraction_dotp = (operand_a.sign ^ operand_b.sign) ^ (operand_c.sign ^ operand_d.sign);
-  assign effective_subtraction_acc[0] = (operand_a.sign ^ operand_b.sign) ^ operand_e.sign;
-  assign effective_subtraction_acc[1] = (operand_c.sign ^ operand_d.sign) ^ operand_e.sign;
+  assign effective_subtraction_dotp = (a_sign ^ operand_b.sign) ^ (c_sign ^ operand_d.sign);
+  assign effective_subtraction_acc[0] = (a_sign ^ operand_b.sign) ^ operand_e.sign;
+  assign effective_subtraction_acc[1] = (c_sign ^ operand_d.sign) ^ operand_e.sign;
 
   // ----------------------
   // Special case handling
   // ----------------------
-  // fp_dst_t            special_result;
-  // fpnew_pkg::status_t special_status;
-  // logic               result_is_special;
   logic [DST_WIDTH-1:0] special_result;
   fpnew_pkg::status_t   special_status;
   logic                 result_is_special;
@@ -413,11 +496,11 @@ module fpnew_sdotp_multi #(
           // Handle cases where output will be inf because of inf product input
           end else if (info_a.is_inf || info_b.is_inf) begin
             // Result is infinity with the sign of the first product
-            special_res = {operand_a.sign ^ operand_b.sign, QNAN_EXPONENT, ZERO_MANTISSA};
+            special_res = {a_sign ^ operand_b.sign, QNAN_EXPONENT, ZERO_MANTISSA};
           // Handle cases where the second product is inf
           end else if (info_c.is_inf || info_d.is_inf) begin
             // Result is infinity with sign of the second product
-            special_res    = {operand_c.sign ^ operand_d.sign, QNAN_EXPONENT, ZERO_MANTISSA};
+            special_res    = {c_sign ^ operand_d.sign, QNAN_EXPONENT, ZERO_MANTISSA};
           end else if (info_e.is_inf) begin
             // Result is infinity with sign of the accumulator
             special_res    = {operand_e.sign, QNAN_EXPONENT, ZERO_MANTISSA};
@@ -446,6 +529,8 @@ module fpnew_sdotp_multi #(
   // ---------------------------
   logic signed [EXP_WIDTH-1:0]     exponent_a, exponent_b, exponent_c, exponent_d;
   logic signed [DST_EXP_WIDTH-1:0] exponent_e;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_a_vsum, exponent_c_vsum;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_addend_x, exponent_addend_y;
   logic signed [DST_EXP_WIDTH-1:0] exponent_product_x, exponent_product_y, exponent_difference;
   logic signed [DST_EXP_WIDTH-1:0] exponent_product_min, exponent_product_max;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent;
@@ -453,8 +538,10 @@ module fpnew_sdotp_multi #(
 
   // Zero-extend exponents into signed container - implicit width extension
   assign exponent_a = signed'({1'b0, operand_a.exponent});
+  assign exponent_a_vsum = signed'({1'b0, operand_a_vsum.exponent});
   assign exponent_b = signed'({1'b0, operand_b.exponent});
   assign exponent_c = signed'({1'b0, operand_c.exponent});
+  assign exponent_c_vsum = signed'({1'b0, operand_c_vsum.exponent});
   assign exponent_d = signed'({1'b0, operand_d.exponent});
   assign exponent_e = signed'({1'b0, operand_e.exponent});
 
@@ -473,17 +560,24 @@ module fpnew_sdotp_multi #(
                                         + exponent_b + info_b.is_subnormal
                                         - 2*signed'(fpnew_pkg::bias(src_fmt_q))
                                         + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
+  assign exponent_addend_y = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                             ? signed'(exponent_c_vsum + $signed({1'b0, ~info_c.is_normal}))
+                             : exponent_product_y;
+  assign exponent_addend_x = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                             ? signed'(exponent_a_vsum + $signed({1'b0, ~info_a.is_normal}))
+                             : exponent_product_x;
+
   // Find maximum exponent, the minimum will be shifted for the addition
-  assign max_exponent = (exponent_product_y >= exponent_product_x) ? 1'b1 : 1'b0;
+  assign max_exponent = (exponent_addend_y >= exponent_addend_x) ? 1'b1 : 1'b0;
   // The tentative sign of the DOTP shall be the sign of the first product
-  assign tentative_sign = (max_exponent) ? (operand_c.sign ^ operand_d.sign) : operand_a.sign ^ operand_b.sign;
+  assign tentative_sign = (max_exponent) ? (c_sign ^ operand_d.sign) : a_sign ^ operand_b.sign;
   // Exponent difference is the product_y exponent minus the product_x exponent
-  assign exponent_difference = (max_exponent) ? exponent_product_y - exponent_product_x
-                                              : exponent_product_x - exponent_product_y;
-  assign exponent_product_max = (max_exponent) ? exponent_product_y : exponent_product_x;
-  assign exponent_product_min = (max_exponent) ? exponent_product_x : exponent_product_y;
+  assign exponent_difference = (max_exponent) ? exponent_addend_y - exponent_addend_x
+                                              : exponent_addend_x - exponent_addend_y;
+  assign exponent_product_max = (max_exponent) ? exponent_addend_y : exponent_addend_x;
+  assign exponent_product_min = (max_exponent) ? exponent_addend_x : exponent_addend_y;
   // The tentative exponent will be the larger of the product_x or the product_y exponent
-  assign tentative_exponent = (max_exponent) ? exponent_product_y : exponent_product_x;
+  assign tentative_exponent = (max_exponent) ? exponent_addend_y : exponent_addend_x;
 
   // Shift amount for product_y based on exponents (unsigned as only right shifts)
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt;
@@ -502,8 +596,11 @@ module fpnew_sdotp_multi #(
   // ------------------
   logic [PRECISION_BITS-1:0]     mantissa_a, mantissa_b, mantissa_c, mantissa_d;
   logic [DST_PRECISION_BITS-1:0] mantissa_e;
+  logic [DST_PRECISION_BITS-1:0] mantissa_a_vsum, mantissa_c_vsum;
   logic [2*PRECISION_BITS-1:0]   product_x, product_y;  // the p*p product is 2p bits wide
-  logic [2*PRECISION_BITS-1:0]   product_max, product_min;  // the p*p product is 2p bits wide
+  logic [DST_PRECISION_BITS-1:0] addend_vsum_max, addend_vsum_min;  // the p*p product is 2p bits wide
+  logic [DST_PRECISION_BITS-1:0] addend_max, addend_min;  // the p*p product is 2p bits wide
+  logic [DST_PRECISION_BITS-1:0] product_max, product_min;  // the p*p product is 2p bits wide
 
   // Add implicit bits to mantissae
   assign mantissa_a = {info_a.is_normal, operand_a.mantissa};
@@ -511,6 +608,9 @@ module fpnew_sdotp_multi #(
   assign mantissa_c = {info_c.is_normal, operand_c.mantissa};
   assign mantissa_d = {info_d.is_normal, operand_d.mantissa};
   assign mantissa_e = {info_e.is_normal, operand_e.mantissa};
+
+  assign mantissa_a_vsum = {info_a.is_normal, operand_a_vsum.mantissa};
+  assign mantissa_c_vsum = {info_c.is_normal, operand_c_vsum.mantissa};
 
   // Mantissa multiplier (a*b)
   assign product_x = mantissa_a * mantissa_b;
@@ -522,25 +622,32 @@ module fpnew_sdotp_multi #(
   // ------------------
   logic [2*DST_PRECISION_BITS+2:0] product_max_shifted;
   logic [2*DST_PRECISION_BITS+2:0] product_min_after_shift;
-  logic [2*PRECISION_BITS-1:0]     addend_sticky_bits;  // up to p bit of shifted addend are sticky
+  logic [DST_PRECISION_BITS-1:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
   logic                            sticky_before_add;   // they are compressed into a single sticky bit
   logic [2*DST_PRECISION_BITS+2:0] product_min_shifted;
   logic                            inject_carry_in;     // inject carry for subtractions if needed
   // Place larger value in product_max and the smaller in product_min
-  assign product_max = (max_exponent) ? product_y : product_x;
-  assign product_min = (max_exponent) ? product_x : product_y;
-
+  assign product_max = (max_exponent) ? product_y << ADDITIONAL_PRECISION_BITS
+                                      : product_x << ADDITIONAL_PRECISION_BITS;
+  assign product_min = (max_exponent) ? product_x << ADDITIONAL_PRECISION_BITS
+                                      : product_y << ADDITIONAL_PRECISION_BITS;
+  assign addend_vsum_max  = (max_exponent) ? mantissa_c_vsum : mantissa_a_vsum;
+  assign addend_vsum_min  = (max_exponent) ? mantissa_a_vsum : mantissa_c_vsum;
+  assign addend_max = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                      ? addend_vsum_max : product_max;
+  assign addend_min = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                      ? addend_vsum_min : product_min;
   // Product max is placed into a 2p+3 bit wide vector, padded with 3 bits for rounding purposes:
   // | product_max  |  rnd  |
   //  <-  2p_dst  -> <  3   >
-  assign product_max_shifted = product_max << (3 + ADDITIONAL_PRECISION_BITS + DST_PRECISION_BITS); // constant shift
+  assign product_max_shifted = addend_max << (3 + DST_PRECISION_BITS); // constant shift
 
   // In parallel, the min product is right-shifted according to the exponent difference. Up to p bits
   // are shifted out and compressed into a sticky bit.
   // | product_min   |  rnd   | sticky_bits |
   //  <-   2p_dst  -> <  3   > <     p      >
   assign {product_min_after_shift, addend_sticky_bits} =
-      (product_min << (2*PRECISION_BITS + 3 + ADDITIONAL_PRECISION_BITS + DST_PRECISION_BITS)) >> addend_shamt;
+      (addend_min << (2*DST_PRECISION_BITS + 3)) >> addend_shamt;
 
   assign sticky_before_add     = (| addend_sticky_bits);
 
@@ -580,7 +687,8 @@ module fpnew_sdotp_multi #(
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_z;
 
   // x comes from the dotp, y comes from operand_e
-  assign exponent_x = signed'(tentative_exponent + 1);
+  assign exponent_x = (inp_pipe_op_q[NUM_INP_REGS]) ? signed'(tentative_exponent)
+                                                    : signed'(tentative_exponent + 1);
   assign exponent_y = signed'(exponent_e + $signed({1'b0, ~info_e.is_normal})); // 0 as subnorm
 
   // Exponent difference is the addend exponent minus the product exponent
@@ -616,6 +724,7 @@ module fpnew_sdotp_multi #(
   // ---------------
   // Pipeline output signals as non-arrays
   logic                            effective_subtraction_dotp_q;
+  fpnew_pkg::operation_e           op_q;
   logic                            info_e_is_normal_q;
   logic                            info_e_is_zero_q;
   logic                            dotp_result_exact_zero_q;
@@ -640,6 +749,7 @@ module fpnew_sdotp_multi #(
   logic                            sum_carry_q;
   // Internal pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_MID_REGS]                           mid_pipe_eff_sub_q;
+  fpnew_pkg::operation_e [0:NUM_MID_REGS]                           mid_pipe_op_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_normal_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_zero_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_dotp_result_exact_zero_q;
@@ -670,6 +780,7 @@ module fpnew_sdotp_multi #(
 
   // Input stage: First element of pipeline is taken from upstream logic
   assign mid_pipe_eff_sub_q[0]     = effective_subtraction_dotp;
+  assign mid_pipe_op_q[0]          = inp_pipe_op_q[NUM_INP_REGS];
   assign mid_pipe_info_e_is_normal_q[0]    = info_e.is_normal;
   assign mid_pipe_info_e_is_zero_q[0]      = info_e.is_zero;
   assign mid_pipe_dotp_result_exact_zero_q[0] = dotp_result_exact_zero;
@@ -712,6 +823,7 @@ module fpnew_sdotp_multi #(
     assign reg_ena = mid_pipe_ready[i] & mid_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_op_q[i+1],          mid_pipe_op_q[i],          reg_ena, fpnew_pkg::VSUM)
     `FFL(mid_pipe_info_e_is_normal_q[i+1], mid_pipe_info_e_is_normal_q[i], reg_ena, '0)
     `FFL(mid_pipe_info_e_is_zero_q[i+1], mid_pipe_info_e_is_zero_q[i], reg_ena, '0)
     `FFL(mid_pipe_dotp_result_exact_zero_q[i+1], mid_pipe_dotp_result_exact_zero_q[i], reg_ena, '0)
@@ -739,6 +851,7 @@ module fpnew_sdotp_multi #(
   end
   // Output stage: assign selected pipe outputs to signals for later use
   assign sum_carry_q             = mid_pipe_sum_carry_q[NUM_MID_REGS];
+  assign op_q                    = mid_pipe_op_q[NUM_MID_REGS];
   assign operand_e_q             = mid_pipe_operand_e_q[NUM_MID_REGS];
   assign info_e_is_normal_q      = mid_pipe_info_e_is_normal_q[NUM_MID_REGS];
   assign info_e_is_zero_q        = mid_pipe_info_e_is_zero_q[NUM_MID_REGS];
@@ -774,6 +887,7 @@ module fpnew_sdotp_multi #(
 
   // The tentative sign of the FMA shall be the sign of the product
   assign effective_subtraction_z = operand_e_sign_q ^ final_sign_q;
+  // assign mantissa_x = {1'b0, sum_q};
   assign mantissa_x = {sum_carry_q && ~effective_subtraction_dotp_q, sum_q};
 
   // The tentative sign shall be the sign of the product
@@ -878,6 +992,10 @@ module fpnew_sdotp_multi #(
     if (sum_shifted[DST_PRECISION_BITS*3+8]) begin // check the carry bit
       {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
       final_exponent                    = normalized_exponent + 1;
+      // if (op_q == fpnew_pkg::VSUM)
+      //   final_exponent                    = normalized_exponent;
+      // else
+      //   final_exponent                    = normalized_exponent + 1;
     // The normalized sum is normal, nothing to do
     end else if (sum_shifted[DST_PRECISION_BITS*3+7] && (normalized_exponent > 1)) begin // check the sum MSB
       // do nothing
