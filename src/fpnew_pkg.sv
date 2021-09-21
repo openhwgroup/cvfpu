@@ -404,7 +404,7 @@ package fpnew_pkg;
       DIV, SQRT:                   return DIVSQRT;
       SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
       F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
-      SDOTP, VSUM:                 return DOTP;
+      SDOTP, EXVSUM, VSUM:         return DOTP;
       default:                     return NONCOMP;
     endcase
   endfunction
