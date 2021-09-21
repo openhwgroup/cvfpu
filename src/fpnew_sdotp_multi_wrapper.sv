@@ -90,7 +90,7 @@ module fpnew_dotp_wrapper #(
     localparam int unsigned FP_WIDTH_MIN     = fpnew_pkg::minimum(SRC_WIDTH, FP_WIDTH);
     localparam int unsigned FP_WIDTH_DST_MIN = fpnew_pkg::minimum(DST_WIDTH, FP_WIDTH);
 
-    logic [N_SRC_FMT_OPERANDS-1:0][FP_WIDTH_MIN-1:0]     tmp_operands;  // lane-local operands
+    logic [N_SRC_FMT_OPERANDS-1:0][FP_WIDTH_DST_MIN-1:0] tmp_operands;     // lane-local operands
 
     always_comb begin : nanbox
       // shift operands to correct position
@@ -104,9 +104,9 @@ module fpnew_dotp_wrapper #(
       local_src_fmt_operand_c[fmt] = '1;
       local_src_fmt_operand_d[fmt] = '1;
       if (op_i == fpnew_pkg::VSUM) begin
-        local_src_fmt_operand_a[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[0][FP_WIDTH_DST_MIN-1:0];
+        local_src_fmt_operand_a[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[0][FP_WIDTH_DST_MIN-1:0];
         local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0]     = '1;
-        local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = operands_i[1][FP_WIDTH_DST_MIN-1:0];
+        local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[2][FP_WIDTH_DST_MIN-1:0];
         local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0]     = '1;
       end else begin
         local_src_fmt_operand_a[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
