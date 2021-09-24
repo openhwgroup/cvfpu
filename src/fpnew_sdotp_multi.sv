@@ -83,8 +83,8 @@ module fpnew_sdotp_multi #(
   localparam int unsigned DST_PRECISION_BITS = SUPER_DST_MAN_BITS + 1;
   localparam int unsigned ADDITIONAL_PRECISION_BITS = fpnew_pkg::maximum(DST_PRECISION_BITS - 2 * PRECISION_BITS, 0);
   // The lower 2p+3 bits of the internal DOTP result will be needed for leading-zero detection
-  localparam int unsigned LOWER_SUM_WIDTH  = 2*DST_PRECISION_BITS + 7;
-  localparam int unsigned LZC_RESULT_WIDTH = $clog2(LOWER_SUM_WIDTH);
+  localparam int unsigned LZC_SUM_WIDTH  = 3*DST_PRECISION_BITS + 9;
+  localparam int unsigned LZC_RESULT_WIDTH = $clog2(LZC_SUM_WIDTH);
   // Internal exponent width of DOTP must accomodate all meaningful exponent values in order to avoid
   // datapath leakage. This is either given by the exponent bits or the width of the LZC result.
   // In most reasonable FP formats the internal exponent will be wider than the LZC result.
@@ -350,8 +350,12 @@ module fpnew_sdotp_multi #(
   // Operation selection and operand adjustment
   // | \c op_q  | \c op_mod_q | Operation Adjustment
   // |:--------:|:-----------:|---------------------
-  // | DOTP     | \c 0        | DOTP: none
-  // | DOTP     | \c 1        | DOTPN: Invert sign of the second product
+  // | SDOTP    | \c 0        | SDOTP:  none
+  // | SDOTP    | \c 1        | SDOTPN: Invert the sign of the first and second products (accumulator - dotp)
+  // | EXVSUM   | \c 0        | EXVSUM: none
+  // | EXVSUM   | \c 1        | EXVSUM: Invert the sign of the first and second addends
+  // | VSUM     | \c 0        | VSUM:   none
+  // | VSUM     | \c 1        | VSUM:   Invert the sign of the first and second addends
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
@@ -414,8 +418,7 @@ module fpnew_sdotp_multi #(
   logic any_operand_inf;
   logic any_operand_nan;
   logic signalling_nan;
-  logic effective_subtraction_dotp;
-  logic [1:0] effective_subtraction_acc;
+  logic [2:0] effective_subtraction;
   logic tentative_sign;
 
   // Reduction for special case handling
@@ -423,9 +426,9 @@ module fpnew_sdotp_multi #(
   assign any_operand_nan = (| {info_a.is_nan,        info_b.is_nan,        info_c.is_nan,        info_d.is_nan,        info_e.is_nan});
   assign signalling_nan  = (| {info_a.is_signalling, info_b.is_signalling, info_c.is_signalling, info_d.is_signalling, info_e.is_signalling});
   // Effective subtraction in DOTP occurs when the signs of the two products differ
-  assign effective_subtraction_dotp = (a_sign ^ operand_b.sign) ^ (c_sign ^ operand_d.sign);
-  assign effective_subtraction_acc[0] = (a_sign ^ operand_b.sign) ^ operand_e.sign;
-  assign effective_subtraction_acc[1] = (c_sign ^ operand_d.sign) ^ operand_e.sign;
+  assign effective_subtraction[0] = (a_sign ^ operand_b.sign) ^ operand_e.sign;
+  assign effective_subtraction[1] = (c_sign ^ operand_d.sign) ^ operand_e.sign;
+  assign effective_subtraction[2] = (a_sign ^ operand_b.sign) ^ (c_sign ^ operand_d.sign);
 
   // ----------------------
   // Special case handling
@@ -474,10 +477,10 @@ module fpnew_sdotp_multi #(
         end else if (any_operand_inf) begin
           fmt_result_is_special[fmt] = 1'b1; // bypass DOTP
           // Effective addition of opposite infinities (±inf - ±inf) is invalid!
-          if ((info_a.is_inf || info_b.is_inf) && (info_c.is_inf || info_d.is_inf) && effective_subtraction_dotp) begin
+          if ((info_a.is_inf || info_b.is_inf) && (info_c.is_inf || info_d.is_inf) && effective_subtraction[2]) begin
             fmt_special_status[fmt].NV = 1'b1; // invalid operation
-          end else if (((info_a.is_inf || info_b.is_inf) && info_e.is_inf && effective_subtraction_acc[0])
-             || ((info_c.is_inf || info_d.is_inf) && info_e.is_inf && effective_subtraction_acc[1])) begin
+          end else if (((info_a.is_inf || info_b.is_inf) && info_e.is_inf && effective_subtraction[0])
+             || ((info_c.is_inf || info_d.is_inf) && info_e.is_inf && effective_subtraction[1])) begin
             fmt_special_status[fmt].NV = 1'b1; // invalid operation
           // Handle cases where output will be inf because of inf product input
           end else if (info_a.is_inf || info_b.is_inf) begin
@@ -516,11 +519,18 @@ module fpnew_sdotp_multi #(
   logic signed [EXP_WIDTH-1:0]     exponent_a, exponent_b, exponent_c, exponent_d;
   logic signed [DST_EXP_WIDTH-1:0] exponent_e;
   logic signed [DST_EXP_WIDTH-1:0] exponent_a_vsum, exponent_c_vsum;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_addend_x, exponent_addend_y;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_addend_x, exponent_addend_y, exponent_addend_z;
   logic signed [DST_EXP_WIDTH-1:0] exponent_product_x, exponent_product_y, exponent_difference;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_product_min, exponent_product_max;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_max, exponent_int, exponent_min;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent;
-  logic                            max_exponent;
+  logic [2:0]                      exponent_cmp;
+  logic                            effective_subtraction_first;
+  logic                            info_min_is_zero;
+  logic                            info_int_is_zero;
+  logic                            info_max_is_zero;
+  logic                            addend_min_sign;
+  logic                            addend_int_sign;
+  logic                            addend_max_sign;
 
   // Zero-extend exponents into signed container - implicit width extension
   assign exponent_a = signed'({1'b0, operand_a.exponent});
@@ -538,32 +548,125 @@ module fpnew_sdotp_multi #(
                               ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q)) // in case the product is zero, set minimum exp.
                               : signed'(exponent_c + info_c.is_subnormal
                                         + exponent_d + info_d.is_subnormal
-                                        - 2*signed'(fpnew_pkg::bias(src_fmt_q))
-                                        + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
+                                        - 2*signed'(fpnew_pkg::bias(src_fmt_q))  // rebias for dst fmt
+                                        + signed'(fpnew_pkg::bias(dst_fmt_q)) + 1); // adding +1 to keep into account following shift
+                                                                                    // (i.e. we move the product as it had the leading one in the first position of its 2p bits)
   assign exponent_product_x = (info_a.is_zero || info_b.is_zero)
                               ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q)) // in case the product is zero, set minimum exp.
                               : signed'(exponent_a + info_a.is_subnormal
                                         + exponent_b + info_b.is_subnormal
-                                        - 2*signed'(fpnew_pkg::bias(src_fmt_q))
-                                        + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
+                                        - 2*signed'(fpnew_pkg::bias(src_fmt_q))  // rebias for dst fmt
+                                        + signed'(fpnew_pkg::bias(dst_fmt_q)) + 1); // adding +1 to keep into account following shift
+                                                                                    // (i.e. we move the product as it had the leading one in the first position of its 2p bits)
   assign exponent_addend_y = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
                              ? signed'(exponent_c_vsum + $signed({1'b0, ~info_c.is_normal}))
                              : exponent_product_y;
   assign exponent_addend_x = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
                              ? signed'(exponent_a_vsum + $signed({1'b0, ~info_a.is_normal}))
                              : exponent_product_x;
+  assign exponent_addend_z = signed'(exponent_e + $signed({1'b0, ~info_e.is_normal})); // 0 as subnorm
 
-  // Find maximum exponent, the minimum will be shifted for the addition
-  assign max_exponent = (exponent_addend_y >= exponent_addend_x) ? 1'b1 : 1'b0;
-  // The tentative sign of the DOTP shall be the sign of the first product
-  assign tentative_sign = (max_exponent) ? (c_sign ^ operand_d.sign) : a_sign ^ operand_b.sign;
-  // Exponent difference is the product_y exponent minus the product_x exponent
-  assign exponent_difference = (max_exponent) ? exponent_addend_y - exponent_addend_x
-                                              : exponent_addend_x - exponent_addend_y;
-  assign exponent_product_max = (max_exponent) ? exponent_addend_y : exponent_addend_x;
-  assign exponent_product_min = (max_exponent) ? exponent_addend_x : exponent_addend_y;
-  // The tentative exponent will be the larger of the product_x or the product_y exponent
-  assign tentative_exponent = (max_exponent) ? exponent_addend_y : exponent_addend_x;
+  // Find maximum, intermediate and minimum exponents
+  assign exponent_cmp[2] = (exponent_addend_x >= exponent_addend_y) ? 1'b1 : 1'b0;
+  assign exponent_cmp[1] = (exponent_addend_x >= exponent_addend_z) ? 1'b1 : 1'b0;
+  assign exponent_cmp[0] = (exponent_addend_y >= exponent_addend_z) ? 1'b1 : 1'b0;
+
+  always_comb begin : compare_exponents
+    case (exponent_cmp)
+      // (x < y), (x < z), (y < z)
+      3'b000  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_z, exponent_addend_y, exponent_addend_x};
+        tentative_sign   = operand_e.sign; // The tentative sign of the DOTP shall be the sign of the maximum addend
+        effective_subtraction_first = effective_subtraction[1];
+        info_min_is_zero = info_a.is_zero || info_b.is_zero;
+        info_int_is_zero = info_c.is_zero || info_d.is_zero;
+        info_max_is_zero = info_e.is_zero;
+        addend_min_sign  = a_sign ^ operand_b.sign;
+        addend_int_sign  = c_sign ^ operand_d.sign;
+        addend_max_sign  = operand_e.sign;
+      end
+      // // (x < y), (x < z), (y >= z) --> y >= z > x
+      3'b001  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_y, exponent_addend_z, exponent_addend_x};
+        tentative_sign   = (c_sign ^ operand_d.sign);
+        effective_subtraction_first = effective_subtraction[1];
+        info_min_is_zero = info_a.is_zero || info_b.is_zero;
+        info_int_is_zero = info_e.is_zero;
+        info_max_is_zero = info_c.is_zero || info_d.is_zero;
+        addend_min_sign  = a_sign ^ operand_b.sign;
+        addend_int_sign  = operand_e.sign;
+        addend_max_sign  = c_sign ^ operand_d.sign;
+      end
+      // // (x < y), (x >= z), (y < z)
+      // 3'b010  : IMPOSSIBLE
+      // (x < y), (x >= z), (y >= z)
+      3'b011  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_y, exponent_addend_x, exponent_addend_z};
+        tentative_sign   =  (c_sign ^ operand_d.sign);
+        effective_subtraction_first = effective_subtraction[2];
+        info_min_is_zero = info_e.is_zero;
+        info_int_is_zero = info_a.is_zero || info_b.is_zero;
+        info_max_is_zero = info_c.is_zero || info_d.is_zero;
+        addend_min_sign  = operand_e.sign;
+        addend_int_sign  = a_sign ^ operand_b.sign;
+        addend_max_sign  = c_sign ^ operand_d.sign;
+      end
+      // (x >= y), (x < z), (y < z)
+      3'b100  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_z, exponent_addend_x, exponent_addend_y};
+        tentative_sign   = operand_e.sign;
+        effective_subtraction_first = effective_subtraction[0];
+        info_min_is_zero = info_c.is_zero || info_d.is_zero;
+        info_int_is_zero = info_a.is_zero || info_b.is_zero;
+        info_max_is_zero = info_e.is_zero;
+        addend_min_sign  = c_sign ^ operand_d.sign;
+        addend_int_sign  = a_sign ^ operand_b.sign;
+        addend_max_sign  = operand_e.sign;
+      end
+      // // (x >= y), (x < z), (y >= z)
+      // 3'b101  : IMPOSSIBLE
+      3'b110  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_x, exponent_addend_z, exponent_addend_y};
+        tentative_sign   = (a_sign ^ operand_b.sign);
+        effective_subtraction_first = effective_subtraction[0];
+        info_min_is_zero = info_c.is_zero || info_d.is_zero;
+        info_int_is_zero = info_e.is_zero;
+        info_max_is_zero = info_a.is_zero || info_b.is_zero;
+        addend_min_sign  = c_sign ^ operand_d.sign;
+        addend_int_sign  = operand_e.sign;
+        addend_max_sign  = a_sign ^ operand_b.sign;
+      end
+      // (x >= y), (x >= z), (y >= z)
+      3'b111  : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_x, exponent_addend_y, exponent_addend_z};
+        tentative_sign   = (a_sign ^ operand_b.sign);
+        effective_subtraction_first = effective_subtraction[2];
+        info_min_is_zero = info_e.is_zero;
+        info_int_is_zero = info_c.is_zero || info_d.is_zero;
+        info_max_is_zero = info_a.is_zero || info_b.is_zero;
+        addend_min_sign  = operand_e.sign;
+        addend_int_sign  = c_sign ^ operand_d.sign;
+        addend_max_sign  = a_sign ^ operand_b.sign;
+      end
+      default : begin
+        {exponent_max, exponent_int, exponent_min} = {exponent_addend_x, exponent_addend_y, exponent_addend_z};
+        tentative_sign   = (a_sign ^ operand_b.sign);
+        effective_subtraction_first = effective_subtraction[2];
+        info_min_is_zero = info_e.is_zero;
+        info_int_is_zero = info_c.is_zero || info_d.is_zero;
+        info_max_is_zero = info_a.is_zero || info_b.is_zero;
+        addend_min_sign  = operand_e.sign;
+        addend_int_sign  = c_sign ^ operand_d.sign;
+        addend_max_sign  = a_sign ^ operand_b.sign;
+      end
+    endcase
+  end
+
+  // Exponent difference is the maximum addend exponent minus the intermediate addend exponent,
+  // where the addends are the two products and the accumulator
+  assign exponent_difference = exponent_max - exponent_int;
+  // The tentative exponent will be the maximum exponent
+  assign tentative_exponent = exponent_max;
 
   // Shift amount for product_y based on exponents (unsigned as only right shifts)
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt;
@@ -584,9 +687,6 @@ module fpnew_sdotp_multi #(
   logic [DST_PRECISION_BITS-1:0] mantissa_e;
   logic [DST_PRECISION_BITS-1:0] mantissa_a_vsum, mantissa_c_vsum;
   logic [2*PRECISION_BITS-1:0]   product_x, product_y;  // the p*p product is 2p bits wide
-  logic [DST_PRECISION_BITS-1:0] addend_vsum_max, addend_vsum_min;  // the p*p product is 2p bits wide
-  logic [DST_PRECISION_BITS-1:0] addend_max, addend_min;  // the p*p product is 2p bits wide
-  logic [DST_PRECISION_BITS-1:0] product_max, product_min;  // the p*p product is 2p bits wide
 
   // Add implicit bits to mantissae
   assign mantissa_a = {info_a.is_normal, operand_a.mantissa};
@@ -606,40 +706,60 @@ module fpnew_sdotp_multi #(
   // ------------------
   // Shift data path
   // ------------------
-  logic [2*DST_PRECISION_BITS+2:0] product_max_shifted;
-  logic [2*DST_PRECISION_BITS+2:0] product_min_after_shift;
+  logic [DST_PRECISION_BITS-1:0]   addend_x, addend_y, addend_z;  // the p*p product is 2p bits wide
+  logic [DST_PRECISION_BITS-1:0]   addend_max, addend_int, addend_min;  // the p*p product is 2p bits wide
+  logic [2*DST_PRECISION_BITS+2:0] addend_max_shifted;
+  logic [2*DST_PRECISION_BITS+2:0] addend_int_after_shift;
   logic [DST_PRECISION_BITS-1:0]   addend_sticky_bits;  // up to p bit of shifted addend are sticky
   logic                            sticky_before_add;   // they are compressed into a single sticky bit
-  logic [2*DST_PRECISION_BITS+2:0] product_min_shifted;
+  logic [2*DST_PRECISION_BITS+2:0] addend_int_shifted;
   logic                            inject_carry_in;     // inject carry for subtractions if needed
-  // Place larger value in product_max and the smaller in product_min
-  assign product_max = (max_exponent) ? product_y << ADDITIONAL_PRECISION_BITS
-                                      : product_x << ADDITIONAL_PRECISION_BITS;
-  assign product_min = (max_exponent) ? product_x << ADDITIONAL_PRECISION_BITS
-                                      : product_y << ADDITIONAL_PRECISION_BITS;
-  assign addend_vsum_max  = (max_exponent) ? mantissa_c_vsum : mantissa_a_vsum;
-  assign addend_vsum_min  = (max_exponent) ? mantissa_a_vsum : mantissa_c_vsum;
-  assign addend_max = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
-                      ? addend_vsum_max : product_max;
-  assign addend_min = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
-                      ? addend_vsum_min : product_min;
+
+  assign addend_x = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                      ? mantissa_a_vsum : product_x << ADDITIONAL_PRECISION_BITS;
+  assign addend_y = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM)
+                      ? mantissa_c_vsum : product_y << ADDITIONAL_PRECISION_BITS;
+  assign addend_z = mantissa_e;
+
+  always_comb begin : sort_addends
+    case (exponent_cmp)
+      // (x < y), (x < z), (y < z)
+      3'b000  : {addend_max, addend_int, addend_min} = {addend_z, addend_y, addend_x};
+      // (x < y), (x >= z), (y < z)
+      3'b001  : {addend_max, addend_int, addend_min} = {addend_y, addend_z, addend_x};
+      // // (x < y), (x < z), (y >= z) => IMPOSSIBLE
+      // 3'b010  : {addend_max, addend_int, addend_min} = {addend_x, addend_y, addend_z};
+      // (x < y), (x >= z), (y >= z)
+      3'b011  : {addend_max, addend_int, addend_min} = {addend_y, addend_x, addend_z};
+      // (x >= y), (x < z), (y < z)
+      3'b100  : {addend_max, addend_int, addend_min} = {addend_z, addend_x, addend_y};
+      // // (x >= y), (x < z), (y >= z) => IMPOSSIBLE
+      // 3'b101  : {addend_max, addend_int, addend_min} = {addend_x, addend_y, addend_z};
+      // (x >= y), (x >= z), (y < z)
+      3'b110  : {addend_max, addend_int, addend_min} = {addend_x, addend_z, addend_y};
+      // (x >= y), (x >= z), (y >= z)
+      3'b111  : {addend_max, addend_int, addend_min} = {addend_x, addend_y, addend_z};
+      default : {addend_max, addend_int, addend_min} = {addend_x, addend_y, addend_z};
+    endcase
+  end
+
   // Product max is placed into a 2p+3 bit wide vector, padded with 3 bits for rounding purposes:
   // | product_max  |  rnd  |
   //  <-  2p_dst  -> <  3   >
-  assign product_max_shifted = addend_max << (3 + DST_PRECISION_BITS); // constant shift
+  assign addend_max_shifted = addend_max << (3 + DST_PRECISION_BITS); // constant shift
 
   // In parallel, the min product is right-shifted according to the exponent difference. Up to p bits
   // are shifted out and compressed into a sticky bit.
   // | product_min   |  rnd   | sticky_bits |
   //  <-   2p_dst  -> <  3   > <     p      >
-  assign {product_min_after_shift, addend_sticky_bits} =
-      (addend_min << (2*DST_PRECISION_BITS + 3)) >> addend_shamt;
+  assign {addend_int_after_shift, addend_sticky_bits} =
+      (addend_int << (2*DST_PRECISION_BITS + 3)) >> addend_shamt;
 
   assign sticky_before_add     = (| addend_sticky_bits);
 
   // In case of a subtraction, the addend is inverted
-  assign product_min_shifted  = (effective_subtraction_dotp) ? ~product_min_after_shift : product_min_after_shift;
-  assign inject_carry_in = effective_subtraction_dotp & ~sticky_before_add;
+  assign addend_int_shifted  = (effective_subtraction_first) ? ~addend_int_after_shift : addend_int_after_shift;
+  assign inject_carry_in = effective_subtraction_first & ~sticky_before_add;
 
   // ------
   // Adder
@@ -652,75 +772,98 @@ module fpnew_sdotp_multi #(
   logic                            dotp_result_exact_zero;
 
   //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw = product_max_shifted + product_min_shifted + inject_carry_in;
+  assign sum_raw = addend_max_shifted + addend_int_shifted + inject_carry_in;
   assign sum_carry = sum_raw[2*DST_PRECISION_BITS+3];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum        = (effective_subtraction_dotp && ~sum_carry) ? -sum_raw : sum_raw;
+  assign sum        = (effective_subtraction_first && ~sum_carry) ? -sum_raw : sum_raw;
 
-  assign dotp_result_exact_zero = (sum == '0) && sum_carry && !sticky_before_add && effective_subtraction_dotp;
+  assign dotp_result_exact_zero = (sum == '0) && sum_carry && !sticky_before_add && effective_subtraction_first;
   // In case of a mispredicted subtraction result, do a sign flip
   assign final_sign = dotp_result_exact_zero ? (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
-                                        : (effective_subtraction_dotp && (sum_carry == tentative_sign))
+                                        : (effective_subtraction_first && (sum_carry == tentative_sign))
                                               ? 1'b1
-                                              : (effective_subtraction_dotp ? 1'b0 : tentative_sign);
+                                              : (effective_subtraction_first ? 1'b0 : tentative_sign);
 
   // -------------
   // Second Shift
   // -------------
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_z;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_x, exponent_y;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_w;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_z;
 
   // x comes from the dotp, y comes from operand_e
-  assign exponent_x = (inp_pipe_op_q[NUM_INP_REGS] == fpnew_pkg::VSUM) ? signed'(tentative_exponent)
-                                                                       : signed'(tentative_exponent + 1);
-  assign exponent_y = signed'(exponent_e + $signed({1'b0, ~info_e.is_normal})); // 0 as subnorm
-
+  assign exponent_w = signed'(tentative_exponent + 1);
   // Exponent difference is the addend exponent minus the product exponent
-  assign exponent_difference_z = exponent_y - exponent_x;
+  assign exponent_difference_z = exponent_w - exponent_min;
   // The tentative exponent will be the larger of the product or addend exponent
-  assign tentative_exponent_z = (exponent_difference_z > 0) ? exponent_y : exponent_x;
+  assign tentative_exponent_z  = exponent_w;
 
   // Shift amount for addend based on exponents (unsigned as only right shifts)
   localparam DST_SHIFT_AMOUNT_WIDTH = $clog2(DST_PRECISION_BITS*3 + 7);
-  logic [DST_SHIFT_AMOUNT_WIDTH-1:0]  addend_shamt_z;
-  logic [DST_PRECISION_BITS*3 + 7 :0] mantissa_y_after_shift;
-  logic [DST_PRECISION_BITS-1:0]      addend_sticky_bits_z;  // up to p bit of shifted addend are sticky
-  logic                               sticky_before_add_z;   // they are compressed into a single sticky bit
+  logic [DST_SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_z;
+  logic [DST_PRECISION_BITS*3+7:0]   addend_min_after_shift;
+  logic [DST_PRECISION_BITS-1:0]     addend_sticky_bits_z;  // up to p bit of shifted addend are sticky
+  logic                              sticky_before_add_z;   // they are compressed into a single sticky bit
 
   always_comb begin : addend_shift_amount_z
-    // Product-anchored case, saturated shift (addend is only in the sticky bit)
-    if (exponent_difference_z <= signed'(-2*DST_PRECISION_BITS - 5))
-      addend_shamt_z = DST_PRECISION_BITS*3 + 7;
-    // Addend and product will have mutual bits to add
-    else if (exponent_difference_z <= signed'(DST_PRECISION_BITS + 2))
-      addend_shamt_z = unsigned'(signed'(DST_PRECISION_BITS) + 2 - exponent_difference_z);
+    // product_y and product_x will have mutual bits to add
+    if (exponent_difference_z <= signed'(3 * DST_PRECISION_BITS + 8)) begin
+      addend_shamt_z = unsigned'(signed'(exponent_difference_z));
     // Addend-anchored case, saturated shift (product is only in the sticky bit)
-    else
-      addend_shamt_z = 0;
+    end else begin
+      addend_shamt_z = 3 * DST_PRECISION_BITS + 8;
+    end
   end
 
-  assign {mantissa_y_after_shift, addend_sticky_bits_z} =
-      (mantissa_e << (3 * DST_PRECISION_BITS + 7)) >> addend_shamt_z;
+  assign {addend_min_after_shift, addend_sticky_bits_z} =
+      (addend_min << (3 * DST_PRECISION_BITS + 8)) >> addend_shamt_z;
 
   assign sticky_before_add_z     = (| addend_sticky_bits_z);
+
+  logic final_sign_zero;
+  always_comb begin
+    final_sign_zero = addend_max_sign;
+    if (info_max_is_zero && !info_int_is_zero && !info_min_is_zero) begin
+      if (exponent_int > exponent_min) begin
+        final_sign_zero = addend_int_sign;
+      end else if (addend_int > addend_min) begin
+        final_sign_zero = addend_int_sign;
+      end else if (addend_int == addend_min) begin
+        final_sign_zero = (addend_max_sign) ? addend_int_sign | addend_min_sign : addend_int_sign & addend_min_sign;
+      end else begin
+        final_sign_zero = addend_min_sign;
+      end
+    end else if (info_max_is_zero && info_int_is_zero && !info_min_is_zero) begin
+      final_sign_zero = addend_min_sign;
+    end else if (info_max_is_zero && info_int_is_zero && info_min_is_zero) begin
+      final_sign_zero = (addend_max_sign) ? addend_int_sign | addend_min_sign : addend_int_sign & addend_min_sign;
+    end else if (info_max_is_zero && !info_int_is_zero && info_min_is_zero) begin
+      final_sign_zero = addend_int_sign;
+    end
+  end
+
   // ---------------
   // Internal pipeline
   // ---------------
   // Pipeline output signals as non-arrays
-  logic                            effective_subtraction_dotp_q;
+  logic                            effective_subtraction_first_q;
   fpnew_pkg::operation_e           op_q;
-  logic                            info_e_is_normal_q;
-  logic                            info_e_is_zero_q;
+  logic                            final_sign_zero_q;
+  logic                            info_min_is_zero_q;
+  logic                            info_max_is_zero_q;
+  logic                            addend_min_sign_q;
   logic                            dotp_result_exact_zero_q;
-  logic [DST_WIDTH-1:0]            operand_e_q;
+  logic [DST_PRECISION_BITS-1:0]   addend_min_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_z_q;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_x_q;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_w_q;
   logic                            sticky_before_add_z_q;   // they are compressed into a single sticky bit
-  logic [DST_PRECISION_BITS*3+7:0] mantissa_y_after_shift_q;
+  logic [DST_PRECISION_BITS*3+7:0] addend_min_after_shift_q;
   logic                            operand_e_sign_q;
-  logic signed [DST_EXP_WIDTH-1:0] exponent_product_min_q;
+  logic                            product_x_sign_q;
+  logic                            product_y_sign_q;
+  logic [2:0]                      exponent_cmp_q;
+  logic signed [DST_EXP_WIDTH-1:0] exponent_min_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_difference_q;
   logic signed [DST_EXP_WIDTH-1:0] tentative_exponent_q;
   logic [SHIFT_AMOUNT_WIDTH-1:0]   addend_shamt_q;
@@ -735,16 +878,21 @@ module fpnew_sdotp_multi #(
   logic                            sum_carry_q;
   // Internal pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_MID_REGS]                           mid_pipe_eff_sub_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_addend_min_sign_q;
   fpnew_pkg::operation_e [0:NUM_MID_REGS]                           mid_pipe_op_q;
-  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_normal_q;
-  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_e_is_zero_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_final_sign_zero_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_min_is_zero_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_info_max_is_zero_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_dotp_result_exact_zero_q;
-  logic                  [0:NUM_MID_REGS][DST_WIDTH-1:0]            mid_pipe_operand_e_q;
+  logic                  [0:NUM_MID_REGS][DST_PRECISION_BITS-1:0]   mid_pipe_addend_min_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_diff_z_q;
-  logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_x_q;
+  logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_first_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_sticky_before_add_z_q;
   logic                  [0:NUM_MID_REGS][DST_PRECISION_BITS*3+7:0] mid_pipe_mant_y_after_shift_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_op_e_sign_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_prod_x_sign_q;
+  logic                  [0:NUM_MID_REGS]                           mid_pipe_prod_y_sign_q;
+  logic                  [0:NUM_MID_REGS][2:0]                      mid_pipe_exp_cmp_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_min_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_diff_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_tent_exp_q;
@@ -765,35 +913,40 @@ module fpnew_sdotp_multi #(
   logic [0:NUM_MID_REGS] mid_pipe_ready;
 
   // Input stage: First element of pipeline is taken from upstream logic
-  assign mid_pipe_eff_sub_q[0]     = effective_subtraction_dotp;
-  assign mid_pipe_op_q[0]          = inp_pipe_op_q[NUM_INP_REGS];
-  assign mid_pipe_info_e_is_normal_q[0]    = info_e.is_normal;
-  assign mid_pipe_info_e_is_zero_q[0]      = info_e.is_zero;
+  assign mid_pipe_eff_sub_q[0]                = effective_subtraction_first;
+  assign mid_pipe_addend_min_sign_q[0]        = addend_min_sign;
+  assign mid_pipe_op_q[0]                     = inp_pipe_op_q[NUM_INP_REGS];
+  assign mid_pipe_final_sign_zero_q[0]        = final_sign_zero;
+  assign mid_pipe_info_min_is_zero_q[0]       = info_min_is_zero;
+  assign mid_pipe_info_max_is_zero_q[0]       = info_max_is_zero;
   assign mid_pipe_dotp_result_exact_zero_q[0] = dotp_result_exact_zero;
-  assign mid_pipe_operand_e_q[0]   = inp_pipe_dst_operands_q;
-  assign mid_pipe_exp_diff_z_q[0]  = exponent_difference_z;
-  assign mid_pipe_exp_x_q[0]       = exponent_x;
-  assign mid_pipe_sticky_before_add_z_q[0] = sticky_before_add_z;
-  assign mid_pipe_mant_y_after_shift_q[0]  = mantissa_y_after_shift;
-  assign mid_pipe_op_e_sign_q[0]   = operand_e.sign;
-  assign mid_pipe_exp_min_q[0]     = exponent_product_min;
-  assign mid_pipe_exp_diff_q[0]    = exponent_difference;
-  assign mid_pipe_tent_exp_q[0]    = tentative_exponent;
-  assign mid_pipe_add_shamt_q[0]   = addend_shamt;
-  assign mid_pipe_sticky_q[0]      = sticky_before_add;
-  assign mid_pipe_sum_q[0]         = sum;
-  assign mid_pipe_final_sign_q[0]  = final_sign;
-  assign mid_pipe_rnd_mode_q[0]    = inp_pipe_rnd_mode_q[NUM_INP_REGS];
-  assign mid_pipe_dst_fmt_q[0]     = dst_fmt_q;
-  assign mid_pipe_res_is_spec_q[0] = result_is_special;
-  assign mid_pipe_spec_res_q[0]    = special_result;
-  assign mid_pipe_spec_stat_q[0]   = special_status;
-  assign mid_pipe_tag_q[0]         = inp_pipe_tag_q[NUM_INP_REGS];
-  assign mid_pipe_aux_q[0]         = inp_pipe_aux_q[NUM_INP_REGS];
-  assign mid_pipe_valid_q[0]       = inp_pipe_valid_q[NUM_INP_REGS];
-  assign mid_pipe_sum_carry_q[0]   = sum_carry;
+  assign mid_pipe_addend_min_q[0]             = addend_min;
+  assign mid_pipe_exp_diff_z_q[0]             = exponent_difference_z;
+  assign mid_pipe_exp_first_q[0]              = exponent_w;
+  assign mid_pipe_sticky_before_add_z_q[0]    = sticky_before_add_z;
+  assign mid_pipe_mant_y_after_shift_q[0]     = addend_min_after_shift;
+  assign mid_pipe_op_e_sign_q[0]              = operand_e.sign;
+  assign mid_pipe_prod_x_sign_q[0]            = (a_sign ^ operand_b.sign);
+  assign mid_pipe_prod_y_sign_q[0]            = (c_sign ^ operand_d.sign);
+  assign mid_pipe_exp_cmp_q[0]                = exponent_cmp;
+  assign mid_pipe_exp_min_q[0]                = exponent_min;
+  assign mid_pipe_exp_diff_q[0]               = exponent_difference;
+  assign mid_pipe_tent_exp_q[0]               = tentative_exponent;
+  assign mid_pipe_add_shamt_q[0]              = addend_shamt;
+  assign mid_pipe_sticky_q[0]                 = sticky_before_add;
+  assign mid_pipe_sum_q[0]                    = sum;
+  assign mid_pipe_final_sign_q[0]             = final_sign;
+  assign mid_pipe_rnd_mode_q[0]               = inp_pipe_rnd_mode_q[NUM_INP_REGS];
+  assign mid_pipe_dst_fmt_q[0]                = dst_fmt_q;
+  assign mid_pipe_res_is_spec_q[0]            = result_is_special;
+  assign mid_pipe_spec_res_q[0]               = special_result;
+  assign mid_pipe_spec_stat_q[0]              = special_status;
+  assign mid_pipe_tag_q[0]                    = inp_pipe_tag_q[NUM_INP_REGS];
+  assign mid_pipe_aux_q[0]                    = inp_pipe_aux_q[NUM_INP_REGS];
+  assign mid_pipe_valid_q[0]                  = inp_pipe_valid_q[NUM_INP_REGS];
+  assign mid_pipe_sum_carry_q[0]              = sum_carry;
   // Input stage: Propagate pipeline ready signal to input pipe
-  assign inp_pipe_ready[NUM_INP_REGS] = mid_pipe_ready[0];
+  assign inp_pipe_ready[NUM_INP_REGS]         = mid_pipe_ready[0];
 
   // Generate the register stages
   for (genvar i = 0; i < NUM_MID_REGS; i++) begin : gen_inside_pipeline
@@ -808,84 +961,111 @@ module fpnew_sdotp_multi #(
     // Enable register if pipleine ready and a valid data item is present
     assign reg_ena = mid_pipe_ready[i] & mid_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
-    `FFL(mid_pipe_eff_sub_q[i+1],     mid_pipe_eff_sub_q[i],     reg_ena, '0)
-    `FFL(mid_pipe_op_q[i+1],          mid_pipe_op_q[i],          reg_ena, fpnew_pkg::VSUM)
-    `FFL(mid_pipe_info_e_is_normal_q[i+1], mid_pipe_info_e_is_normal_q[i], reg_ena, '0)
-    `FFL(mid_pipe_info_e_is_zero_q[i+1], mid_pipe_info_e_is_zero_q[i], reg_ena, '0)
+    `FFL(mid_pipe_eff_sub_q[i+1],             mid_pipe_eff_sub_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_addend_min_sign_q[i+1],     mid_pipe_addend_min_sign_q[i], reg_ena, '0)
+    `FFL(mid_pipe_op_q[i+1],                  mid_pipe_op_q[i],          reg_ena, fpnew_pkg::VSUM)
+    `FFL(mid_pipe_final_sign_zero_q[i+1],      mid_pipe_final_sign_zero_q[i], reg_ena, '0)
+    `FFL(mid_pipe_info_min_is_zero_q[i+1],      mid_pipe_info_min_is_zero_q[i], reg_ena, '0)
+    `FFL(mid_pipe_info_max_is_zero_q[i+1],      mid_pipe_info_max_is_zero_q[i], reg_ena, '0)
     `FFL(mid_pipe_dotp_result_exact_zero_q[i+1], mid_pipe_dotp_result_exact_zero_q[i], reg_ena, '0)
-    `FFL(mid_pipe_operand_e_q[i+1],   mid_pipe_operand_e_q[i],   reg_ena, '0)
-    `FFL(mid_pipe_exp_diff_z_q[i+1],  mid_pipe_exp_diff_z_q[i],  reg_ena, '0)
-    `FFL(mid_pipe_exp_x_q[i+1],       mid_pipe_exp_x_q[i],       reg_ena, '0)
+    `FFL(mid_pipe_addend_min_q[i+1],          mid_pipe_addend_min_q[i],  reg_ena, '0)
+    `FFL(mid_pipe_exp_diff_z_q[i+1],          mid_pipe_exp_diff_z_q[i],  reg_ena, '0)
+    `FFL(mid_pipe_exp_first_q[i+1],           mid_pipe_exp_first_q[i],   reg_ena, '0)
     `FFL(mid_pipe_sticky_before_add_z_q[i+1], mid_pipe_sticky_before_add_z_q[i], reg_ena, '0)
-    `FFL(mid_pipe_mant_y_after_shift_q[i+1], mid_pipe_mant_y_after_shift_q[i], reg_ena, '0)
-    `FFL(mid_pipe_op_e_sign_q[i+1],   mid_pipe_op_e_sign_q[i],   reg_ena, '0)
-    `FFL(mid_pipe_exp_min_q[i+1],     mid_pipe_exp_min_q[i],     reg_ena, '0)
-    `FFL(mid_pipe_exp_diff_q[i+1],    mid_pipe_exp_diff_q[i],    reg_ena, '0)
-    `FFL(mid_pipe_tent_exp_q[i+1],    mid_pipe_tent_exp_q[i],    reg_ena, '0)
-    `FFL(mid_pipe_add_shamt_q[i+1],   mid_pipe_add_shamt_q[i],   reg_ena, '0)
-    `FFL(mid_pipe_sticky_q[i+1],      mid_pipe_sticky_q[i],      reg_ena, '0)
-    `FFL(mid_pipe_sum_q[i+1],         mid_pipe_sum_q[i],         reg_ena, '0)
-    `FFL(mid_pipe_final_sign_q[i+1],  mid_pipe_final_sign_q[i],  reg_ena, '0)
-    `FFL(mid_pipe_rnd_mode_q[i+1],    mid_pipe_rnd_mode_q[i],    reg_ena, fpnew_pkg::RNE)
-    `FFL(mid_pipe_dst_fmt_q[i+1],     mid_pipe_dst_fmt_q[i],     reg_ena, fpnew_pkg::fp_format_e'(0))
-    `FFL(mid_pipe_res_is_spec_q[i+1], mid_pipe_res_is_spec_q[i], reg_ena, '0)
-    `FFL(mid_pipe_spec_res_q[i+1],    mid_pipe_spec_res_q[i],    reg_ena, '0)
-    `FFL(mid_pipe_spec_stat_q[i+1],   mid_pipe_spec_stat_q[i],   reg_ena, '0)
-    `FFL(mid_pipe_tag_q[i+1],         mid_pipe_tag_q[i],         reg_ena, TagType'('0))
-    `FFL(mid_pipe_aux_q[i+1],         mid_pipe_aux_q[i],         reg_ena, AuxType'('0))
-    `FFL(mid_pipe_sum_carry_q[i+1],   mid_pipe_sum_carry_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_mant_y_after_shift_q[i+1],  mid_pipe_mant_y_after_shift_q[i],  reg_ena, '0)
+    `FFL(mid_pipe_op_e_sign_q[i+1],           mid_pipe_op_e_sign_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_prod_x_sign_q[i+1],         mid_pipe_prod_x_sign_q[i], reg_ena, '0)
+    `FFL(mid_pipe_prod_y_sign_q[i+1],         mid_pipe_prod_y_sign_q[i], reg_ena, '0)
+    `FFL(mid_pipe_exp_cmp_q[i+1],             mid_pipe_exp_cmp_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_exp_min_q[i+1],             mid_pipe_exp_min_q[i],     reg_ena, '0)
+    `FFL(mid_pipe_exp_diff_q[i+1],            mid_pipe_exp_diff_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_tent_exp_q[i+1],            mid_pipe_tent_exp_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_add_shamt_q[i+1],           mid_pipe_add_shamt_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_sticky_q[i+1],              mid_pipe_sticky_q[i],      reg_ena, '0)
+    `FFL(mid_pipe_sum_q[i+1],                 mid_pipe_sum_q[i],         reg_ena, '0)
+    `FFL(mid_pipe_final_sign_q[i+1],          mid_pipe_final_sign_q[i],  reg_ena, '0)
+    `FFL(mid_pipe_rnd_mode_q[i+1],            mid_pipe_rnd_mode_q[i],    reg_ena, fpnew_pkg::RNE)
+    `FFL(mid_pipe_dst_fmt_q[i+1],             mid_pipe_dst_fmt_q[i],     reg_ena, fpnew_pkg::fp_format_e'(0))
+    `FFL(mid_pipe_res_is_spec_q[i+1],         mid_pipe_res_is_spec_q[i], reg_ena, '0)
+    `FFL(mid_pipe_spec_res_q[i+1],            mid_pipe_spec_res_q[i],    reg_ena, '0)
+    `FFL(mid_pipe_spec_stat_q[i+1],           mid_pipe_spec_stat_q[i],   reg_ena, '0)
+    `FFL(mid_pipe_tag_q[i+1],                 mid_pipe_tag_q[i],         reg_ena, TagType'('0))
+    `FFL(mid_pipe_aux_q[i+1],                 mid_pipe_aux_q[i],         reg_ena, AuxType'('0))
+    `FFL(mid_pipe_sum_carry_q[i+1],           mid_pipe_sum_carry_q[i],   reg_ena, '0)
   end
   // Output stage: assign selected pipe outputs to signals for later use
-  assign sum_carry_q             = mid_pipe_sum_carry_q[NUM_MID_REGS];
-  assign op_q                    = mid_pipe_op_q[NUM_MID_REGS];
-  assign operand_e_q             = mid_pipe_operand_e_q[NUM_MID_REGS];
-  assign info_e_is_normal_q      = mid_pipe_info_e_is_normal_q[NUM_MID_REGS];
-  assign info_e_is_zero_q        = mid_pipe_info_e_is_zero_q[NUM_MID_REGS];
-  assign dotp_result_exact_zero_q = mid_pipe_dotp_result_exact_zero_q[NUM_MID_REGS];
-  assign effective_subtraction_dotp_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
-  assign exponent_difference_z_q = mid_pipe_exp_diff_z_q[NUM_MID_REGS];
-  assign exponent_x_q            = mid_pipe_exp_x_q[NUM_MID_REGS];
-  assign sticky_before_add_z_q   = mid_pipe_sticky_before_add_z_q[NUM_MID_REGS];
-  assign mantissa_y_after_shift_q = mid_pipe_mant_y_after_shift_q[NUM_MID_REGS];
-  assign operand_e_sign_q        = mid_pipe_op_e_sign_q[NUM_MID_REGS];
-  assign exponent_product_min_q  = mid_pipe_exp_min_q[NUM_MID_REGS];
-  assign exponent_difference_q   = mid_pipe_exp_diff_q[NUM_MID_REGS];
-  assign tentative_exponent_q    = mid_pipe_tent_exp_q[NUM_MID_REGS];
-  assign addend_shamt_q          = mid_pipe_add_shamt_q[NUM_MID_REGS];
-  assign sticky_before_add_q     = mid_pipe_sticky_q[NUM_MID_REGS];
-  assign sum_q                   = mid_pipe_sum_q[NUM_MID_REGS];
-  assign final_sign_q            = mid_pipe_final_sign_q[NUM_MID_REGS];
-  assign rnd_mode_q              = mid_pipe_rnd_mode_q[NUM_MID_REGS];
-  assign dst_fmt_q2              = mid_pipe_dst_fmt_q[NUM_MID_REGS];
-  assign result_is_special_q     = mid_pipe_res_is_spec_q[NUM_MID_REGS];
-  assign special_result_q        = mid_pipe_spec_res_q[NUM_MID_REGS];
-  assign special_status_q        = mid_pipe_spec_stat_q[NUM_MID_REGS];
+  assign sum_carry_q                   = mid_pipe_sum_carry_q[NUM_MID_REGS];
+  assign addend_min_sign_q             = mid_pipe_addend_min_sign_q[NUM_MID_REGS];
+  assign op_q                          = mid_pipe_op_q[NUM_MID_REGS];
+  assign addend_min_q                  = mid_pipe_addend_min_q[NUM_MID_REGS];
+  assign final_sign_zero_q             = mid_pipe_final_sign_zero_q[NUM_MID_REGS];
+  assign info_min_is_zero_q            = mid_pipe_info_min_is_zero_q[NUM_MID_REGS];
+  assign info_max_is_zero_q            = mid_pipe_info_max_is_zero_q[NUM_MID_REGS];
+  assign dotp_result_exact_zero_q      = mid_pipe_dotp_result_exact_zero_q[NUM_MID_REGS];
+  assign effective_subtraction_first_q = mid_pipe_eff_sub_q[NUM_MID_REGS];
+  assign exponent_difference_z_q       = mid_pipe_exp_diff_z_q[NUM_MID_REGS];
+  assign exponent_w_q                  = mid_pipe_exp_first_q[NUM_MID_REGS];
+  assign sticky_before_add_z_q         = mid_pipe_sticky_before_add_z_q[NUM_MID_REGS];
+  assign addend_min_after_shift_q      = mid_pipe_mant_y_after_shift_q[NUM_MID_REGS];
+  assign operand_e_sign_q              = mid_pipe_op_e_sign_q[NUM_MID_REGS];
+  assign product_x_sign_q              = mid_pipe_prod_x_sign_q[NUM_MID_REGS];
+  assign product_y_sign_q              = mid_pipe_prod_y_sign_q[NUM_MID_REGS];
+  assign exponent_cmp_q                = mid_pipe_exp_cmp_q[NUM_MID_REGS];
+  assign exponent_min_q                = mid_pipe_exp_min_q[NUM_MID_REGS];
+  assign exponent_difference_q         = mid_pipe_exp_diff_q[NUM_MID_REGS];
+  assign tentative_exponent_q          = mid_pipe_tent_exp_q[NUM_MID_REGS];
+  assign addend_shamt_q                = mid_pipe_add_shamt_q[NUM_MID_REGS];
+  assign sticky_before_add_q           = mid_pipe_sticky_q[NUM_MID_REGS];
+  assign sum_q                         = mid_pipe_sum_q[NUM_MID_REGS];
+  assign final_sign_q                  = mid_pipe_final_sign_q[NUM_MID_REGS];
+  assign rnd_mode_q                    = mid_pipe_rnd_mode_q[NUM_MID_REGS];
+  assign dst_fmt_q2                    = mid_pipe_dst_fmt_q[NUM_MID_REGS];
+  assign result_is_special_q           = mid_pipe_res_is_spec_q[NUM_MID_REGS];
+  assign special_result_q              = mid_pipe_spec_res_q[NUM_MID_REGS];
+  assign special_status_q              = mid_pipe_spec_stat_q[NUM_MID_REGS];
 
   // ----------------------------
   // Second Step of the Three-way Adder
   // ----------------------------
 
-  logic [DST_PRECISION_BITS*2+3:0] mantissa_x;
-  logic [DST_PRECISION_BITS*3+7:0] mantissa_x_shifted;
+  logic bypass_dotp;
+  assign bypass_dotp = dotp_result_exact_zero_q && !info_min_is_zero_q && sticky_before_add_z_q;
 
-  logic tentative_sign_z;
-  logic effective_subtraction_z;
+  logic [DST_PRECISION_BITS*2+3:0] mantissa_w;
+  logic [DST_PRECISION_BITS*3+7:0] mantissa_w_shifted;
 
-  // The tentative sign of the FMA shall be the sign of the product
-  assign effective_subtraction_z = operand_e_sign_q ^ final_sign_q;
-  // assign mantissa_x = {1'b0, sum_q};
-  assign mantissa_x = {sum_carry_q && ~effective_subtraction_dotp_q, sum_q};
+  logic                            tentative_sign_z;
+  logic                            effective_subtraction_z;
+  logic signed [DST_EXP_WIDTH-1:0] final_tentative_exponent;
+
+  assign final_tentative_exponent = (bypass_dotp) ? (exponent_min_q >= 0) ? exponent_min_q : 1'b0
+                                                  : exponent_w_q;
+
+  assign mantissa_w = {sum_carry_q && ~effective_subtraction_first_q, sum_q};
 
   // The tentative sign shall be the sign of the product
-  assign tentative_sign_z = final_sign_q;
-  // Prepare the mantissa for the addtion
-  assign mantissa_x_shifted = mantissa_x << 2;
+  assign tentative_sign_z = (bypass_dotp) ? addend_min_sign_q : final_sign_q;
 
-  logic [DST_PRECISION_BITS*3 + 7 :0] addend_shifted_z;
+  always_comb begin
+    case (exponent_cmp_q)
+      3'b000  :  effective_subtraction_z = product_x_sign_q ^ tentative_sign_z;
+      3'b001  :  effective_subtraction_z = product_x_sign_q ^ tentative_sign_z;
+      3'b011  :  effective_subtraction_z = operand_e_sign_q ^ tentative_sign_z;
+      3'b100  :  effective_subtraction_z = product_y_sign_q ^ tentative_sign_z;
+      3'b110  :  effective_subtraction_z = product_y_sign_q ^ tentative_sign_z;
+      3'b111  :  effective_subtraction_z = operand_e_sign_q ^ tentative_sign_z;
+      default :  effective_subtraction_z = operand_e_sign_q ^ tentative_sign_z;
+    endcase
+  end
+
+  // Prepare the mantissa for the addtion
+  assign mantissa_w_shifted = mantissa_w << (DST_PRECISION_BITS + 4);
+
+  logic [DST_PRECISION_BITS*3 + 7 :0] addend_min_shifted;
   logic                               inject_carry_in_z;     // inject carry for subtractions if needed
 
   // In case of a subtraction, the addend is inverted
-  assign addend_shifted_z  = (effective_subtraction_z) ? ~mantissa_y_after_shift_q : mantissa_y_after_shift_q;
+  assign addend_min_shifted  = (effective_subtraction_z) ? ~addend_min_after_shift_q : addend_min_after_shift_q;
   assign inject_carry_in_z = effective_subtraction_z & ~sticky_before_add_z_q;
 
   // ------
@@ -894,24 +1074,28 @@ module fpnew_sdotp_multi #(
   logic [DST_PRECISION_BITS*3 + 8:0] sum_raw_z;   // added one bit for the carry
   logic                              sum_carry_z; // observe carry bit from sum for sign fixing
   logic [DST_PRECISION_BITS*3 + 7:0] sum_z;       // discard carry as sum won't overflow
+  logic                              final_sign_sum_z;
   logic                              final_sign_z;
 
   //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw_z = mantissa_x_shifted + addend_shifted_z + inject_carry_in_z;
-  assign sum_carry_z = sum_raw_z[DST_PRECISION_BITS*3 + 8];
+  assign sum_raw_z    = (bypass_dotp) ? (exponent_min_q >= 0) ? addend_min_q << (2*DST_PRECISION_BITS + 8)
+                                                              : (addend_min_q << (2*DST_PRECISION_BITS + 8)) >> signed'(-exponent_min_q+1)
+                                      : mantissa_w_shifted + addend_min_shifted + inject_carry_in_z;
+  // assign sum_raw_z    = mantissa_w_shifted + addend_min_shifted + inject_carry_in_z;
+  assign sum_carry_z  = sum_raw_z[DST_PRECISION_BITS*3 + 8];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
   assign sum_z        = (effective_subtraction_z && ~sum_carry_z) ? -sum_raw_z : sum_raw_z;
 
   // In case of a mispredicted subtraction result, do a sign flip
   assign final_sign_z = (effective_subtraction_z && (sum_carry_z == tentative_sign_z))
-                      ? 1'b1
-                      : (effective_subtraction_z ? 1'b0 : tentative_sign_z);
+                            ? 1'b1
+                            : (effective_subtraction_z ? 1'b0 : tentative_sign_z);
 
   // --------------
   // Normalization
   // --------------
-  logic        [LOWER_SUM_WIDTH-1:0]  sum_lower;              // lower 2p+3 bits of sum are searched
+  logic        [LZC_SUM_WIDTH-1:0]    sum_lower;              // lower 2p+3 bits of sum are searched
   logic        [LZC_RESULT_WIDTH-1:0] leading_zero_count;     // the number of leading zeroes
   logic signed [LZC_RESULT_WIDTH:0]   leading_zero_count_sgn; // signed leading-zero count
   logic                               lzc_zeroes;             // in case only zeroes found
@@ -926,11 +1110,11 @@ module fpnew_sdotp_multi #(
 
   logic signed [DST_EXP_WIDTH-1:0] final_exponent;
 
-  assign sum_lower = sum_z[LOWER_SUM_WIDTH-1:0];
+  assign sum_lower = {(~effective_subtraction_z && sum_carry_z), sum_z};
 
   // Leading zero counter for cancellations
   lzc #(
-    .WIDTH ( LOWER_SUM_WIDTH ),
+    .WIDTH ( LZC_SUM_WIDTH   ),
     .MODE  ( 1               ) // MODE = 1 counts leading zeroes
   ) i_lzc (
     .in_i    ( sum_lower          ),
@@ -942,30 +1126,29 @@ module fpnew_sdotp_multi #(
 
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
   always_comb begin : norm_shift_amount
-    // Product-anchored case or cancellations require LZC
-    if ((exponent_difference_z_q <= 0) || (effective_subtraction_z && (exponent_difference_z_q <= 2))) begin
-      // Normal result (biased exponent > 0 and not a zero)
-      if ((exponent_x_q - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
-        // Undo initial product shift, remove the counted zeroes
-        // norm_shamt          = DST_PRECISION_BITS + 2 + leading_zero_count;
-        // normalized_exponent = exponent_x - leading_zero_count_sgn + 1; // account for shift
-        norm_shamt          = DST_PRECISION_BITS + 2 + leading_zero_count;
-        normalized_exponent = exponent_x_q - leading_zero_count_sgn + 1; // account for shift
-      // Subnormal result
+   if ((final_tentative_exponent - leading_zero_count_sgn + 1 > 0) && !lzc_zeroes) begin
+      // Undo initial product shift, remove the counted zeroes
+      if (leading_zero_count > 0) begin
+        norm_shamt          = leading_zero_count - 1;
+        normalized_exponent = final_tentative_exponent - leading_zero_count_sgn + 1; // account for shift
       end else begin
-        // Cap the shift distance to align mantissa with minimum exponent
-        norm_shamt          = unsigned'(signed'(DST_PRECISION_BITS + 2) + exponent_x_q);
-        normalized_exponent = 0; // subnormals encoded as 0
+        norm_shamt          = '0;
+        normalized_exponent = final_tentative_exponent;
       end
-    // Addend-anchored case
+    // Subnormal result
     end else begin
-      norm_shamt          = addend_shamt_z; // Undo the initial shift
-      normalized_exponent = tentative_exponent_z + info_e_is_normal_q;
+      // Cap the shift distance to align mantissa with minimum exponent
+      // norm_shamt          = final_tentative_exponent + info_e_is_normal_q;
+      if (final_tentative_exponent > 0)
+        norm_shamt          = final_tentative_exponent - 1;
+      else
+        norm_shamt          = '0;
+      normalized_exponent = '0; // subnormals encoded as 0
     end
   end
 
   // Do the large normalization shift
-  assign sum_shifted       = sum_z << norm_shamt;
+  assign sum_shifted       = sum_lower << norm_shamt;
 
   // The addend-anchored case needs a 1-bit normalization since the leading-one can be to the left
   // or right of the (non-carry) MSB of the sum.
@@ -979,45 +1162,27 @@ module fpnew_sdotp_multi #(
       {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
       final_exponent                    = normalized_exponent + 1;
     // The normalized sum is normal, nothing to do
-    end else if (sum_shifted[DST_PRECISION_BITS*3+7] && (normalized_exponent > 1)) begin // check the sum MSB
+    // end else if (sum_shifted[DST_PRECISION_BITS*3+7] && (normalized_exponent >= 1)) begin // check the sum MSB
+    end else if (sum_shifted[DST_PRECISION_BITS*3+7]) begin // check the sum MSB
       // do nothing
-    end else if (sum_shifted[DST_PRECISION_BITS*3+7] && (normalized_exponent == 1)) begin // check the sum MSB
-      final_exponent                    = normalized_exponent + 1;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+6] && (normalized_exponent > 1)) begin
-      {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
-      final_exponent                    = normalized_exponent - 1;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+6] && (normalized_exponent == 1)) begin
-      {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
-      final_exponent                    = normalized_exponent;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent > 2)) begin
-      {final_mantissa, sum_sticky_bits} = sum_shifted << 2;
-      final_exponent                    = normalized_exponent - 2;
-    end else if (sum_shifted[DST_PRECISION_BITS*3+5] && (normalized_exponent == 2)) begin
-      {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
-      final_exponent                    = normalized_exponent - 2;
     // The normalized sum is still denormal, align left - unless the result is not already subnormal
     end else if (normalized_exponent > 1) begin
       {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
       final_exponent                    = normalized_exponent - 1;
     // Otherwise we're denormal
     end else begin
-      if (normalized_exponent > 0) begin
-        {final_mantissa, sum_sticky_bits} = sum_shifted << 1;
-      end else begin
         // do nothing
-      end
       final_exponent = '0;
     end
   end
 
   // Update the sticky bit with the shifted-out bits
-  // assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
   always_comb begin
     sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
-    if (sticky_before_add_q && !effective_subtraction_dotp_q && !sticky_before_add_z_q && effective_subtraction_z && (sum_sticky_bits == '0)) begin
+    if (sticky_before_add_q && !effective_subtraction_first_q && !sticky_before_add_z_q && effective_subtraction_z && (sum_sticky_bits == '0) && !info_min_is_zero_q) begin
       sticky_after_norm = 1'b0;
     end
-    if (sticky_before_add_q && effective_subtraction_dotp_q && !sticky_before_add_z_q && !effective_subtraction_z && (sum_sticky_bits == '0)) begin
+    if (sticky_before_add_q && effective_subtraction_first_q && !sticky_before_add_z_q && !effective_subtraction_z && (sum_sticky_bits == '0) && !info_min_is_zero_q) begin
       sticky_after_norm = 1'b0;
     end
   end
@@ -1080,11 +1245,12 @@ module fpnew_sdotp_multi #(
   end
 
   // Assemble result before rounding. In case of overflow, the largest normal value is set.
-  assign pre_round_sign     = final_sign_z;
   assign pre_round_abs      = fmt_pre_round_abs[dst_fmt_q2];
 
   // In case of overflow, the round and sticky bits are set for proper rounding
   assign round_sticky_bits  = fmt_round_sticky_bits[dst_fmt_q2];
+  assign pre_round_sign     = (info_max_is_zero_q && (pre_round_abs == '0) && (| round_sticky_bits))
+                              ? final_sign_zero_q : final_sign_z;
 
   // Perform the rounding
   fpnew_rounding #(
@@ -1146,13 +1312,9 @@ module fpnew_sdotp_multi #(
   // Final results for output pipeline
   logic [DST_WIDTH-1:0] result_d;
   fpnew_pkg::status_t   status_d;
-  logic bypass_dotp;
-
-  assign bypass_dotp = dotp_result_exact_zero_q && !info_e_is_zero_q;
 
   // Select output depending on special case detection
-  assign result_d = result_is_special_q ? special_result_q
-                                        : (bypass_dotp ? operand_e_q : regular_result);
+  assign result_d = result_is_special_q ? special_result_q : regular_result;
   assign status_d = result_is_special_q ? special_status_q : regular_status;
 
   // ----------------
