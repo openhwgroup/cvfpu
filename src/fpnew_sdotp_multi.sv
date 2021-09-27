@@ -233,10 +233,13 @@ module fpnew_sdotp_multi #(
   assign dst_fmt_q      = inp_pipe_dst_fmt_q[NUM_INP_REGS];
 
   logic [3:0][SRC_WIDTH-1:0] operands_post_inp_pipe;
-  assign operands_post_inp_pipe[3] = operand_d_q;
-  assign operands_post_inp_pipe[2] = operand_c_q[SRC_WIDTH-1:0];
-  assign operands_post_inp_pipe[1] = operand_b_q;
-  assign operands_post_inp_pipe[0] = operand_a_q[SRC_WIDTH-1:0];
+  // vivado fix: loop is here to make it work on vivado
+  for (genvar i = 0; i < SRC_WIDTH; i++) begin : gen_op_assign
+    assign operands_post_inp_pipe[3][i] = operand_d_q[i];
+    assign operands_post_inp_pipe[2][i] = operand_c_q[i];
+    assign operands_post_inp_pipe[1][i] = operand_b_q[i];
+    assign operands_post_inp_pipe[0][i] = operand_a_q[i];
+  end
 
   // -----------------
   // Input processing
