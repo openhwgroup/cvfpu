@@ -61,7 +61,7 @@ package fpnew_pkg;
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
 
   localparam fmt_logic_t CPK_FORMATS  = 6'b110000; // FP32 and FP64 can provide CPK only
-  localparam fmt_logic_t DOTP_FORMATS = 6'b001111; // FP32 and FP64 cannot be provided for DOTP
+  localparam fmt_logic_t DOTP_FORMATS = 6'b101111; // FP32 and FP64 cannot be provided for DOTP
 
   // ---------
   // INT TYPES
@@ -479,7 +479,7 @@ package fpnew_pkg;
     automatic fmt_logic_t res;
     for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
       // Mask active formats with the number of lanes for that format, CPK at least twice
-      res[fmt] = cfg[fmt] && ((width / (fp_width(fp_format_e'(fmt))*2) > lane_no) && DOTP_FORMATS[fmt]);
+      res[fmt] = cfg[fmt] && ((width / (fp_width(fp_format_e'(fmt))*2) > (lane_no/2)) && DOTP_FORMATS[fmt]);
     return res;
   endfunction
 

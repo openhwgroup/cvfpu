@@ -23,38 +23,39 @@ module fpnew_dotp_wrapper #(
   parameter type                     AuxType     = logic,
 
   // Do not change
-  localparam int unsigned SRC_WIDTH   = fpnew_pkg::max_fp_width(FpFmtConfig),
+  localparam fpnew_pkg::fmt_logic_t FpSrcFmtConfig = FpFmtConfig[0] ? (FpFmtConfig & 6'b001111) : (FpFmtConfig & 6'b000101),
+  localparam fpnew_pkg::fmt_logic_t FpDstFmtConfig = fpnew_pkg::get_dotp_dst_fmts(FpSrcFmtConfig),
+  localparam int unsigned SRC_WIDTH   = fpnew_pkg::max_fp_width(FpSrcFmtConfig),
   localparam int unsigned DST_WIDTH   = 2*SRC_WIDTH, // do not change, current assumption of dotpexp_multi
-  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS,
-  localparam fpnew_pkg::fmt_logic_t FpDstFmtConfig = fpnew_pkg::get_dotp_dst_fmts(FpFmtConfig)
+  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
 ) (
   input logic                      clk_i,
   input logic                      rst_ni,
   // Input signals
-  input logic [2:0][DST_WIDTH-1:0]   operands_i, // 3 operands
+  input logic [2:0][2*DST_WIDTH-1:0] operands_i, // 3 operands
   input logic [NUM_FORMATS-1:0][2:0] is_boxed_i, // 3 operands
-  input fpnew_pkg::roundmode_e     rnd_mode_i,
-  input fpnew_pkg::operation_e     op_i,
-  input logic                      op_mod_i,
-  input fpnew_pkg::fp_format_e     src_fmt_i,
-  input fpnew_pkg::fp_format_e     dst_fmt_i,
-  input TagType                    tag_i,
-  input AuxType                    aux_i,
+  input fpnew_pkg::roundmode_e       rnd_mode_i,
+  input fpnew_pkg::operation_e       op_i,
+  input logic                        op_mod_i,
+  input fpnew_pkg::fp_format_e       src_fmt_i,
+  input fpnew_pkg::fp_format_e       dst_fmt_i,
+  input TagType                      tag_i,
+  input AuxType                      aux_i,
   // Input Handshake
-  input  logic                     in_valid_i,
-  output logic                     in_ready_o,
-  input  logic                     flush_i,
+  input  logic                       in_valid_i,
+  output logic                       in_ready_o,
+  input  logic                       flush_i,
   // Output signals
-  output logic [DST_WIDTH-1:0]     result_o,
-  output fpnew_pkg::status_t       status_o,
-  output logic                     extension_bit_o,
-  output TagType                   tag_o,
-  output AuxType                   aux_o,
+  output logic [2*DST_WIDTH-1:0]     result_o,
+  output fpnew_pkg::status_t         status_o,
+  output logic                       extension_bit_o,
+  output TagType                     tag_o,
+  output AuxType                     aux_o,
   // Output handshake
-  output logic                     out_valid_o,
-  input  logic                     out_ready_i,
+  output logic                       out_valid_o,
+  input  logic                       out_ready_i,
   // Indication of valid data in flight
-  output logic                     busy_o
+  output logic                       busy_o
 );
 
   // ----------
@@ -72,12 +73,13 @@ module fpnew_dotp_wrapper #(
   logic                             [NUM_FORMATS-1:0][SRC_WIDTH-1:0] local_src_fmt_operand_d;  // lane-local operands
   logic                                              [DST_WIDTH-1:0] local_dst_fmt_operands;  // lane-local operands
   logic [NUM_FORMATS-1:0][N_SRC_FMT_OPERANDS+N_DST_FMT_OPERANDS-1:0] local_is_boxed;  // lane-local operands
+  logic                                            [2*DST_WIDTH-1:0] local_result;  // lane-local operands
 
 
   // ----------------------------------
   // assign operands with dst format
   // ----------------------------------
-  assign local_dst_fmt_operands = operands_i[2];
+  assign local_dst_fmt_operands = operands_i[2][DST_WIDTH-1:0];
 
 
   // ----------------------------------
@@ -131,7 +133,7 @@ module fpnew_dotp_wrapper #(
   end
 
   fpnew_sdotp_multi #(
-    .SrcDotpFpFmtConfig ( FpFmtConfig    ), // FP8, FP8ALT, FP16, FP16ALT
+    .SrcDotpFpFmtConfig ( FpSrcFmtConfig ), // FP8, FP8ALT, FP16, FP16ALT
     .DstDotpFpFmtConfig ( FpDstFmtConfig ), // FP32, FP16, FP16ALT
     .NumPipeRegs        ( NumPipeRegs    ),
     .PipeConfig         ( PipeConfig     ),
@@ -156,7 +158,7 @@ module fpnew_dotp_wrapper #(
     .in_valid_i,
     .in_ready_o ,
     .flush_i,
-    .result_o,
+    .result_o        ( local_result[DST_WIDTH-1:0] ),
     .status_o,
     .extension_bit_o,
     .tag_o,
@@ -165,5 +167,8 @@ module fpnew_dotp_wrapper #(
     .out_ready_i,
     .busy_o
   );
+
+  assign local_result[2*DST_WIDTH-1:DST_WIDTH] = {DST_WIDTH{1'b1}};
+  assign result_o                              = local_result;
 
 endmodule
