@@ -108,16 +108,16 @@ module fpnew_sdotp_multi #(
   localparam int unsigned DST_PRECISION_BITS = SUPER_DST_MAN_BITS + 1;
   localparam int unsigned ADDITIONAL_PRECISION_BITS = fpnew_pkg::maximum(DST_PRECISION_BITS - 2 * PRECISION_BITS, 0);
   // The leading-zero counter operates on LZC_SUM_WIDTH bits
-  localparam int unsigned LZC_SUM_WIDTH  = 3*DST_PRECISION_BITS + 9;
+  localparam int unsigned LZC_SUM_WIDTH  = 2*DST_PRECISION_BITS + PRECISION_BITS + 5;
   localparam int unsigned LZC_RESULT_WIDTH = $clog2(LZC_SUM_WIDTH);
 
   // Internal exponent width must accomodate all meaningful exponent values in order to avoid
   // datapath leakage. This is either given by the exponent bits or the width of the LZC result.
   localparam int unsigned EXP_WIDTH = unsigned'(fpnew_pkg::maximum(SUPER_EXP_BITS + 2, LZC_RESULT_WIDTH));
   localparam int unsigned DST_EXP_WIDTH = unsigned'(fpnew_pkg::maximum(SUPER_DST_EXP_BITS + 2, LZC_RESULT_WIDTH));
-  // Shift amount width: maximum internal mantissa size is 3p+3+ADDITIONAL_PRECISION_BITS bits
-  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3 + ADDITIONAL_PRECISION_BITS);
-  localparam int unsigned DST_SHIFT_AMOUNT_WIDTH = $clog2(3*DST_PRECISION_BITS+7);
+  // Shift amount width: maximum internal mantissa size is 2*DST_PRECISION_BITS+3 bits
+  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(2*DST_PRECISION_BITS+PRECISION_BITS+4);
+  localparam int unsigned DST_SHIFT_AMOUNT_WIDTH = $clog2(2*DST_PRECISION_BITS+PRECISION_BITS+5);
   // Pipelines
   localparam NUM_INP_REGS = PipeConfig == fpnew_pkg::BEFORE
                             ? NumPipeRegs
@@ -797,8 +797,8 @@ module fpnew_sdotp_multi #(
   // In parallel, the min product is right-shifted according to the exponent difference. Up to p_dst
   // bits are shifted out and compressed into a sticky bit.
   // BEFORE THE SHIFT:
-  // | addend_int | 000......000 |
-  //  <- p_dst  -> <- 2p_dst+3 ->
+  // | addend_int | 000.....000 |
+  //  <- p_dst  -> <- p_dst+3 ->
   // AFTER THE SHIFT:
   // | 000..........000 | addend_min | 000..................0GR |    sticky bits    |
   //  <- addend_shamt -> <- p_dst  -> <- p_dst+3-addend_shamt -> <-  up to p_dst  ->
@@ -852,29 +852,29 @@ module fpnew_sdotp_multi #(
 
   // Shift amount for addend based on exponents (unsigned as only right shifts)
   logic [DST_SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_z;
-  logic   [3*DST_PRECISION_BITS+7:0] addend_min_after_shift;
+  logic   [2*DST_PRECISION_BITS+PRECISION_BITS+3:0] addend_min_after_shift;
   logic     [DST_PRECISION_BITS-1:0] addend_sticky_bits_z;  // up to p_dst bit of shifted addend are sticky
   logic                              sticky_before_add_z;   // they are compressed into a single sticky bit
 
   always_comb begin : addend_shift_amount_z
     // The result of the first addition and the minimum addends have mutual bits to add
-    if (exponent_difference_z <= signed'(3 * DST_PRECISION_BITS + 8)) begin
+    if (exponent_difference_z <= signed'(2 * DST_PRECISION_BITS + PRECISION_BITS + 4)) begin
       addend_shamt_z = unsigned'(signed'(exponent_difference_z));
     // The minimum addend is only in the sticky bits
     end else begin
-      addend_shamt_z = 3 * DST_PRECISION_BITS + 8;
+      addend_shamt_z = 2 * DST_PRECISION_BITS + PRECISION_BITS + 4;
     end
   end
 
   // Shift the minimum addend
   // BEFORE THE SHIFT:
-  // | addend_min | 000......000 |
-  //  <- p_dst  -> <- 3p_dst+8 ->
+  // | addend_min | 000.....000 |
+  //  <- p_dst  -> <- p_dst+4 ->
   // AFTER THE SHIFT:
   // | 000............000 | addend_min | 000.....................0GR |    sticky bits    |
-  //  <- addend_shamt_z -> <- p_dst  -> <- 2p_dst+8-addend_shamt_z -> <-  up to p_dst  ->
+  //  <- addend_shamt_z -> <- p_dst  -> <- p_dst+4-addend_shamt_z -> <-  up to p_dst  ->
   assign {addend_min_after_shift, addend_sticky_bits_z} =
-      (addend_min << (3 * DST_PRECISION_BITS + 8)) >> addend_shamt_z;
+      (addend_min << (2 * DST_PRECISION_BITS + PRECISION_BITS + 4)) >> addend_shamt_z;
 
   assign sticky_before_add_z     = (| addend_sticky_bits_z);
 
@@ -915,7 +915,7 @@ module fpnew_sdotp_multi #(
   logic [DST_PRECISION_BITS-1:0]   addend_min_q;
   logic signed [DST_EXP_WIDTH-1:0] exponent_w_q;
   logic                            sticky_before_add_z_q;   // they are compressed into a single sticky bit
-  logic [3*DST_PRECISION_BITS+7:0] addend_min_after_shift_q;
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+3:0] addend_min_after_shift_q;
   logic                            operand_e_sign_q;
   logic                            product_x_sign_q;
   logic                            product_y_sign_q;
@@ -940,7 +940,7 @@ module fpnew_sdotp_multi #(
   logic                  [0:NUM_MID_REGS][DST_PRECISION_BITS-1:0]   mid_pipe_addend_min_q;
   logic signed           [0:NUM_MID_REGS][DST_EXP_WIDTH-1:0]        mid_pipe_exp_first_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_sticky_before_add_z_q;
-  logic                  [0:NUM_MID_REGS][3*DST_PRECISION_BITS+7:0] mid_pipe_add_min_after_shift_q;
+  logic                  [0:NUM_MID_REGS][2*DST_PRECISION_BITS+PRECISION_BITS+3:0] mid_pipe_add_min_after_shift_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_op_e_sign_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_prod_x_sign_q;
   logic                  [0:NUM_MID_REGS]                           mid_pipe_prod_y_sign_q;
@@ -1070,7 +1070,7 @@ module fpnew_sdotp_multi #(
   assign bypass_w = sum_exact_zero_q && !info_min_is_zero_q && sticky_before_add_z_q;
 
   logic [2*DST_PRECISION_BITS+3:0] mantissa_w;
-  logic [3*DST_PRECISION_BITS+7:0] mantissa_w_shifted;
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+3:0] mantissa_w_shifted;
 
   logic                            tentative_sign_z;
   logic                            effective_subtraction_z;
@@ -1080,6 +1080,7 @@ module fpnew_sdotp_multi #(
                                                : exponent_w_q;
 
   assign mantissa_w = {sum_carry_q && ~effective_subtraction_first_q, sum_q};
+  assign mantissa_w_shifted = mantissa_w << PRECISION_BITS;
 
   // The tentative sign shall be the sign of the first addition
   assign tentative_sign_z = (bypass_w) ? addend_min_sign_q : final_sign_q;
@@ -1096,12 +1097,7 @@ module fpnew_sdotp_multi #(
     endcase
   end
 
-  // Prepare the mantissa for the addtion:
-  // |   mantissa_w   |   00...000  | rnd |
-  //  <- 2p_dst + 4 -> <-  p_dst  -><- 3->
-  assign mantissa_w_shifted = mantissa_w << (DST_PRECISION_BITS + 4);
-
-  logic [3*DST_PRECISION_BITS+7:0] addend_min_shifted;
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+3:0] addend_min_shifted;
   logic                            inject_carry_in_z; // inject carry for subtractions if needed
 
   // In case of a subtraction, the addend is inverted
@@ -1111,17 +1107,17 @@ module fpnew_sdotp_multi #(
   // ------
   // Adder
   // ------
-  logic [3*DST_PRECISION_BITS+8:0] sum_raw_z;   // added one bit for the carry
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+4:0] sum_raw_z;   // added one bit for the carry
   logic                            sum_carry_z; // observe carry bit from sum for sign fixing
-  logic [3*DST_PRECISION_BITS+7:0] sum_z;       // discard carry as sum won't overflow
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+3:0] sum_z;       // discard carry as sum won't overflow
   logic                            final_sign_z;
 
-  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw_z    = (bypass_w) ? (exponent_min_q >= 0) ? addend_min_q << (2*DST_PRECISION_BITS+8)
-                                                           : (addend_min_q << (2*DST_PRECISION_BITS+8))
-                                                              >> signed'(-exponent_min_q+1)
-                                      : mantissa_w_shifted + addend_min_shifted + inject_carry_in_z;
-  assign sum_carry_z  = sum_raw_z[DST_PRECISION_BITS*3 + 8];
+  // Mantissa adder (W+Z)
+  assign sum_raw_z    = (bypass_w) ? (exponent_min_q > 0) ? addend_min_q << (DST_PRECISION_BITS+PRECISION_BITS+4)
+                                                          : (addend_min_q << (DST_PRECISION_BITS+PRECISION_BITS+4))
+                                                            >> signed'(-exponent_min_q+1)
+                                   : mantissa_w_shifted + addend_min_shifted + inject_carry_in_z;
+  assign sum_carry_z  = sum_raw_z[2*DST_PRECISION_BITS +PRECISION_BITS+ 4];
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
   assign sum_z        = (effective_subtraction_z && ~sum_carry_z) ? -sum_raw_z : sum_raw_z;
@@ -1142,9 +1138,9 @@ module fpnew_sdotp_multi #(
   logic        [DST_SHIFT_AMOUNT_WIDTH-1:0] norm_shamt; // Normalization shift amount
   logic signed [DST_EXP_WIDTH-1:0]          normalized_exponent;
 
-  logic [3*DST_PRECISION_BITS+8:0] sum_shifted;       // result after first normalization shift
+  logic [2*DST_PRECISION_BITS+PRECISION_BITS+4:0] sum_shifted;       // result after first normalization shift
   logic     [DST_PRECISION_BITS:0] final_mantissa;    // final mantissa before rounding with round bit
-  logic [2*DST_PRECISION_BITS+6:0] sum_sticky_bits;   // remaining 2p_dst+7 sticky bits after normalization
+  logic   [DST_PRECISION_BITS+PRECISION_BITS+2:0] sum_sticky_bits;   // remaining p_dst+3 sticky bits after normalization
   logic                            sticky_after_norm; // sticky bit after normalization
 
   logic signed [DST_EXP_WIDTH-1:0] final_exponent;
@@ -1196,11 +1192,11 @@ module fpnew_sdotp_multi #(
     final_exponent                    = normalized_exponent;
 
     // The normalized sum has overflown, align right and fix exponent
-    if (sum_shifted[DST_PRECISION_BITS*3+8]) begin // check the carry bit
+    if (sum_shifted[2*DST_PRECISION_BITS+PRECISION_BITS+4]) begin // check the carry bit
       {final_mantissa, sum_sticky_bits} = sum_shifted >> 1;
       final_exponent                    = normalized_exponent + 1;
     // The normalized sum is normal, nothing to do
-    end else if (sum_shifted[DST_PRECISION_BITS*3+7]) begin // check the sum MSB
+    end else if (sum_shifted[2*DST_PRECISION_BITS+PRECISION_BITS+3]) begin // check the sum MSB
       // do nothing
     // The normalized sum is still denormal, align left - unless the result is not already subnormal
     end else if (normalized_exponent > 1) begin
@@ -1214,7 +1210,7 @@ module fpnew_sdotp_multi #(
 
   // Update the sticky bit with the shifted-out bits coming from the first addition
   always_comb begin
-    sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add_z_q | sticky_before_add_q;
+    sticky_after_norm = (| {sum_sticky_bits}) | (sticky_before_add_z_q && ~bypass_w) | sticky_before_add_q;
     if (sticky_before_add_q && !effective_subtraction_first_q && !sticky_before_add_z_q
         && effective_subtraction_z && (sum_sticky_bits == '0) && !info_min_is_zero_q) begin
       sticky_after_norm = 1'b0;
