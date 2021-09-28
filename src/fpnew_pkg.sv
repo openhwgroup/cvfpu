@@ -61,7 +61,9 @@ package fpnew_pkg;
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
 
   localparam fmt_logic_t CPK_FORMATS  = 6'b110000; // FP32 and FP64 can provide CPK only
-  localparam fmt_logic_t DOTP_FORMATS = 6'b101111; // FP32 and FP64 cannot be provided for DOTP
+  // FP32, FP64 cannot be provided for DOTP
+  // Small hack: FP32 only enabled for wide enough wrapper input widths for vsum.s instruction
+  localparam fmt_logic_t DOTP_FORMATS = 6'b101111;
 
   // ---------
   // INT TYPES

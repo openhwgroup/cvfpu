@@ -168,7 +168,7 @@ module fpnew_dotp_wrapper #(
     .busy_o
   );
 
-  assign local_result[2*DST_WIDTH-1:DST_WIDTH] = {DST_WIDTH{1'b1}};
+  assign local_result[2*DST_WIDTH-1:DST_WIDTH] = '1;
   assign result_o                              = local_result;
 
 endmodule
