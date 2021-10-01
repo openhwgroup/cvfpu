@@ -239,13 +239,13 @@ module fpnew_opgroup_multifmt_slice #(
           .busy_o          ( lane_busy[lane]     )
         );
       end else if (OpGroup == fpnew_pkg::DOTP) begin : lane_instance
-        fpnew_dotp_wrapper #(
+        fpnew_sdotp_multi_wrapper #(
           .FpFmtConfig ( LANE_FORMATS         ), // fp64 and fp32 not supported
           .NumPipeRegs ( NumPipeRegs          ),
           .PipeConfig  ( PipeConfig           ),
           .TagType     ( TagType              ),
           .AuxType     ( logic [AUX_BITS-1:0] )
-        ) i_fpnew_dotp_wrapper (
+        ) i_fpnew_sdotp_multi_wrapper (
           .clk_i,
           .rst_ni,
           .operands_i      ( local_operands[2:0] ), // 3 operands

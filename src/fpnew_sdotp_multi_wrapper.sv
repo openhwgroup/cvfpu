@@ -15,7 +15,7 @@
 
 `include "common_cells/registers.svh"
 
-module fpnew_dotp_wrapper #(
+module fpnew_sdotp_multi_wrapper #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig = '1,
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
