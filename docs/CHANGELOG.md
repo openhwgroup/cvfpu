@@ -13,6 +13,7 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ### Added
 - Citation file `CITATION.cff`
 ### Changed
+- Code ownership to @lucabertaccini
 ### Fixed
 
 
