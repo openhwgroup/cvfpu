@@ -1668,40 +1668,17 @@ module floatli_fma #(
 
   assign sum_raw = {msb_add_q, addend_after_shift_q};
 
-  floatli_adder #(
-    .PRECISION_BITS  ( PRECISION_BITS  )
-  ) i_floatli_adder (
-    .product_shifted ( addend_a        ),
-    .addend_shifted  ( addend_b        ),
-    .inject_carry_in ( carry_in        ),
-    .sum_raw         ( adder_result    )
-  );
+  // floatli adder
+  assign adder_result = addend_a + addend_b + carry_in;
 
-  floatli_exp_adder #(
-    .EXP_WIDTH ( EXP_WIDTH )
-  ) i_floatli_exp_adder (
-    .exp_a            ( exp_a            ),
-    .exp_b            ( exp_b            ),
-    .exp_carry_in     ( exp_carry_in     ),
-    .exp_adder_result ( exp_adder_result )
-  );
+  // floatli_exp_adder
+  assign exp_adder_result = signed'(exp_a + exp_b + exp_carry_in);
 
-  floatli_shifter #(
-    .PRECISION_BITS      ( PRECISION_BITS     ),
-    .SHIFT_AMOUNT_WIDTH  ( SHIFT_AMOUNT_WIDTH )
-  ) i_floatli_shifte (
-    .sum                 ( shift_in           ),
-    .norm_shamt          ( shift_amount       ),
-    .sum_shifted         ( shift_out          )
-  );
+  // floatli_shifter
+  assign shift_out       = shift_in << shift_out;
 
-  floatli_mantissa_multiplier #(
-    .PRECISION_BITS (PRECISION_BITS)
-  ) i_floatli_mantissa_multiplier (
-    .mantissa_a       ( factor_a  ),
-    .mantissa_b       ( factor_b  ),
-    .product          ( prod      )
-  );
+  // floatli mantissa multiplier
+  assign prod = factor_a * factor_b;
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
