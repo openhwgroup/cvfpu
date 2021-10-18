@@ -16,6 +16,8 @@ module fpnew_top #(
   parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
   parameter type                            TagType        = logic,
+  // Parameter to select either floatli or fpnew
+  parameter bit                             TinyFPU        = 0,
   // Do not change
   localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
