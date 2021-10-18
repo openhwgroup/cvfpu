@@ -518,7 +518,6 @@ module floatli_fma_multi #(
     uf_before_round_cast = 1'b0;
 
     // Place mantissa to the left of the shifter
-//    preshift_mant = input_mant << (INT_MAN_WIDTH + 1);
     preshift_mant = operands_q[1][INT_MAN_WIDTH-1:0] << (INT_MAN_WIDTH + 1);
 
     // Handle INT casts
@@ -562,8 +561,7 @@ module floatli_fma_multi #(
           preshift_mant   = '1;                           // largest normal value and RS bits set
           of_before_round_cast = 1'b1;
         // Denormalize underflowing values
-        end else if (destination_exp < 1 &&
-                     destination_exp >= -signed'(23)) begin
+        end else if (destination_exp < 1 && destination_exp >= -signed'(23)) begin
           final_exp       = '0; // denormal result
           denorm_shamt    = unsigned'(denorm_shamt + 1 - destination_exp); // adjust right shifting
           uf_before_round_cast = 1'b1;
@@ -1099,7 +1097,6 @@ module floatli_fma_multi #(
     destination_mant_tmp       = '0;
 
     addend_shifted             = '0;
-
     tmp_d                      = tmp_q;
 
     factor_a                   = mantissa_a;
@@ -1136,13 +1133,8 @@ module floatli_fma_multi #(
     //non-comp
     operands_equal             = '0;
     operand_a_smaller          = '0;
-    // sign_a                     = '0;
-    // sign_b                     = '0;
-    // minmax_result              = '0;
-    // minmax_status              = '0;
     cmp_result                 = '0; // false
     cmp_status                 = '0; // no flags
-    // sgnj_result                = '0;
 
     are_equal                  = '0;
 
@@ -1172,21 +1164,13 @@ module floatli_fma_multi #(
     mant_is_zero_d             = mant_is_zero_q;
     is_boxed_d                 = is_boxed_q;
 
-    // tag_o                      = 1'b0;
     enable_reg                 = 1'b1;
-
 
     result_o        = operands_q[0];
     status_o        = operands_q[1];
     extension_bit_o = info_a_is_normal_q;
     class_mask_o    = fpnew_pkg::classmask_e'(operands_q[2][9:0]);
     is_class_o      = info_b_is_normal_q;
-
-    // result_o                   = '0;
-    // status_o                   = '0;
-    // extension_bit_o            = '0;
-    // class_mask_o               = fpnew_pkg::classmask_e'('0);
-    // is_class_o                 = '0;
 
     case(current_state)
       FSM_IDLE   : begin
@@ -1240,10 +1224,8 @@ module floatli_fma_multi #(
           else begin
             operands_d[2] = int_value; // get magnitude of negative
           end
-
           next_state      = FSM_CAST_SHIFT;
           busy_o          = 1'b1;
-
         end else if ((op_q == fpnew_pkg::SGNJ) || (op_q == fpnew_pkg::MINMAX)
                      || (op_q == fpnew_pkg::CMP) || (op_q == fpnew_pkg::CLASSIFY)) begin
           operands_d[0]        = result_d;
@@ -1293,14 +1275,11 @@ module floatli_fma_multi #(
               default: cmp_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
             endcase
           end
-
-
           operands_d[0]        = result_d;
           operands_d[1]        = status_d;
           info_a_is_normal_d   = extension_bit_d;
           operands_d[2]        = class_mask_d;
           info_b_is_normal_d   = is_class_d;
-
         end
         else begin
           if (~(result_is_special)) begin
@@ -1308,7 +1287,6 @@ module floatli_fma_multi #(
             exp_b                      = exponent_b;
             exp_carry_in               = info_a.is_subnormal;
             exponent_product_tmp       = exp_adder_result;
-
             exponent_product_new       = (info_a.is_zero || info_b.is_zero)
                                             ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q)) // in case the product is zero, set minimum exp.
                                             : signed'(exponent_product_tmp + info_b.is_subnormal
@@ -1330,7 +1308,6 @@ module floatli_fma_multi #(
           end
         end
       end
-
       FSM_CAST_SHIFT: begin
         //  assign input_mant = encoded_mant << renorm_shamt;
         busy_o                  = 1'b1;
@@ -1349,7 +1326,6 @@ module floatli_fma_multi #(
           next_state            = FSM_CAST_DEST_SHIFT;
         end
       end
-
       FSM_CAST_DEST_SHIFT: begin
 //      destination_mant = preshift_mant >> denorm_shamt;
         busy_o                  = 1'b1;
@@ -1379,7 +1355,6 @@ module floatli_fma_multi #(
           next_state            = FSM_CAST_ROUNDING;
         end
       end
-
       FSM_CAST_DEST_INV: begin
     //  rounded_int_res      = rounded_sign_cast ? unsigned'(-rounded_abs_cast) : rounded_abs_cast;
         if (rounded_sign_cast) begin
@@ -1405,7 +1380,6 @@ module floatli_fma_multi #(
         out_valid_o             = 1'b0;
         in_ready_o              = 1'b0;
       end
-
       FSM_CAST_ROUNDING: begin
 
         // Take the rounding decision according to RISC-V spec
@@ -1451,7 +1425,6 @@ module floatli_fma_multi #(
         next_state              = FSM_CAST_DEST_INV;
         in_ready_o              = 1'b0;
       end
-
       FSM_EXP_DIFF: begin
         busy_o                = 1'b1;
         in_ready_o            = 1'b0;
@@ -1628,7 +1601,6 @@ module floatli_fma_multi #(
           next_state          = FSM_NORMALIZATION;
         end
       end
-
       FSM_NORMALIZATION: begin
         busy_o               = 1'b1;
         in_ready_o           = 1'b0;
@@ -1659,7 +1631,6 @@ module floatli_fma_multi #(
           norm_shamt              = addend_shamt; // Undo the initial shift
           normalized_exponent_new = tentative_exponent;
         end
-
         if (shift_count_q == 0) begin
           shift_in                         = sum[(3*PRECISION_BITS+4)/3-1:0];
           shift_amount                     = norm_shamt;
@@ -1671,7 +1642,6 @@ module floatli_fma_multi #(
         else begin
           shift_in                         = sum[(3*PRECISION_BITS+4)*2/3-1:(3*PRECISION_BITS+4)/3];
           shift_amount                     = norm_shamt;
-//          {tmp_shift_d, addend_after_shift_d[(3*PRECISION_BITS+4)*2/3-1:0]} = shift_out;
           next_state                       = FSM_ROUNDING;
           addend_after_shift_d[EXP_WIDTH-1:0] = normalized_exponent_new;
           {carry_add_d, operands_d[2].mantissa, operands_d[0].mantissa, mantissa_b_new, tmp_d} =
@@ -1679,7 +1649,6 @@ module floatli_fma_multi #(
               | {carry_add_q, operands_q[2].mantissa, operands_q[0].mantissa, mantissa_b_old, tmp_q};
         end
       end
-
       FSM_ROUNDING: begin
         in_ready_o      = 1'b0;
         busy_o          = 1'b1;
@@ -1817,7 +1786,6 @@ module floatli_fma_multi #(
   // floatli mantissa multiplier
   assign prod = factor_a * factor_b;
 
-
   if (FpFormat == fpnew_pkg::FP64) begin : gen_sign_minmax_fp32_on_fp64
     always_comb
     begin
@@ -1833,7 +1801,6 @@ module floatli_fma_multi #(
         else
           sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
       end
-
 
       // Internal signs are treated as positive in case of non-NaN-boxed values
       sign_a = operand_a.sign & info_a.is_boxed;
@@ -1852,7 +1819,6 @@ module floatli_fma_multi #(
 
       // Default assignment
       minmax_status = '0;
-
       // Min/Max use quiet comparisons - only sNaN are invalid
       minmax_status.NV = signalling_nan;
 
@@ -1935,7 +1901,6 @@ module floatli_fma_multi #(
       end
     end
   end
-
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
