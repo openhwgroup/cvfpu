@@ -1186,7 +1186,6 @@ module floatli_fma_multi #(
         aux_d                        = aux_i;
         flush_d                      = flush_i;
         enable_reg                   = 1'b0;
-
         if ((in_valid_i && in_ready_o)) begin
           enable_reg                 = 1'b1;
           next_state                 = FSM_EXP_ADD;
@@ -1201,7 +1200,6 @@ module floatli_fma_multi #(
           next_state                 = FSM_IDLE;
         end
       end
-
       FSM_EXP_ADD: begin
         addend_after_shift_d         = '0;
         in_ready_o                   = 1'b0;
@@ -1236,7 +1234,6 @@ module floatli_fma_multi #(
           next_state      = FSM_OUT;
           out_valid_o     = 1'b0;
           busy_o          = 1'b1;
-
           addend_a                      = operands_q[1];
           addend_b                      = ~operands_q[0];
           carry_in                      = 1'b1;
@@ -1327,7 +1324,7 @@ module floatli_fma_multi #(
         end
       end
       FSM_CAST_DEST_SHIFT: begin
-//      destination_mant = preshift_mant >> denorm_shamt;
+        // destination_mant = preshift_mant >> denorm_shamt;
         busy_o                  = 1'b1;
         in_ready_o                   = 1'b0;
         if (add_count_q == 0) begin
@@ -1510,7 +1507,6 @@ module floatli_fma_multi #(
         in_ready_o         = 1'b0;
         add_count_d        = add_count_q + 1;
         product_shifted    = addend_after_shift_q[2*PRECISION_BITS-1:0] << 2;
-
         // In case of a subtraction, the addend is inverted
         addend_shifted       = (effective_subtraction) ? ~addend_shifted_old : addend_shifted_old;
         addend_shifted_new   = addend_shifted_old;
@@ -1578,7 +1574,6 @@ module floatli_fma_multi #(
           carry_in            = 1'b1;
           {carry_add_d, addend_after_shift_d[(3*PRECISION_BITS+4)/3-1:0]}
               = adder_result[(3*PRECISION_BITS+4)/3:0];
-
           next_state          = FSM_COMPLEMENT_SUM;
         end
         else if (add_count_q == 1) begin
@@ -1587,7 +1582,6 @@ module floatli_fma_multi #(
           carry_in            = carry_add_q;
           {carry_add_d, addend_after_shift_d[(3*PRECISION_BITS+4)*2/3-1:(3*PRECISION_BITS+4)/3]}
                               = adder_result[(3*PRECISION_BITS+4)/3:0];
-
           next_state          = FSM_COMPLEMENT_SUM;
         end
         else begin
@@ -1597,7 +1591,6 @@ module floatli_fma_multi #(
           carry_in            = carry_add_q;
           {msb_add_d, addend_after_shift_d[(3*PRECISION_BITS+4)-1:(3*PRECISION_BITS+4)*2/3]}
                               = adder_result[(3*PRECISION_BITS+4)/3+1:0];
-
           next_state          = FSM_NORMALIZATION;
         end
       end
@@ -1613,9 +1606,6 @@ module floatli_fma_multi #(
           if ((exponent_product_old - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
             // Undo initial product shift, remove the counted zeroes
             norm_shamt              = PRECISION_BITS + 2 + leading_zero_count;
-
-            //   normalized_exponent = {exp_prod_msbs_q ,operands_q[0].exponent} - leading_zero_count_sgn + 1;
-            // account for shift
             exp_a                   = exponent_product_old;
             exp_b                   = -leading_zero_count_sgn;
             exp_carry_in            = 1'b1;
@@ -1881,7 +1871,6 @@ module floatli_fma_multi #(
 
       // Default assignment
       minmax_status = '0;
-
       // Min/Max use quiet comparisons - only sNaN are invalid
       minmax_status.NV = signalling_nan;
 
@@ -1951,7 +1940,6 @@ module floatli_fma_multi #(
   // Update the sticky bit with the shifted-out bits
   assign sticky_after_norm = (| {sum_sticky_bits}) | sticky_before_add;
 
-
   // Classification before round. RISC-V mandates checking underflow AFTER rounding!
   assign of_before_round = final_exponent >= 2**(fpnew_pkg::exp_bits(dst_fmt_q))-1; // infinity exponent is all ones
   assign uf_before_round = final_exponent == 0;               // exponent for subnormals capped to 0
@@ -1978,8 +1966,6 @@ module floatli_fma_multi #(
   // ---------------
   fpnew_pkg::status_t    class_status;
   logic                  class_extension_bit;
-//  fpnew_pkg::classmask_e class_mask_d; // the result is actually here
-
   // Classification - always return the classification mask on the dedicated port
   always_comb begin : classify
     if (info_a.is_normal) begin
@@ -2016,7 +2002,6 @@ module floatli_fma_multi #(
   end else begin: gen_round_sticky_fp32
     assign round_sticky_bits  = (of_before_round) ? 2'b11 : {final_mantissa[0], sticky_after_norm};
   end
-
 
   // Classification after rounding
   assign uf_after_round = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0; // exponent = 0
@@ -2068,7 +2053,6 @@ module floatli_fma_multi #(
         status_d        = dst_is_int ? int_status : fp_status;
         extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
-
       fpnew_pkg::SGNJ: begin
         result_d        = sgnj_result;
         status_d        = sgnj_status;
