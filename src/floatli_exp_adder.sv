@@ -11,16 +11,17 @@
 
 // Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
-module sum_raw_third_adder #(
-  parameter int unsigned PRECISION_BITS = 24
+module floatli_exp_adder #(
+  parameter int unsigned EXP_WIDTH = 11
 ) (
-  input  logic [(3*PRECISION_BITS+4)/3:0] product_shifted,
-  input  logic [(3*PRECISION_BITS+4)/3:0] addend_shifted,
-  input  logic                              inject_carry_in,
+  input  logic [EXP_WIDTH-1:0]              exp_a,
+  input  logic [EXP_WIDTH-1:0]              exp_b,
+  input  logic                              exp_carry_in,
 
-  output logic [(3*PRECISION_BITS+4)/3+1:0]   sum_raw
+  output logic [EXP_WIDTH-1:0]              exp_adder_result       // discard carry as sum won't overflow
 );
 
-  assign sum_raw = product_shifted + addend_shifted + inject_carry_in;
+  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
+  assign exp_adder_result = signed'(exp_a + exp_b + exp_carry_in);
 
 endmodule

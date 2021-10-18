@@ -1,4 +1,4 @@
-// Copyright 2019 ETH Zurich and University of Bologna.
+// Copyright 2019, 2020 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -9,7 +9,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// Author: Stefan Mach <smach@iis.ee.ethz.ch>
+// Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
 package fpnew_pkg;
 
@@ -89,6 +89,7 @@ package fpnew_pkg;
       INT16: return 16;
       INT32: return 32;
       INT64: return 64;
+      default: return 32;
     endcase
   endfunction
 
@@ -284,6 +285,26 @@ package fpnew_pkg;
 
   function automatic int maximum(int a, int b);
     return (a > b) ? a : b;
+  endfunction
+
+  function automatic int num_int_formats(fp_format_e FpFormat);
+    return (FpFormat == FP32) ? 1 : 2;
+  endfunction
+
+  function automatic int num_fp_formats(fp_format_e FpFormat);
+    return (FpFormat == FP32) ? 1 : 2;
+  endfunction
+
+  function automatic fmt_logic_t fp_config(fp_format_e FpFormat);
+    return (FpFormat == FP32) ? 5'b10000 : 5'b11000;
+  endfunction
+
+  function automatic ifmt_logic_t int_config(fp_format_e FpFormat);
+    return (FpFormat == FP32) ? 4'b0010 : 4'b0011;
+  endfunction
+
+  function automatic fp_format_e get_format (fpu_features_t Features);
+    return (Features.Width == 32) ? FP32 : FP64;
   endfunction
 
   // -------------------------------------------

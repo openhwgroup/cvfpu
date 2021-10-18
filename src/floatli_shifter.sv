@@ -1,4 +1,4 @@
-// Copyright 2019, 2020 ETH Zurich and University of Bologna.
+// Copyright 2019 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -11,16 +11,17 @@
 
 // Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
-module exp_adder #(
-  parameter int unsigned EXP_WIDTH = 11
+module floatli_shifter #(
+  parameter int unsigned PRECISION_BITS      = 24,
+  parameter int unsigned SHIFT_AMOUNT_WIDTH  = 7
 ) (
-  input  logic [EXP_WIDTH-1:0]              exp_a,
-  input  logic [EXP_WIDTH-1:0]              exp_b,
-  input  logic                              exp_carry_in,
+  input  logic [(3*PRECISION_BITS+4)/3:0]   sum,       // discard carry as sum won't overflow
+  input  logic [SHIFT_AMOUNT_WIDTH-1:0] norm_shamt,
 
-  output logic [EXP_WIDTH-1:0]              exp_adder_result
+  output logic [4*PRECISION_BITS+3:0]   sum_shifted
 );
 
-  assign exp_adder_result = exp_a + exp_b + exp_carry_in;
+  // Do the large normalization shift
+  assign sum_shifted       = sum << norm_shamt;
 
 endmodule

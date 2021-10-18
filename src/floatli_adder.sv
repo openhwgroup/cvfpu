@@ -1,4 +1,4 @@
-// Copyright 2019, 2020 ETH Zurich and University of Bologna.
+// Copyright 2019,2020 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -11,15 +11,17 @@
 
 // Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
-module reduced_mantissa_multiplier #(
+module floatli_adder #(
   parameter int unsigned PRECISION_BITS = 24
 ) (
+  input  logic [(3*PRECISION_BITS+4)/3:0] product_shifted, //p+2
+  input  logic [(3*PRECISION_BITS+4)/3:0] addend_shifted, //p+2
+  input  logic                              inject_carry_in,
 
-  input  logic [PRECISION_BITS-1:0]   mantissa_a,
-  input  logic [1:0]   mantissa_b,
-  output logic [PRECISION_BITS+1:0] product
+  output logic [(3*PRECISION_BITS+4)/3+1:0]   sum_raw       // discard carry as sum won't overflow
 );
 
-  assign product = mantissa_a * mantissa_b;
+  //Mantissa adder (ab+c). In normal addition, it cannot overflow.
+  assign sum_raw = product_shifted + addend_shifted + inject_carry_in; //p+3
 
 endmodule

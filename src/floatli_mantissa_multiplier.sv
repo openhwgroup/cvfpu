@@ -11,16 +11,15 @@
 
 // Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
-module shift_fma_word2shift_third #(
-  parameter int unsigned PRECISION_BITS      = 24,
-  parameter int unsigned SHIFT_AMOUNT_WIDTH  = 7
+module floatli_mantissa_multiplier #(
+  parameter int unsigned PRECISION_BITS = 24
 ) (
-  input  logic [(3*PRECISION_BITS+4)/3-1:0]   sum,
-  input  logic [SHIFT_AMOUNT_WIDTH-1:0] norm_shamt,
 
-  output logic [4*PRECISION_BITS+3:0]   sum_shifted
+  input  logic [PRECISION_BITS-1:0]   mantissa_a,
+  input  logic [1:0]   mantissa_b,
+  output logic [PRECISION_BITS+1:0] product
 );
 
-  assign sum_shifted       = sum << norm_shamt;
+  assign product = mantissa_a * mantissa_b;
 
 endmodule

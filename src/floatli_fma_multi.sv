@@ -1,4 +1,4 @@
-// Copyright 2019,2020 ETH Zurich and University of Bologna.
+// Copyright 2019, 2020 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -12,8 +12,9 @@
 // Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
 
 // Reduced FMA+COMP+CAST
-module fpnew_fma #(
-  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(1),
+module floatli_fma_multi #(
+  parameter fpnew_pkg::fp_format_e   FpFormat    = fpnew_pkg::fp_format_e'(1), // Do not use this module with different formats
+                                                                               // TODO (lbertaccini): add support for different formats
   parameter type                     TagType     = logic,
   parameter type                     AuxType     = logic,
   parameter int unsigned             NumPipeRegs = 0,
@@ -73,6 +74,16 @@ module fpnew_fma #(
   // Shift amount width: maximum internal mantissa size is 3p+3 bits
   localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3);
 
+  // ----------------
+  // Multi Constants
+  // ----------------
+  localparam int unsigned EXP_BITS_S = fpnew_pkg::exp_bits(fpnew_pkg::FP32);
+  localparam int unsigned MAN_BITS_S = fpnew_pkg::man_bits(fpnew_pkg::FP32);
+  localparam int unsigned BIAS_S     = fpnew_pkg::bias(fpnew_pkg::FP32);
+  localparam int unsigned WIDTH_S    = fpnew_pkg::fp_width(fpnew_pkg::FP32);
+  // Precision bits 'p' include the implicit bit
+  localparam int unsigned PRECISION_BITS_S = MAN_BITS_S + 1;
+
   // ---------------
   // CAST Constants
   // ---------------
@@ -107,8 +118,9 @@ module fpnew_fma #(
   // FSM states
   enum logic [3:0] {FSM_IDLE, FSM_EXP_ADD, FSM_EXP_DIFF, FSM_MANTISSA_PROD_ADDEND_SHIFT, FSM_SUM,
                     FSM_COMPLEMENT_SUM, FSM_NORMALIZATION, FSM_ROUNDING, FSM_CAST_SHIFT,
-                    FSM_CAST_DEST_SHIFT, FSM_CAST_DEST_INV, FSM_CAST_ROUNDING} next_state, current_state;
+                    FSM_CAST_DEST_SHIFT, FSM_CAST_DEST_INV, FSM_CAST_ROUNDING, FSM_OUT} next_state, current_state;
 
+  logic [2:0]            is_boxed_q, is_boxed_d; // 3 operands
   fpnew_pkg::roundmode_e rnd_mode_q, rnd_mode_d;
   fpnew_pkg::operation_e op_q, op_d;
   logic [5:0]            tmp_d, tmp_q;
@@ -120,13 +132,45 @@ module fpnew_fma #(
 
   fp_t [2:0]             operands_d;
   fp_t [2:0]             operands_q;
+  fp_t [2:0]             operands_fp32_on_fp64;
 
-  fpnew_pkg::fp_info_t [2:0] info_d;
+  if (FpFormat == fpnew_pkg::FP64) begin : gen_operands_fp32_on_fp64
+    assign operands_fp32_on_fp64[2] = {operands_i[2][WIDTH_S-1], 3'b000, operands_i[2][WIDTH_S-2:MAN_BITS_S],
+                      operands_i[2][MAN_BITS_S-1:0], 29'h00000000};
+    assign operands_fp32_on_fp64[1] = {operands_i[1][WIDTH_S-1], 3'b000, operands_i[1][WIDTH_S-2:MAN_BITS_S],
+                      operands_i[1][MAN_BITS_S-1:0], 29'h00000000};
+    assign operands_fp32_on_fp64[0] = {operands_i[0][WIDTH_S-1], 3'b000, operands_i[0][WIDTH_S-2:MAN_BITS_S],
+                      operands_i[0][MAN_BITS_S-1:0], 29'h00000000};
+  end else begin : gen_no_operands_fp32_on_fp64
+    assign operands_fp32_on_fp64[2] = '0;
+    assign operands_fp32_on_fp64[1] = '0;
+    assign operands_fp32_on_fp64[0] = '0;
+  end
+
+  fpnew_pkg::fp_info_t [2:0] info_d, info_tmp;
+  logic                      info_a_is_normal_d, info_c_is_normal_d, info_b_is_normal_d;
   logic                      info_a_is_normal_q, info_c_is_normal_q, info_b_is_normal_q;
 
   fpnew_pkg::fp_format_e    src_fmt_d, src_fmt_q;  // cast
   fpnew_pkg::fp_format_e    dst_fmt_d, dst_fmt_q;  // cast
   fpnew_pkg::int_format_e   int_fmt_d, int_fmt_q;  // cast
+
+  logic                     is_single_on_double;
+
+  logic [WIDTH-1:0]         result_d;
+  fpnew_pkg::status_t       status_d;
+  logic                     extension_bit_d;
+  fpnew_pkg::classmask_e    class_mask_d;     // non_comp
+  logic                     is_class_d;       // non_comp
+
+
+  if (FpFormat == fpnew_pkg::FP64) begin
+    assign is_single_on_double = (src_fmt_q == fpnew_pkg::FP32) ? 1'b1 :1'b0;
+  end else begin
+    assign is_single_on_double = 1'b0;
+  end
+
+  logic enable_reg;
 
   // registers <-- inputs
   always_ff @(posedge clk_i or negedge rst_ni) begin : input_regs
@@ -138,13 +182,14 @@ module fpnew_fma #(
       aux_q               <= '0;
       flush_q             <= '0;
       operands_q          <= '0;
+      is_boxed_q          <= '0;
       info_a_is_normal_q  <= '0;
       info_b_is_normal_q  <= '0;
       info_c_is_normal_q  <= '0;
       src_fmt_q           <= fpnew_pkg::FP32;
       dst_fmt_q           <= fpnew_pkg::FP32;
       int_fmt_q           <= fpnew_pkg::INT32;
-    end else begin
+    end else if (enable_reg) begin
       rnd_mode_q          <= rnd_mode_d;
       op_q                <= op_d;
       op_mod_q            <= op_mod_d;
@@ -152,9 +197,10 @@ module fpnew_fma #(
       aux_q               <= aux_d;
       flush_q             <= flush_d;
       operands_q          <= operands_d;
-      info_a_is_normal_q  <= info_d[0].is_normal;
-      info_b_is_normal_q  <= info_d[1].is_normal;
-      info_c_is_normal_q  <= info_d[2].is_normal;
+      is_boxed_q          <= is_boxed_d;
+      info_a_is_normal_q  <= info_a_is_normal_d;
+      info_b_is_normal_q  <= info_b_is_normal_d;
+      info_c_is_normal_q  <= info_c_is_normal_d;
       src_fmt_q           <= src_fmt_d;
       dst_fmt_q           <= dst_fmt_d;
       int_fmt_q           <= int_fmt_d;
@@ -226,7 +272,7 @@ module fpnew_fma #(
   logic [$clog2(PRECISION_BITS)-1:0] mul_count_d, mul_count_q;
   logic [2*PRECISION_BITS-1:0]       product_old;
   // Register for mantissa_b
-  logic [PRECISION_BITS-1:0]         mantissa_b_old, mantissa_b_new;
+  logic [PRECISION_BITS-1:0]         mantissa_b_old, mantissa_b_new, mantissa_b_fp32_on_fp64;
   logic                              mantissa_b_msb_q, mantissa_b_msb_d;
 
   logic [PRECISION_BITS-1:0]         mantissa_c_tmp;
@@ -275,9 +321,12 @@ module fpnew_fma #(
   logic [4*PRECISION_BITS+3:0]       mantissa_c_after_shift_old;
   logic [WIDTH-1:0]                  are_equal;
 
+  logic [EXP_BITS_S-1:0] pre_round_exponent_single;
+  logic [MAN_BITS_S-1:0] pre_round_mantissa_single;
+
   assign exponent_product_old    = {exp_prod_msbs_q ,operands_q[0].exponent};
   assign exponent_difference_old = {exp_diff_msbs_q ,operands_q[1].exponent};
-  assign normalized_exponent_old = {normalized_exponent_msbs_q ,operands_q[2].exponent};
+  assign normalized_exponent_old = addend_after_shift_q[EXP_WIDTH-1:0];
   assign mantissa_b_old          = {mantissa_b_msb_q ,operands_q[1].mantissa};
   assign {addend_shifted_old, addend_sticky_bits} = {tmp_shift_q,
                                                      addend_after_shift_q[3*PRECISION_BITS+3:2*PRECISION_BITS],
@@ -285,6 +334,12 @@ module fpnew_fma #(
   assign product_old             = addend_after_shift_q[2*PRECISION_BITS-1:0];
 
   assign mantissa_c_after_shift_old = {addend_after_shift_q, mantissa_b_old};
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin : gen_mantissa_fp32_on_fp64
+    assign mantissa_b_fp32_on_fp64 = mantissa_b[PRECISION_BITS-1:14*2];
+  end else begin
+    assign mantissa_b_fp32_on_fp64 = '0;
+  end
 
   //non-comp
   logic               operands_equal, operand_a_smaller;
@@ -324,7 +379,7 @@ module fpnew_fma #(
 
   logic [NUM_INT_FORMATS-1:0][INT_MAN_WIDTH-1:0]    ifmt_input_val;
   logic                                             int_sign;
-  logic [INT_MAN_WIDTH-1:0]                         int_value, int_mantissa;
+  logic [INT_MAN_WIDTH-1:0]                         int_value;
 
   // FP Input initialization
   for (genvar fmt = 0; fmt < NUM_FORMATS; fmt++) begin : fmt_init_inputs
@@ -340,7 +395,8 @@ module fpnew_fma #(
         .NumOperands ( 1                            )
       ) i_fpnew_classifier_cast (
         .operands_i ( operands_q[0][FP_WIDTH-1:0] ),
-        .is_boxed_i ( is_boxed_i[fmt]               ),
+//        .operands_i ( operands_q[0]                 ),
+        .is_boxed_i ( is_boxed_q[fmt]               ),
         .info_o     ( info_cast[fmt]                )
       );
 
@@ -365,22 +421,23 @@ module fpnew_fma #(
     // sign-extend value only if it's signed
     ifmt_input_val[0]                     = '{default: operands_q[0][INT32_WIDTH-1] & ~op_mod_q};
     ifmt_input_val[0][INT32_WIDTH-1:0]    = operands_q[0][INT32_WIDTH-1:0];
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+    always_comb begin
       localparam int unsigned INT64_WIDTH = 64;
       // sign-extend value only if it's signed
       ifmt_input_val[1]                   = '{default: operands_q[0][INT64_WIDTH-1] & ~op_mod_q};
       ifmt_input_val[1][INT64_WIDTH-1:0]  = operands_q[0][INT64_WIDTH-1:0];
-    end else begin : inactive_format
-      ifmt_input_val[1]                   = '{default: fpnew_pkg::DONT_CARE}; // format disabled
     end
+  end else begin : inactive_format
+    assign ifmt_input_val[1]                   = '{default: fpnew_pkg::DONT_CARE}; // format disabled
   end
 
   // Construct input mantissa from integer
   assign int_value    = ifmt_input_val[is_int64];
   assign int_sign     = int_value[INT_MAN_WIDTH-1] & ~op_mod_q; // only signed ints are negative
 
-  // select mantissa with source format
-//  assign encoded_mant = src_is_int ? int_mantissa : fmt_mantissa[src_fmt_q];
   assign encoded_mant = src_is_int ? operands_q[2] : fmt_mantissa[src_fmt_q];
 
   // --------------
@@ -399,8 +456,8 @@ module fpnew_fma #(
 
   logic                            input_sign;   // input sign
   logic signed [INT_EXP_WIDTH-1:0] input_exp;    // unbiased true exponent
-  logic        [INT_MAN_WIDTH-1:0] input_mant;   // normalized input mantissa
-  logic                            mant_is_zero; // for integer zeroes
+  // logic        [INT_MAN_WIDTH-1:0] input_mant;   // normalized input mantissa
+  logic                            mant_is_zero, mant_is_zero_d, mant_is_zero_q; // for integer zeroes
 
   logic signed [INT_EXP_WIDTH-1:0] fp_input_exp;
   logic signed [INT_EXP_WIDTH-1:0] int_input_exp;
@@ -442,7 +499,7 @@ module fpnew_fma #(
   logic [INT_EXP_WIDTH-1:0] final_exp;        // after eventual adjustments
 
   logic [2*INT_MAN_WIDTH:0]  preshift_mant, preshift_mant_tmp;    // mantissa before final shift
-  logic [2*INT_MAN_WIDTH:0]  destination_mant, destination_mant_tmp, reversed_destination_mant__tmp; // mantissa from shifter, with rnd bit
+  logic [2*INT_MAN_WIDTH:0]  destination_mant_tmp; // mantissa from shifter, with rnd bit
   logic [SUPER_MAN_BITS-1:0] final_mant;       // mantissa after adjustments
   logic [MAX_INT_WIDTH-1:0]  final_int;        // integer shifted in position
 
@@ -460,6 +517,8 @@ module fpnew_fma #(
     of_before_round_cast = 1'b0;
     uf_before_round_cast = 1'b0;
 
+    // Place mantissa to the left of the shifter
+//    preshift_mant = input_mant << (INT_MAN_WIDTH + 1);
     preshift_mant = operands_q[1][INT_MAN_WIDTH-1:0] << (INT_MAN_WIDTH + 1);
 
     // Handle INT casts
@@ -532,15 +591,36 @@ module fpnew_fma #(
   // select RS bits for destination operation
   assign round_sticky_bits_cast = dst_is_int ? int_round_sticky_bits_cast : fp_round_sticky_bits_cast;
 
+  fpnew_pkg::fp_info_t [2:0] info_fp, info_fp32;
+
   // Classify input
   fpnew_classifier #(
     .FpFormat    ( FpFormat ),
     .NumOperands ( 3        )
     ) i_class_inputs (
     .operands_i ( operands_q ),
-    .is_boxed_i ( is_boxed_i ),
-    .info_o     ( info_d     )
+    .is_boxed_i ( is_boxed_q ),
+    .info_o     ( info_fp   )
   );
+
+  if (FpFormat == fpnew_pkg::FP64) begin : gen_classifier_fp32_on_fp64
+    logic [2:0][WIDTH_S-1:0] operands_fp32;
+    for (genvar i = 0; i < 3; i++) begin
+      assign operands_fp32[i] = {operands_q[i][WIDTH-1], operands_q[i][WIDTH-5:WIDTH-5-WIDTH_S+2]};
+    end
+    // Classify input
+    fpnew_classifier #(
+      .FpFormat    ( fpnew_pkg::FP32 ),
+      .NumOperands ( 3        )
+      ) i_class_inputs_fp32_on_fp64 (
+      .operands_i ( operands_fp32 ),
+      .is_boxed_i ( is_boxed_q ),
+      .info_o     ( info_fp32   )
+    );
+    assign info_tmp = (src_fmt_q == fpnew_pkg::FP32) ? info_fp32 : info_fp;
+  end else begin : FP32_info
+    assign info_tmp = info_fp;
+  end
 
   fp_t                 operand_a, operand_b, operand_c;
   fpnew_pkg::fp_info_t info_a,    info_b,    info_c;
@@ -565,9 +645,9 @@ module fpnew_fma #(
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
-    info_a = info_d[0];
-    info_b = info_d[1];
-    info_c = info_d[2];
+    info_a = info_tmp[0];
+    info_b = info_tmp[1];
+    info_c = info_tmp[2];
     operand_a = operands_q[0];
     operand_b = operands_q[1];
     operand_c = operands_q[2];
@@ -579,7 +659,9 @@ module fpnew_fma #(
       fpnew_pkg::FMADD:  ; // do nothing
       fpnew_pkg::FNMSUB: operand_a.sign = ~operand_a.sign; // invert sign of product
       fpnew_pkg::ADD: begin // Set multiplicand to +1
-        operand_a = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
+        operand_a = (is_single_on_double) ?
+                      '{sign: 1'b0, exponent: BIAS_S, mantissa: '0}
+                      : '{sign: 1'b0, exponent: BIAS, mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
       fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding with RDN)
@@ -601,6 +683,10 @@ module fpnew_fma #(
     endcase
   end
 
+  assign info_d[0] = info_a;
+  assign info_d[1] = info_b;
+  assign info_d[2] = info_c;
+
   // ---------------------
   // Input classification
   // ---------------------
@@ -615,7 +701,8 @@ module fpnew_fma #(
   assign any_operand_nan = (| {info_a.is_nan,        info_b.is_nan,        info_c.is_nan});
   assign signalling_nan  = (| {info_a.is_signalling, info_b.is_signalling, info_c.is_signalling});
   // Effective subtraction in FMA occurs when product and addend signs differ
-  assign effective_subtraction = operand_a.sign ^ operand_b.sign ^ operand_c.sign;
+  assign effective_subtraction = (op_q == fpnew_pkg::MUL) //.TODO (lbertaccini): test
+                                    ? 1'b0 : operand_a.sign ^ operand_b.sign ^ operand_c.sign;
   // The tentative sign of the FMA shall be the sign of the product
   assign tentative_sign = operand_a.sign ^ operand_b.sign;
 
@@ -626,44 +713,89 @@ module fpnew_fma #(
   fpnew_pkg::status_t special_status;
   logic               result_is_special;
 
-  always_comb begin : special_cases
-    // Default assignments
-    special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
-    special_status    = '0;
-    result_is_special = 1'b0;
+  if (FpFormat == fpnew_pkg::FP64) begin
+    always_comb begin : special_cases
+      // Default assignments
+      special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+      if (is_single_on_double)
+        special_result  =  {32'hffffffff, 32'h7fc00000}; // canonical qNaN
 
-    // Handle potentially mixed nan & infinity input => important for the case where infinity and
-    // zero are multiplied and added to a qnan.
-    // RISC-V mandates raising the NV exception in these cases:
-    // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
-    if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
-      result_is_special = 1'b1; // bypass FMA, output is the canonical qNaN
-      special_status.NV = 1'b1; // invalid operation
-    // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
-    end else if (any_operand_nan) begin
-      result_is_special = 1'b1;           // bypass FMA, output is the canonical qNaN
-      special_status.NV = signalling_nan; // raise the invalid operation flag if signalling
-    // Special cases involving infinity
-    end else if (any_operand_inf) begin
-      result_is_special = 1'b1; // bypass FMA
-      // Effective addition of opposite infinities (±inf - ±inf) is invalid!
-      if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
+      special_status    = '0;
+      result_is_special = 1'b0;
+
+      // Handle potentially mixed nan & infinity input => important for the case where infinity and
+      // zero are multiplied and added to a qnan.
+      // RISC-V mandates raising the NV exception in these cases:
+      // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
+      if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
+        result_is_special = 1'b1; // bypass FMA, output is the canonical qNaN
         special_status.NV = 1'b1; // invalid operation
-      // Handle cases where output will be inf because of inf product input
-      else if (info_a.is_inf || info_b.is_inf) begin
-        // Result is infinity with the sign of the product
-        special_result    = '{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
-      // Handle cases where the addend is inf
-      end else if (info_c.is_inf) begin
-        // Result is inifinity with sign of the addend (= operand_c)
-        special_result    = '{sign: operand_c.sign, exponent: '1, mantissa: '0};
+      // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
+      end else if (any_operand_nan) begin
+        result_is_special = 1'b1;           // bypass FMA, output is the canonical qNaN
+        special_status.NV = signalling_nan; // raise the invalid operation flag if signalling
+      // Special cases involving infinity
+      end else if (any_operand_inf) begin
+        result_is_special = 1'b1; // bypass FMA
+        // Effective addition of opposite infinities (±inf - ±inf) is invalid!
+        if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
+          special_status.NV = 1'b1; // invalid operation
+        // Handle cases where output will be inf because of inf product input
+        else if (info_a.is_inf || info_b.is_inf) begin
+          // Result is infinity with the sign of the product
+          special_result    = ((src_fmt_q == fpnew_pkg::FP32) && (FpFormat == fpnew_pkg::FP64))
+                                ? {32'hffffffff, operand_a.sign ^ operand_b.sign, 8'hff, 23'h000000}
+                                :'{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
+        // Handle cases where the addend is inf
+        end else if (info_c.is_inf) begin
+          // Result is inifinity with sign of the addend (= operand_c)
+          special_result    = ((src_fmt_q == fpnew_pkg::FP32) && (FpFormat == fpnew_pkg::FP64))
+                                ? {32'hffffffff, operand_c.sign, 8'hff, 23'h000000}
+                                : '{sign: operand_c.sign, exponent: '1, mantissa: '0};
+        end
+      end
+    end
+  end else begin
+    always_comb begin : special_cases_fp32
+      // Default assignments
+      special_result    = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+
+      special_status    = '0;
+      result_is_special = 1'b0;
+
+      // Handle potentially mixed nan & infinity input => important for the case where infinity and
+      // zero are multiplied and added to a qnan.
+      // RISC-V mandates raising the NV exception in these cases:
+      // (inf * 0) + c or (0 * inf) + c INVALID, no matter c (even quiet NaNs)
+      if ((info_a.is_inf && info_b.is_zero) || (info_a.is_zero && info_b.is_inf)) begin
+        result_is_special = 1'b1; // bypass FMA, output is the canonical qNaN
+        special_status.NV = 1'b1; // invalid operation
+      // NaN Inputs cause canonical quiet NaN at the output and maybe invalid OP
+      end else if (any_operand_nan) begin
+        result_is_special = 1'b1;           // bypass FMA, output is the canonical qNaN
+        special_status.NV = signalling_nan; // raise the invalid operation flag if signalling
+      // Special cases involving infinity
+      end else if (any_operand_inf) begin
+        result_is_special = 1'b1; // bypass FMA
+        // Effective addition of opposite infinities (±inf - ±inf) is invalid!
+        if ((info_a.is_inf || info_b.is_inf) && info_c.is_inf && effective_subtraction)
+          special_status.NV = 1'b1; // invalid operation
+        // Handle cases where output will be inf because of inf product input
+        else if (info_a.is_inf || info_b.is_inf) begin
+          // Result is infinity with the sign of the product
+          special_result    = '{sign: operand_a.sign ^ operand_b.sign, exponent: '1, mantissa: '0};
+        // Handle cases where the addend is inf
+        end else if (info_c.is_inf) begin
+          // Result is inifinity with sign of the addend (= operand_c)
+          special_result    = '{sign: operand_c.sign, exponent: '1, mantissa: '0};
+        end
       end
     end
   end
 
-  assign cmp_extension_bit = 1'b0; // Comparisons always produce booleans in integer registers
+  assign cmp_extension_bit    = 1'b0; // Comparisons always produce booleans in integer registers
   assign minmax_extension_bit = 1'b1; // NaN-box as result is always a float value
-  assign sgnj_status = '0;        // sign injections never raise exceptions
+  assign sgnj_status          = '0;   // sign injections never raise exceptions
   // op_mod_q enables integer sign-extension of result (for storing to integer regfile)
   assign sgnj_extension_bit = op_mod_q ? sgnj_result.sign : 1'b1;
 
@@ -710,14 +842,14 @@ module fpnew_fma #(
       // sign-extend reusult
     ifmt_pre_round_abs[0]                = '{default: final_int[INT32_WIDTH-1]};
     ifmt_pre_round_abs[0][INT32_WIDTH-1:0] = final_int[INT32_WIDTH-1:0];
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
-      localparam int unsigned INT64_WIDTH = 64;
-      // sign-extend value only if it's signed
-      ifmt_pre_round_abs[1]                = '{default: final_int[INT64_WIDTH-1]};
-      ifmt_pre_round_abs[1][INT64_WIDTH-1:0] = final_int[INT64_WIDTH-1:0];
-    end else begin : inactive_format
-      ifmt_pre_round_abs[1]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
-    end
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin // TODO (lbertaccini): remove support for INT64 for RV32D
+    localparam int unsigned INT64_WIDTH = 64;
+    // sign-extend value only if it's signed
+    assign ifmt_pre_round_abs[1][INT64_WIDTH-1:0] = final_int[INT64_WIDTH-1:0];
+  end else begin : inactive_format_ifmt_pre_round_abs
+    assign ifmt_pre_round_abs[1]           = '{default: fpnew_pkg::DONT_CARE}; // format disabled
   end
 
   // Select output with destination format and operation
@@ -740,7 +872,7 @@ module fpnew_fma #(
 
         // Assemble regular result, nan box short ones. Int zeroes need to be detected`
         fmt_result[fmt]               = '1;
-        fmt_result[fmt][FP_WIDTH-1:0] = src_is_int & mant_is_zero
+        fmt_result[fmt][FP_WIDTH-1:0] = src_is_int & mant_is_zero_q
                                         ? '0
                                         : {rounded_sign_cast, rounded_abs_cast[EXP_BITS+MAN_BITS-1:0]};
       end
@@ -829,24 +961,27 @@ module fpnew_fma #(
     // Initialize special result with sign-extension
     ifmt_special_result[0]                = '{default: special_res[INT32_WIDTH-1]};
     ifmt_special_result[0][INT32_WIDTH-1:0] = special_res;
-    if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+  end
+
+  if (FpFormat == fpnew_pkg::fp_format_e'(1)) begin
+    always_comb begin
       localparam int unsigned INT64_WIDTH = 64;
       automatic logic [INT64_WIDTH-1:0] special_res64;
 
-    // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
-    special_res64[INT64_WIDTH-2:0] = '1;       // alone yields 2**(INT_WIDTH-1)-1
-    special_res64[INT64_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
+      // Default is overflow to positive max, which is 2**INT_WIDTH-1 or 2**(INT_WIDTH-1)-1
+      special_res64[INT64_WIDTH-2:0] = '1;       // alone yields 2**(INT_WIDTH-1)-1
+      special_res64[INT64_WIDTH-1]   = op_mod_q; // for unsigned casts yields 2**INT_WIDTH-1
 
-    // Negative special case (except for nans) tie to -max or 0
-    if (input_sign && !info_cast[src_fmt_q].is_nan)
-      special_res64 = ~special_res64;
+      // Negative special case (except for nans) tie to -max or 0
+      if (input_sign && !info_cast[src_fmt_q].is_nan)
+        special_res64 = ~special_res64;
 
-    // Initialize special result with sign-extension
-    ifmt_special_result[1]                = '{default: special_res64[INT64_WIDTH-1]};
-    ifmt_special_result[1][INT64_WIDTH-1:0] = special_res64;
-    end else begin : inactive_format
-      ifmt_special_result[1] = '{default: fpnew_pkg::DONT_CARE};
+      // Initialize special result with sign-extension
+      ifmt_special_result[1]                = '{default: special_res64[INT64_WIDTH-1]};
+      ifmt_special_result[1][INT64_WIDTH-1:0] = special_res64;
     end
+  end else begin : inactive_format_ifmt_special_result
+    assign ifmt_special_result[1] = '{default: fpnew_pkg::DONT_CARE};
   end
 
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
@@ -897,8 +1032,9 @@ module fpnew_fma #(
       normalized_exponent_msbs_q <= '0;
       tmp_q                      <= '0;
       tmp_shift_q                <= '0;
+      mant_is_zero_q             <= '0;
       current_state              <= FSM_IDLE;
-    end else begin
+    end else if (enable_reg) begin
       exp_prod_msbs_q            <= exp_prod_msbs_d;
       exp_diff_msbs_q            <= exp_diff_msbs_d;
       addend_after_shift_q       <= addend_after_shift_d;
@@ -911,6 +1047,7 @@ module fpnew_fma #(
       normalized_exponent_msbs_q <= normalized_exponent_msbs_d;
       tmp_q                      <= tmp_d;
       tmp_shift_q                <= tmp_shift_d;
+      mant_is_zero_q             <= mant_is_zero_d;
       current_state              <= next_state;
     end
   end
@@ -999,13 +1136,13 @@ module fpnew_fma #(
     //non-comp
     operands_equal             = '0;
     operand_a_smaller          = '0;
-    sign_a                     = '0;
-    sign_b                     = '0;
-    minmax_result              = '0;
-    minmax_status              = '0;
+    // sign_a                     = '0;
+    // sign_b                     = '0;
+    // minmax_result              = '0;
+    // minmax_status              = '0;
     cmp_result                 = '0; // false
-    cmp_status                 = '1; // no flags
-    sgnj_result                = '0;
+    cmp_status                 = '0; // no flags
+    // sgnj_result                = '0;
 
     are_equal                  = '0;
 
@@ -1028,9 +1165,33 @@ module fpnew_fma #(
                 ? (rnd_mode_q == fpnew_pkg::RDN)
                 : input_sign;
 
+    info_a_is_normal_d         = info_a_is_normal_q;
+    info_b_is_normal_d         = info_b_is_normal_q;
+    info_c_is_normal_d         = info_c_is_normal_q;
+
+    mant_is_zero_d             = mant_is_zero_q;
+    is_boxed_d                 = is_boxed_q;
+
+    // tag_o                      = 1'b0;
+    enable_reg                 = 1'b1;
+
+
+    result_o        = operands_q[0];
+    status_o        = operands_q[1];
+    extension_bit_o = info_a_is_normal_q;
+    class_mask_o    = fpnew_pkg::classmask_e'(operands_q[2][9:0]);
+    is_class_o      = info_b_is_normal_q;
+
+    // result_o                   = '0;
+    // status_o                   = '0;
+    // extension_bit_o            = '0;
+    // class_mask_o               = fpnew_pkg::classmask_e'('0);
+    // is_class_o                 = '0;
+
     case(current_state)
       FSM_IDLE   : begin
         operands_d                   = operands_i;
+        is_boxed_d                   = is_boxed_i;
         src_fmt_d                    = src_fmt_i;
         dst_fmt_d                    = dst_fmt_i;
         int_fmt_d                    = int_fmt_i;
@@ -1040,15 +1201,29 @@ module fpnew_fma #(
         tag_d                        = tag_i;
         aux_d                        = aux_i;
         flush_d                      = flush_i;
+        enable_reg                   = 1'b0;
+
         if ((in_valid_i && in_ready_o)) begin
+          enable_reg                 = 1'b1;
           next_state                 = FSM_EXP_ADD;
-         end else begin
+          if (~((op_i == fpnew_pkg::F2F) || (op_i == fpnew_pkg::F2I)
+                     || (op_i == fpnew_pkg::I2F) || (op_i == fpnew_pkg::CPKAB) || (op_i == fpnew_pkg::CPKCD))
+                 && ((src_fmt_i == fpnew_pkg::FP32) && (FpFormat == fpnew_pkg::FP64))) begin
+            operands_d[2] = operands_fp32_on_fp64[2];
+            operands_d[1] = operands_fp32_on_fp64[1];
+            operands_d[0] = operands_fp32_on_fp64[0];
+          end
+        end else begin
           next_state                 = FSM_IDLE;
         end
       end
 
       FSM_EXP_ADD: begin
         addend_after_shift_d         = '0;
+        in_ready_o                   = 1'b0;
+        info_a_is_normal_d           = info_d[0].is_normal;
+        info_b_is_normal_d           = info_d[1].is_normal;
+        info_c_is_normal_d           = info_d[2].is_normal;
         if ((op_q == fpnew_pkg::F2F) || (op_q == fpnew_pkg::F2I)
                      || (op_q == fpnew_pkg::I2F) || (op_q == fpnew_pkg::CPKAB) || (op_q == fpnew_pkg::CPKCD)) begin
           if (int_sign) begin
@@ -1071,69 +1246,150 @@ module fpnew_fma #(
 
         end else if ((op_q == fpnew_pkg::SGNJ) || (op_q == fpnew_pkg::MINMAX)
                      || (op_q == fpnew_pkg::CMP) || (op_q == fpnew_pkg::CLASSIFY)) begin
-          next_state      = FSM_IDLE;
-          out_valid_o     = 1'b1;
+          operands_d[0]        = result_d;
+          operands_d[1]        = status_d;
+          info_a_is_normal_d   = extension_bit_d;
+          operands_d[2]        = class_mask_d;
+          info_b_is_normal_d   = is_class_d;
+          next_state      = FSM_OUT;
+          out_valid_o     = 1'b0;
           busy_o          = 1'b1;
-          in_ready_o      = out_ready_i;
 
           addend_a                      = operands_q[1];
           addend_b                      = ~operands_q[0];
           carry_in                      = 1'b1;
           are_equal                     = adder_result;
-          exp_a                         = operands_q[1][WIDTH-2:(3*PRECISION_BITS+4)/3+1];
-          exp_b                         = ~operands_q[0][WIDTH-2:(3*PRECISION_BITS+4)/3+1];
+          exp_a                         = operands_q[1][WIDTH-1:(3*PRECISION_BITS+4)/3+1];
+          exp_b                         = ~operands_q[0][WIDTH-1:(3*PRECISION_BITS+4)/3+1];
           exp_carry_in                  = are_equal[(3*PRECISION_BITS+4)/3+1];
           are_equal[WIDTH-1:(3*PRECISION_BITS+4)/3+1] = exp_adder_result;
 
           operands_equal    = (!are_equal) || (info_a.is_zero && info_b.is_zero);
           // Invert result if non-zero signs involved (unsigned comparison)
-          operand_a_smaller = (~are_equal[WIDTH-1]) ^ (operand_a.sign || operand_b.sign);
+          if (operand_a.sign && ~operand_b.sign)
+            operand_a_smaller = 1'b1;
+          else if (~operand_a.sign && operand_b.sign)
+            operand_a_smaller = 1'b0;
+          else
+            operand_a_smaller = (~are_equal[WIDTH-1]) ^ (operand_a.sign || operand_b.sign);
 
-          // Default assignment
-          sgnj_result = operand_a; // result based on operand a
+          // if (FpFormat == fpnew_pkg::FP64) begin
+          //   // Default assignment
+          //   sgnj_result = (is_single_on_double)
+          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                   : operand_a;
 
-          // NaN-boxing check will treat invalid inputs as canonical NaNs
-          if (!info_a.is_boxed) sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
+          //   // NaN-boxing check will treat invalid inputs as canonical NaNs
+          //   if (!info_a.is_boxed) begin
+          //     if (is_single_on_double)
+          //       sgnj_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
+          //     else
+          //       sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
+          //   end
 
-          // Internal signs are treated as positive in case of non-NaN-boxed values
-          sign_a = operand_a.sign & info_a.is_boxed;
-          sign_b = operand_b.sign & info_b.is_boxed;
 
-          // Do the sign injection based on rm field
-          unique case (rnd_mode_i)
-            fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
-            fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
-            fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
-            fpnew_pkg::RUP: sgnj_result      = operand_a;       // passthrough
-            default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-          endcase
+          //   // Internal signs are treated as positive in case of non-NaN-boxed values
+          //   sign_a = operand_a.sign & info_a.is_boxed;
+          //   sign_b = operand_b.sign & info_b.is_boxed;
 
-          // Default assignment
-          minmax_status = '0;
+          //   // Do the sign injection based on rm field
+          //   unique case (rnd_mode_q)
+          //     fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
+          //     fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
+          //     fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
+          //     fpnew_pkg::RUP: sgnj_result      = (is_single_on_double)
+          //                                           ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                                           : operand_a;       // passthrough
+          //     default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+          //   endcase
 
-          // Min/Max use quiet comparisons - only sNaN are invalid
-          minmax_status.NV = signalling_nan;
+          //   // Default assignment
+          //   minmax_status = '0;
 
-          // Both NaN inputs cause a NaN output
-          if (info_a.is_nan && info_b.is_nan)
-            minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
-          // If one operand is NaN, the non-NaN operand is returned
-          else if (info_a.is_nan) minmax_result = operand_b;
-          else if (info_b.is_nan) minmax_result = operand_a;
-          // Otherwise decide according to the operation
-          else begin
-            unique case (rnd_mode_i)
-              fpnew_pkg::RNE: minmax_result = operand_a_smaller ? operand_a : operand_b; // MIN
-              fpnew_pkg::RTZ: minmax_result = operand_a_smaller ? operand_b : operand_a; // MAX
-              default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-            endcase
-          end
+          //   // Min/Max use quiet comparisons - only sNaN are invalid
+          //   minmax_status.NV = signalling_nan;
+
+          //   // Both NaN inputs cause a NaN output
+          //   if (info_a.is_nan && info_b.is_nan) begin
+          //     minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+          //     if (is_single_on_double)
+          //       minmax_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
+          //   // If one operand is NaN, the non-NaN operand is returned
+          //   end else if (info_a.is_nan) minmax_result = (is_single_on_double)
+          //                                             ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                                             : operand_b;
+          //   else if (info_b.is_nan) minmax_result = (is_single_on_double)
+          //                                             ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                                             : operand_a;
+          //   // Otherwise decide according to the operation
+          //   else begin
+          //     unique case (rnd_mode_q)
+          //       fpnew_pkg::RNE: minmax_result = operand_a_smaller
+          //               ? (is_single_on_double)
+          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                   : operand_a
+          //               : (is_single_on_double)
+          //                   ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                   : operand_b; // MIN
+          //       fpnew_pkg::RTZ: minmax_result = operand_a_smaller
+          //               ? (is_single_on_double)
+          //                   ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                   : operand_b
+          //               : (is_single_on_double)
+          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+          //                   : operand_a; // MAX
+          //       default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+          //     endcase
+          //   end
+          // end else begin
+          //   // Default assignment
+          //   sgnj_result = operand_a;
+
+          //   // NaN-boxing check will treat invalid inputs as canonical NaNs
+          //   if (!info_a.is_boxed) begin
+          //     sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
+          //   end
+
+          //   // Internal signs are treated as positive in case of non-NaN-boxed values
+          //   sign_a = operand_a.sign & info_a.is_boxed;
+          //   sign_b = operand_b.sign & info_b.is_boxed;
+
+          //   // Do the sign injection based on rm field
+          //   unique case (rnd_mode_q)
+          //     fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
+          //     fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
+          //     fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
+          //     fpnew_pkg::RUP: sgnj_result      = operand_a;       // passthrough
+          //     default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+          //   endcase
+
+          //   // Default assignment
+          //   minmax_status = '0;
+
+          //   // Min/Max use quiet comparisons - only sNaN are invalid
+          //   minmax_status.NV = signalling_nan;
+
+          //   // Both NaN inputs cause a NaN output
+          //   if (info_a.is_nan && info_b.is_nan) begin
+          //     minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+          //   // If one operand is NaN, the non-NaN operand is returned
+          //   end else if (info_a.is_nan) minmax_result = operand_b;
+          //   else if (info_b.is_nan) minmax_result = operand_a;
+          //   // Otherwise decide according to the operation
+          //   else begin
+          //     unique case (rnd_mode_q)
+          //       fpnew_pkg::RNE: minmax_result = operand_a_smaller ? operand_a : operand_b; // MIN
+          //       fpnew_pkg::RTZ: minmax_result = operand_a_smaller ? operand_b : operand_a; // MAX
+          //       default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+          //     endcase
+          //   end
+          // end
 
           // Signalling NaNs always compare as false and are illegal
           if (signalling_nan) cmp_status.NV = 1'b1; // invalid operation
           // Otherwise do comparisons
           else begin
-            unique case (rnd_mode_i)
+            unique case (rnd_mode_q)
               fpnew_pkg::RNE: begin // Less than or equal
                 if (any_operand_nan) cmp_status.NV = 1'b1; // Signalling comparison: NaNs are invalid
                 else cmp_result = (operand_a_smaller | operands_equal) ^ op_mod_q;
@@ -1148,33 +1404,43 @@ module fpnew_fma #(
               end
               default: cmp_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
             endcase
+            // if (is_single_on_double)
+            //   cmp_result = {32'hffffffff, cmp_result[WIDTH_S-1:0]};
           end
+
+
+          operands_d[0]        = result_d;
+          operands_d[1]        = status_d;
+          info_a_is_normal_d   = extension_bit_d;
+          operands_d[2]        = class_mask_d;
+          info_b_is_normal_d   = is_class_d;
+
         end
         else begin
-          if ( ~(result_is_special)) begin
+          if (~(result_is_special)) begin
             exp_a                      = exponent_a;
             exp_b                      = exponent_b;
             exp_carry_in               = info_a.is_subnormal;
             exponent_product_tmp       = exp_adder_result;
 
             exponent_product_new       = (info_a.is_zero || info_b.is_zero)
-                                            ? 2 - signed'(BIAS) // in case the product is zero, set minimum exp.
+                                            ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q)) // in case the product is zero, set minimum exp.
                                             : signed'(exponent_product_tmp + info_b.is_subnormal
-                                                - signed'(BIAS));
+                                                - signed'(fpnew_pkg::bias(dst_fmt_q)));
             {exp_prod_msbs_d ,operands_d[0].exponent} = exponent_product_new;
 
             busy_o                     = 1'b1;
             next_state = FSM_EXP_DIFF;
           end
           else begin
-            if ((result_is_special)) begin
-              busy_o      = 1'b1;
-              out_valid_o = 1'b1;
-            end
-            else begin
-              busy_o    = 1'b0;
-            end
-            next_state = FSM_IDLE;
+            out_valid_o = 1'b0;
+            busy_o      = 1'b1;
+            operands_d[0]        = result_d;
+            operands_d[1]        = status_d;
+            info_a_is_normal_d   = extension_bit_d;
+            operands_d[2]        = class_mask_d;
+            info_b_is_normal_d   = is_class_d;
+            next_state           = FSM_OUT;
           end
         end
       end
@@ -1182,6 +1448,8 @@ module fpnew_fma #(
       FSM_CAST_SHIFT: begin
         //  assign input_mant = encoded_mant << renorm_shamt;
         busy_o                  = 1'b1;
+        in_ready_o              = 1'b0;
+        mant_is_zero_d          = mant_is_zero;
         shift_count_d           = shift_count_q + 1;
         if (~shift_count_q) begin
           shift_in              = encoded_mant[(3*PRECISION_BITS+4)/3-1:0];
@@ -1199,6 +1467,7 @@ module fpnew_fma #(
       FSM_CAST_DEST_SHIFT: begin
 //      destination_mant = preshift_mant >> denorm_shamt;
         busy_o                  = 1'b1;
+        in_ready_o                   = 1'b0;
         if (add_count_q == 0) begin
           shift_in              = preshift_mant_tmp[2*INT_MAN_WIDTH:(3*PRECISION_BITS+4)*2/3];
           shift_amount          = denorm_shamt;
@@ -1241,12 +1510,18 @@ module fpnew_fma #(
           rounded_int_res = rounded_abs_cast; // get magnitude of negative
         end
         busy_o                  = 1'b1;
-        next_state              = FSM_IDLE;
-        out_valid_o             = 1'b1;
-        in_ready_o              = out_ready_i;
+        operands_d[0]           = result_d;
+        operands_d[1]           = status_d;
+        info_a_is_normal_d      = extension_bit_d;
+        operands_d[2]           = class_mask_d;
+        info_b_is_normal_d      = is_class_d;
+        next_state              = FSM_OUT;
+        out_valid_o             = 1'b0;
+        in_ready_o              = 1'b0;
       end
 
       FSM_CAST_ROUNDING: begin
+
         // Take the rounding decision according to RISC-V spec
         // RoundMode | Mnemonic | Meaning
         // :--------:|:--------:|:-------
@@ -1288,6 +1563,7 @@ module fpnew_fma #(
 
         busy_o                  = 1'b1;
         next_state              = FSM_CAST_DEST_INV;
+        in_ready_o              = 1'b0;
       end
 
       FSM_EXP_DIFF: begin
@@ -1304,6 +1580,10 @@ module fpnew_fma #(
         next_state = FSM_MANTISSA_PROD_ADDEND_SHIFT;
         if (mul_count_q == 0) begin
           mantissa_b_new = mantissa_b;
+          if (((op_q == fpnew_pkg::MUL) || (op_q == fpnew_pkg::FMADD)) && (is_single_on_double)) begin
+           mul_count_d     = 14;
+           mantissa_b_new  = mantissa_b_fp32_on_fp64;
+          end
           {mantissa_b_msb_d, operands_d[1].mantissa} = mantissa_b_new;
         end
       end
@@ -1333,7 +1613,7 @@ module fpnew_fma #(
           // | 000...000 | product | RS |
           //  <-  p+2  -> <-  2p -> < 2>
           factor_a            = mantissa_a;
-          factor_b            = mantissa_b_old[1:0];;
+          factor_b            = mantissa_b_old[1:0];
           partial_product     = prod;
 
           if ((mul_count_q == PRECISION_BITS/2) && (FpFormat == fpnew_pkg::fp_format_e'(1)))
@@ -1351,6 +1631,13 @@ module fpnew_fma #(
             next_state = FSM_SUM;
             {tmp_shift_d ,addend_after_shift_d[3*PRECISION_BITS+3:2*PRECISION_BITS],
               operands_d[2].mantissa, mantissa_b_new, operands_d[0].mantissa} = reversed_shift_out_tmp;
+              if (op_q == fpnew_pkg::MUL) begin
+                {tmp_shift_d ,addend_after_shift_d[3*PRECISION_BITS+3:2*PRECISION_BITS],
+                  operands_d[2].mantissa, mantissa_b_new, operands_d[0].mantissa} = '0;
+                product_shifted    = addend_after_shift_d[2*PRECISION_BITS-1:0] << 2;
+                {msb_add_d, addend_after_shift_d} = {1'b0, product_shifted};
+                next_state = FSM_NORMALIZATION;
+              end
           end
           else begin
             next_state = FSM_MANTISSA_PROD_ADDEND_SHIFT;
@@ -1486,7 +1773,6 @@ module fpnew_fma #(
           norm_shamt              = addend_shamt; // Undo the initial shift
           normalized_exponent_new = tentative_exponent;
         end
-        {normalized_exponent_msbs_d ,operands_d[2].exponent} = normalized_exponent_new;
 
         if (shift_count_q == 0) begin
           shift_in                         = sum[(3*PRECISION_BITS+4)/3-1:0];
@@ -1499,15 +1785,21 @@ module fpnew_fma #(
         else begin
           shift_in                         = sum[(3*PRECISION_BITS+4)*2/3-1:(3*PRECISION_BITS+4)/3];
           shift_amount                     = norm_shamt;
-          {tmp_shift_d, addend_after_shift_d[(3*PRECISION_BITS+4)*2/3-1:0]} = shift_out;
+//          {tmp_shift_d, addend_after_shift_d[(3*PRECISION_BITS+4)*2/3-1:0]} = shift_out;
           next_state                       = FSM_ROUNDING;
+          addend_after_shift_d[EXP_WIDTH-1:0] = normalized_exponent_new;
+          {carry_add_d, operands_d[2].mantissa, operands_d[0].mantissa, mantissa_b_new, tmp_d} =
+              (shift_out << (3*PRECISION_BITS+4)/3)
+              | {carry_add_q, operands_q[2].mantissa, operands_q[0].mantissa, mantissa_b_old, tmp_q};
         end
       end
 
       FSM_ROUNDING: begin
         in_ready_o      = 1'b0;
         busy_o          = 1'b1;
-        out_valid_o     = 1'b1;
+        out_valid_o     = 1'b0;
+        // tag_o           = tag_q;
+
         // Take the rounding decision according to RISC-V spec
         // RoundMode | Mnemonic | Meaning
         // :--------:|:--------:|:-------
@@ -1572,8 +1864,8 @@ module fpnew_fma #(
         shift_amount          = norm_shamt;
         sum_shifted_tmp       = shift_out;
         sum_shifted = (sum_shifted_tmp << (3*PRECISION_BITS+4)*2/3) |
-            ({tmp_shift_q, addend_after_shift_q[(3*PRECISION_BITS+4)*2/3-1:0]} << (3*PRECISION_BITS+4)/3)
-            | {carry_add_q, operands_q[2].mantissa, operands_q[0].mantissa, mantissa_b_old, tmp_q};
+//            ({tmp_shift_q, addend_after_shift_q[(3*PRECISION_BITS+4)*2/3-1:0]} << (3*PRECISION_BITS+4)/3)
+             {carry_add_q, operands_q[2].mantissa, operands_q[0].mantissa, mantissa_b_old, tmp_q};
 
         {final_mantissa, sum_sticky_bits} = sum_shifted;
         final_exponent                    = normalized_exponent_old;
@@ -1595,6 +1887,35 @@ module fpnew_fma #(
           final_exponent = '0;
         end
 
+        operands_d[0]        = result_d;
+        operands_d[1]        = status_d;
+        info_a_is_normal_d   = extension_bit_d;
+        operands_d[2]        = class_mask_d;
+        info_b_is_normal_d   = is_class_d;
+        next_state           = FSM_OUT;
+
+        // if (out_ready_i && out_valid_o) begin
+        //   next_state    = FSM_IDLE;
+        //   add_count_d   = '0;
+        //   mul_count_d   = '0;
+        //   shift_count_d = '0;
+        // end
+        // else begin
+        //   next_state    = FSM_ROUNDING;
+        // end
+      end
+
+      FSM_OUT: begin
+        in_ready_o      = 1'b0;
+        busy_o          = 1'b1;
+        out_valid_o     = 1'b1;
+
+        result_o        = operands_q[0];
+        status_o        = operands_q[1];
+        extension_bit_o = info_a_is_normal_q;
+        class_mask_o    = fpnew_pkg::classmask_e'(operands_q[2][9:0]);
+        is_class_o      = info_b_is_normal_q;
+
         if (out_ready_i && out_valid_o) begin
           next_state    = FSM_IDLE;
           add_count_d   = '0;
@@ -1602,7 +1923,7 @@ module fpnew_fma #(
           shift_count_d = '0;
         end
         else begin
-          next_state    = FSM_ROUNDING;
+          next_state    = FSM_OUT;
         end
       end
 
@@ -1611,40 +1932,159 @@ module fpnew_fma #(
 
   assign sum_raw = {msb_add_q, addend_after_shift_q};
 
-  sum_raw_third_adder #(
+  floatli_adder #(
     .PRECISION_BITS  ( PRECISION_BITS  )
-  ) i_sum_raw_third_adder (
+  ) i_floatli_adder (
     .product_shifted ( addend_a        ),
     .addend_shifted  ( addend_b        ),
     .inject_carry_in ( carry_in        ),
     .sum_raw         ( adder_result    )
   );
 
-  exp_adder #(
+  floatli_exp_adder #(
     .EXP_WIDTH ( EXP_WIDTH )
-  ) i_exp_adder (
+  ) i_floatli_exp_adder (
     .exp_a            ( exp_a            ),
     .exp_b            ( exp_b            ),
     .exp_carry_in     ( exp_carry_in     ),
     .exp_adder_result ( exp_adder_result )
   );
 
-  shift_fma_word2shift_third #(
+  floatli_shifter #(
     .PRECISION_BITS      ( PRECISION_BITS     ),
     .SHIFT_AMOUNT_WIDTH  ( SHIFT_AMOUNT_WIDTH )
-  ) i_shift_fma_word2shift_third (
+  ) i_floatli_shifte (
     .sum                 ( shift_in           ),
     .norm_shamt          ( shift_amount       ),
     .sum_shifted         ( shift_out          )
   );
 
-  reduced_mantissa_multiplier #(
+  floatli_mantissa_multiplier #(
     .PRECISION_BITS (PRECISION_BITS)
-  ) i_mul_2bit (
+  ) i_floatli_mantissa_multiplier (
     .mantissa_a       ( factor_a  ),
     .mantissa_b       ( factor_b  ),
     .product          ( prod      )
   );
+
+  if (FpFormat == fpnew_pkg::FP64) begin : gen_sign_minmax_fp32_on_fp64
+    always_comb
+    begin
+      // Default assignment
+      sgnj_result = (is_single_on_double)
+                      ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                      : operand_a;
+
+      // NaN-boxing check will treat invalid inputs as canonical NaNs
+      if (!info_a.is_boxed) begin
+        if (is_single_on_double)
+          sgnj_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
+        else
+          sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
+      end
+
+
+      // Internal signs are treated as positive in case of non-NaN-boxed values
+      sign_a = operand_a.sign & info_a.is_boxed;
+      sign_b = operand_b.sign & info_b.is_boxed;
+
+      // Do the sign injection based on rm field
+      unique case (rnd_mode_q)
+        fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
+        fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
+        fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
+        fpnew_pkg::RUP: sgnj_result      = (is_single_on_double)
+                                              ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                                              : operand_a;       // passthrough
+        default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+      endcase
+
+      // Default assignment
+      minmax_status = '0;
+
+      // Min/Max use quiet comparisons - only sNaN are invalid
+      minmax_status.NV = signalling_nan;
+
+      // Both NaN inputs cause a NaN output
+      if (info_a.is_nan && info_b.is_nan) begin
+        minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+        if (is_single_on_double)
+          minmax_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
+      // If one operand is NaN, the non-NaN operand is returned
+      end else if (info_a.is_nan) minmax_result = (is_single_on_double)
+                                                ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                                                : operand_b;
+      else if (info_b.is_nan) minmax_result = (is_single_on_double)
+                                                ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                                                : operand_a;
+      // Otherwise decide according to the operation
+      else begin
+        unique case (rnd_mode_q)
+          fpnew_pkg::RNE: minmax_result = operand_a_smaller
+                  ? (is_single_on_double)
+                      ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                      : operand_a
+                  : (is_single_on_double)
+                      ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                      : operand_b; // MIN
+          fpnew_pkg::RTZ: minmax_result = operand_a_smaller
+                  ? (is_single_on_double)
+                      ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                      : operand_b
+                  : (is_single_on_double)
+                      ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
+                      : operand_a; // MAX
+          default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+        endcase
+      end
+    end
+  end else begin : gen_sign_minmax_fp32
+    always_comb
+    begin
+      // Default assignment
+      sgnj_result = operand_a;
+
+      // NaN-boxing check will treat invalid inputs as canonical NaNs
+      if (!info_a.is_boxed) begin
+        sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
+      end
+
+      // Internal signs are treated as positive in case of non-NaN-boxed values
+      sign_a = operand_a.sign & info_a.is_boxed;
+      sign_b = operand_b.sign & info_b.is_boxed;
+
+      // Do the sign injection based on rm field
+      unique case (rnd_mode_q)
+        fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
+        fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
+        fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
+        fpnew_pkg::RUP: sgnj_result      = operand_a;       // passthrough
+        default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+      endcase
+
+      // Default assignment
+      minmax_status = '0;
+
+      // Min/Max use quiet comparisons - only sNaN are invalid
+      minmax_status.NV = signalling_nan;
+
+      // Both NaN inputs cause a NaN output
+      if (info_a.is_nan && info_b.is_nan) begin
+        minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
+      // If one operand is NaN, the non-NaN operand is returned
+      end else if (info_a.is_nan) minmax_result = operand_b;
+      else if (info_b.is_nan) minmax_result = operand_a;
+      // Otherwise decide according to the operation
+      else begin
+        unique case (rnd_mode_q)
+          fpnew_pkg::RNE: minmax_result = operand_a_smaller ? operand_a : operand_b; // MIN
+          fpnew_pkg::RTZ: minmax_result = operand_a_smaller ? operand_b : operand_a; // MAX
+          default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
+        endcase
+      end
+    end
+  end
+
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents stay biased.
@@ -1697,16 +2137,26 @@ module fpnew_fma #(
 
 
   // Classification before round. RISC-V mandates checking underflow AFTER rounding!
-  assign of_before_round = final_exponent >= 2**(EXP_BITS)-1; // infinity exponent is all ones
+  assign of_before_round = final_exponent >= 2**(fpnew_pkg::exp_bits(dst_fmt_q))-1; // infinity exponent is all ones
   assign uf_before_round = final_exponent == 0;               // exponent for subnormals capped to 0
 
   // Assemble result before rounding. In case of overflow, the largest normal value is set.
   assign pre_round_sign     = final_sign;
+  // assign pre_round_exponent = (of_before_round) ? 2**EXP_BITS-2 : unsigned'(final_exponent[EXP_BITS-1:0]);
+  // assign pre_round_mantissa = (of_before_round) ? '1 : final_mantissa[MAN_BITS:1]; // bit 0 is R bit
+  if (FpFormat == fpnew_pkg::FP64) begin : gen_pre_round_single_on_double
+    assign pre_round_exponent_single = (of_before_round) ? 2**EXP_BITS-2 : unsigned'(final_exponent[EXP_BITS_S-1:0]);
+    assign pre_round_mantissa_single = (of_before_round) ? '1 : final_mantissa[MAN_BITS-:MAN_BITS_S];
+  end else begin : gen_no_pre_round_single_on_double
+    assign pre_round_exponent_single = '0;
+    assign pre_round_mantissa_single = '0;
+  end
   assign pre_round_exponent = (of_before_round) ? 2**EXP_BITS-2 : unsigned'(final_exponent[EXP_BITS-1:0]);
   assign pre_round_mantissa = (of_before_round) ? '1 : final_mantissa[MAN_BITS:1]; // bit 0 is R bit
-  assign pre_round_abs      = {pre_round_exponent, pre_round_mantissa};
+  assign pre_round_abs      = (is_single_on_double)
+                                ? {pre_round_exponent_single, pre_round_mantissa_single}
+                                : {pre_round_exponent, pre_round_mantissa};
 
-  //non_comb
   // ---------------
   // Classification
   // ---------------
@@ -1717,17 +2167,17 @@ module fpnew_fma #(
   // Classification - always return the classification mask on the dedicated port
   always_comb begin : classify
     if (info_a.is_normal) begin
-      class_mask_o = operand_a.sign       ? fpnew_pkg::NEGNORM    : fpnew_pkg::POSNORM;
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGNORM    : fpnew_pkg::POSNORM;
     end else if (info_a.is_subnormal) begin
-      class_mask_o = operand_a.sign       ? fpnew_pkg::NEGSUBNORM : fpnew_pkg::POSSUBNORM;
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGSUBNORM : fpnew_pkg::POSSUBNORM;
     end else if (info_a.is_zero) begin
-      class_mask_o = operand_a.sign       ? fpnew_pkg::NEGZERO    : fpnew_pkg::POSZERO;
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGZERO    : fpnew_pkg::POSZERO;
     end else if (info_a.is_inf) begin
-      class_mask_o = operand_a.sign       ? fpnew_pkg::NEGINF     : fpnew_pkg::POSINF;
+      class_mask_d = operand_a.sign       ? fpnew_pkg::NEGINF     : fpnew_pkg::POSINF;
     end else if (info_a.is_nan) begin
-      class_mask_o = info_a.is_signalling ? fpnew_pkg::SNAN       : fpnew_pkg::QNAN;
+      class_mask_d = info_a.is_signalling ? fpnew_pkg::SNAN       : fpnew_pkg::QNAN;
     end else begin
-      class_mask_o = fpnew_pkg::QNAN; // default value
+      class_mask_d = fpnew_pkg::QNAN; // default value
     end
   end
 
@@ -1735,7 +2185,22 @@ module fpnew_fma #(
   assign class_extension_bit = 1'b0; // classification always produces results in integer registers
 
   // In case of overflow, the round and sticky bits are set for proper rounding
-  assign round_sticky_bits  = (of_before_round) ? 2'b11 : {final_mantissa[0], sticky_after_norm};
+  // assign round_sticky_bits  = (of_before_round) ? 2'b11 : {final_mantissa[0], sticky_after_norm};
+  if (FpFormat == fpnew_pkg::FP64) begin : gen_round_sticky_fp64
+    always_comb
+    begin
+      if (is_single_on_double) begin
+        round_sticky_bits[1] = final_mantissa[MAN_BITS-MAN_BITS_S] | of_before_round;
+        round_sticky_bits[0] = (| final_mantissa[MAN_BITS-MAN_BITS_S-1:0]) |
+                                                 sticky_after_norm | of_before_round;
+      end else begin
+        round_sticky_bits  = (of_before_round) ? 2'b11 : {final_mantissa[0], sticky_after_norm};
+      end
+    end
+  end else begin: gen_round_sticky_fp32
+    assign round_sticky_bits  = (of_before_round) ? 2'b11 : {final_mantissa[0], sticky_after_norm};
+  end
+
 
   // Classification after rounding
   assign uf_after_round = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0; // exponent = 0
@@ -1748,7 +2213,12 @@ module fpnew_fma #(
   fpnew_pkg::status_t   regular_status;
 
   // Assemble regular result
-  assign regular_result    = {rounded_sign, rounded_abs};
+  // assign regular_result = (is_single_on_double) ?
+  //           {32'hffffffff, rounded_sign, rounded_abs[EXP_BITS_S+MAN_BITS_S+WIDTH_S-1-3:MAN_BITS_S+WIDTH_S-3], rounded_abs[MAN_BITS_S+WIDTH_S-1-3:WIDTH_S-3]}
+  //           : {rounded_sign, rounded_abs};
+  assign regular_result = (is_single_on_double) ?
+            {32'hffffffff, rounded_sign, rounded_abs[WIDTH_S-2:0]} : {rounded_sign, rounded_abs};
+  // assign regular_result    = {rounded_sign, rounded_abs};
   assign regular_status.NV = 1'b0; // only valid cases are handled in regular path
   assign regular_status.DZ = 1'b0; // no divisions
   assign regular_status.OF = of_before_round | of_after_round;   // rounding can introduce overflow
@@ -1758,83 +2228,83 @@ module fpnew_fma #(
   always_comb begin : select_result
     unique case (op_q)
       fpnew_pkg::F2F: begin
-        result_o        = dst_is_int ? int_result : fp_result;
-        status_o        = dst_is_int ? int_status : fp_status;
-        extension_bit_o = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+        result_d        = dst_is_int ? int_result : fp_result;
+        status_d        = dst_is_int ? int_status : fp_status;
+        extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
       fpnew_pkg::F2I: begin
-        result_o        = dst_is_int ? int_result : fp_result;
-        status_o        = dst_is_int ? int_status : fp_status;
-        extension_bit_o = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+        result_d        = dst_is_int ? int_result : fp_result;
+        status_d        = dst_is_int ? int_status : fp_status;
+        extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
       fpnew_pkg::I2F: begin
-        result_o        = dst_is_int ? int_result : fp_result;
-        status_o        = dst_is_int ? int_status : fp_status;
-        extension_bit_o = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+        result_d        = dst_is_int ? int_result : fp_result;
+        status_d        = dst_is_int ? int_status : fp_status;
+        extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
       fpnew_pkg::CPKAB: begin
-        result_o        = dst_is_int ? int_result : fp_result;
-        status_o        = dst_is_int ? int_status : fp_status;
-        extension_bit_o = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+        result_d        = dst_is_int ? int_result : fp_result;
+        status_d        = dst_is_int ? int_status : fp_status;
+        extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
       fpnew_pkg::CPKCD: begin
-        result_o        = dst_is_int ? int_result : fp_result;
-        status_o        = dst_is_int ? int_status : fp_status;
-        extension_bit_o = dst_is_int ? int_result[WIDTH-1] : 1'b1;
+        result_d        = dst_is_int ? int_result : fp_result;
+        status_d        = dst_is_int ? int_status : fp_status;
+        extension_bit_d = dst_is_int ? int_result[WIDTH-1] : 1'b1;
       end
 
       fpnew_pkg::SGNJ: begin
-        result_o        = sgnj_result;
-        status_o        = sgnj_status;
-        extension_bit_o= sgnj_extension_bit;
+        result_d        = sgnj_result;
+        status_d        = sgnj_status;
+        extension_bit_d = sgnj_extension_bit;
       end
       fpnew_pkg::MINMAX: begin
-        result_o        = minmax_result;
-        status_o        = minmax_status;
-        extension_bit_o = minmax_extension_bit;
+        result_d        = minmax_result;
+        status_d        = minmax_status;
+        extension_bit_d = minmax_extension_bit;
       end
       fpnew_pkg::CMP: begin
-        result_o        = cmp_result;
-        status_o        = cmp_status;
-        extension_bit_o = cmp_extension_bit;
+        result_d        = cmp_result;
+        status_d        = cmp_status;
+        extension_bit_d = cmp_extension_bit;
       end
       fpnew_pkg::CLASSIFY: begin
-        result_o        = '{default: fpnew_pkg::DONT_CARE}; // unused
-        status_o        = class_status;
-        extension_bit_o= class_extension_bit;
+        result_d        = '{default: fpnew_pkg::DONT_CARE}; // unused
+        status_d        = class_status;
+        extension_bit_d = class_extension_bit;
       end
       fpnew_pkg::FMADD: begin
-        result_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
-        status_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
-        extension_bit_o = 1'b1; // always NaN-Box result
+        result_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
+        status_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
+        extension_bit_d = 1'b1; // always NaN-Box result
       end
       fpnew_pkg::FNMSUB: begin
-        result_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
-        status_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
-        extension_bit_o = 1'b1; // always NaN-Box result
+        result_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
+        status_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
+        extension_bit_d = 1'b1; // always NaN-Box result
       end
       fpnew_pkg::ADD: begin
-        result_o        = (result_is_special && (current_state == FSM_EXP_ADD))? special_result : regular_result;
-        status_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
-        extension_bit_o = 1'b1; // always NaN-Box result
+        result_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
+        status_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
+        extension_bit_d = 1'b1; // always NaN-Box result
       end
       fpnew_pkg::MUL: begin
-        result_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
-        status_o        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
-        extension_bit_o = 1'b1; // always NaN-Box result
+        result_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_result : regular_result;
+        status_d        = (result_is_special && (current_state == FSM_EXP_ADD)) ? special_status : regular_status;
+        extension_bit_d = 1'b1; // always NaN-Box result
       end
       default: begin
-        result_o        = '{default: fpnew_pkg::DONT_CARE}; // dont care
-        status_o        = '{default: fpnew_pkg::DONT_CARE}; // dont care
-        extension_bit_o = fpnew_pkg::DONT_CARE;             // dont care
+        result_d        = '{default: fpnew_pkg::DONT_CARE}; // dont care
+        status_d        = '{default: fpnew_pkg::DONT_CARE}; // dont care
+        extension_bit_d = fpnew_pkg::DONT_CARE;             // dont care
       end
     endcase
   end
 
   //non_comb
-  assign is_class_o = (op_q == fpnew_pkg::CLASSIFY);
+  assign is_class_d = (op_q == fpnew_pkg::CLASSIFY);
 
-  //to be defined
   assign tag_o           = tag_q;
   assign aux_o           = aux_q;
+
 endmodule

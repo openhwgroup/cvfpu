@@ -336,6 +336,8 @@ module fpnew_fma_multi #(
       end
     end else begin : inactive_format
       assign fmt_special_result[fmt] = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_special_status[fmt] = '0;
+      assign fmt_result_is_special[fmt] = 1'b0;
     end
   end
 
