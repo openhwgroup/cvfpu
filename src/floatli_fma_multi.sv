@@ -1273,118 +1273,6 @@ module floatli_fma_multi #(
           else
             operand_a_smaller = (~are_equal[WIDTH-1]) ^ (operand_a.sign || operand_b.sign);
 
-          // if (FpFormat == fpnew_pkg::FP64) begin
-          //   // Default assignment
-          //   sgnj_result = (is_single_on_double)
-          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                   : operand_a;
-
-          //   // NaN-boxing check will treat invalid inputs as canonical NaNs
-          //   if (!info_a.is_boxed) begin
-          //     if (is_single_on_double)
-          //       sgnj_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
-          //     else
-          //       sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
-          //   end
-
-
-          //   // Internal signs are treated as positive in case of non-NaN-boxed values
-          //   sign_a = operand_a.sign & info_a.is_boxed;
-          //   sign_b = operand_b.sign & info_b.is_boxed;
-
-          //   // Do the sign injection based on rm field
-          //   unique case (rnd_mode_q)
-          //     fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
-          //     fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
-          //     fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
-          //     fpnew_pkg::RUP: sgnj_result      = (is_single_on_double)
-          //                                           ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                                           : operand_a;       // passthrough
-          //     default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-          //   endcase
-
-          //   // Default assignment
-          //   minmax_status = '0;
-
-          //   // Min/Max use quiet comparisons - only sNaN are invalid
-          //   minmax_status.NV = signalling_nan;
-
-          //   // Both NaN inputs cause a NaN output
-          //   if (info_a.is_nan && info_b.is_nan) begin
-          //     minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
-          //     if (is_single_on_double)
-          //       minmax_result = {32'hffffffff, 32'h7fc00000}; // canonical qNaN
-          //   // If one operand is NaN, the non-NaN operand is returned
-          //   end else if (info_a.is_nan) minmax_result = (is_single_on_double)
-          //                                             ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                                             : operand_b;
-          //   else if (info_b.is_nan) minmax_result = (is_single_on_double)
-          //                                             ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                                             : operand_a;
-          //   // Otherwise decide according to the operation
-          //   else begin
-          //     unique case (rnd_mode_q)
-          //       fpnew_pkg::RNE: minmax_result = operand_a_smaller
-          //               ? (is_single_on_double)
-          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                   : operand_a
-          //               : (is_single_on_double)
-          //                   ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                   : operand_b; // MIN
-          //       fpnew_pkg::RTZ: minmax_result = operand_a_smaller
-          //               ? (is_single_on_double)
-          //                   ? {32'hffffffff, operand_b[WIDTH-1], operand_b[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                   : operand_b
-          //               : (is_single_on_double)
-          //                   ? {32'hffffffff, operand_a[WIDTH-1], operand_a[WIDTH-5:WIDTH-5-WIDTH_S+2]}
-          //                   : operand_a; // MAX
-          //       default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-          //     endcase
-          //   end
-          // end else begin
-          //   // Default assignment
-          //   sgnj_result = operand_a;
-
-          //   // NaN-boxing check will treat invalid inputs as canonical NaNs
-          //   if (!info_a.is_boxed) begin
-          //     sgnj_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)};
-          //   end
-
-          //   // Internal signs are treated as positive in case of non-NaN-boxed values
-          //   sign_a = operand_a.sign & info_a.is_boxed;
-          //   sign_b = operand_b.sign & info_b.is_boxed;
-
-          //   // Do the sign injection based on rm field
-          //   unique case (rnd_mode_q)
-          //     fpnew_pkg::RNE: sgnj_result.sign = sign_b;          // SGNJ
-          //     fpnew_pkg::RTZ: sgnj_result.sign = ~sign_b;         // SGNJN
-          //     fpnew_pkg::RDN: sgnj_result.sign = sign_a ^ sign_b; // SGNJX
-          //     fpnew_pkg::RUP: sgnj_result      = operand_a;       // passthrough
-          //     default: sgnj_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-          //   endcase
-
-          //   // Default assignment
-          //   minmax_status = '0;
-
-          //   // Min/Max use quiet comparisons - only sNaN are invalid
-          //   minmax_status.NV = signalling_nan;
-
-          //   // Both NaN inputs cause a NaN output
-          //   if (info_a.is_nan && info_b.is_nan) begin
-          //     minmax_result = '{sign: 1'b0, exponent: '1, mantissa: 2**(MAN_BITS-1)}; // canonical qNaN
-          //   // If one operand is NaN, the non-NaN operand is returned
-          //   end else if (info_a.is_nan) minmax_result = operand_b;
-          //   else if (info_b.is_nan) minmax_result = operand_a;
-          //   // Otherwise decide according to the operation
-          //   else begin
-          //     unique case (rnd_mode_q)
-          //       fpnew_pkg::RNE: minmax_result = operand_a_smaller ? operand_a : operand_b; // MIN
-          //       fpnew_pkg::RTZ: minmax_result = operand_a_smaller ? operand_b : operand_a; // MAX
-          //       default: minmax_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
-          //     endcase
-          //   end
-          // end
-
           // Signalling NaNs always compare as false and are illegal
           if (signalling_nan) cmp_status.NV = 1'b1; // invalid operation
           // Otherwise do comparisons
@@ -1404,8 +1292,6 @@ module floatli_fma_multi #(
               end
               default: cmp_result = '{default: fpnew_pkg::DONT_CARE}; // don't care
             endcase
-            // if (is_single_on_double)
-            //   cmp_result = {32'hffffffff, cmp_result[WIDTH_S-1:0]};
           end
 
 
@@ -1893,16 +1779,6 @@ module floatli_fma_multi #(
         operands_d[2]        = class_mask_d;
         info_b_is_normal_d   = is_class_d;
         next_state           = FSM_OUT;
-
-        // if (out_ready_i && out_valid_o) begin
-        //   next_state    = FSM_IDLE;
-        //   add_count_d   = '0;
-        //   mul_count_d   = '0;
-        //   shift_count_d = '0;
-        // end
-        // else begin
-        //   next_state    = FSM_ROUNDING;
-        // end
       end
 
       FSM_OUT: begin
@@ -1934,13 +1810,10 @@ module floatli_fma_multi #(
 
   // floatli adder
   assign adder_result = addend_a + addend_b + carry_in;
-
   // floatli_exp_adder
   assign exp_adder_result = signed'(exp_a + exp_b + exp_carry_in);
-
   // floatli_shifter
   assign shift_out       = shift_in << shift_out;
-
   // floatli mantissa multiplier
   assign prod = factor_a * factor_b;
 
