@@ -11,7 +11,7 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
-`include "common_cells/registers.svh"
+`include "common_cells/include/common_cells/registers.svh"
 
 module fpnew_opgroup_multifmt_slice #(
   parameter fpnew_pkg::opgroup_e     OpGroup       = fpnew_pkg::CONV,
