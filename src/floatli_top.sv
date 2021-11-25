@@ -8,8 +8,11 @@
 // this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+//
+// SPDX-License-Identifier: SHL-0.51
 
-// Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>, Stefan Mach <smach@iis.ee.ethz.ch>
+// Authors: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
+//          Stefan Mach <smach@iis.ee.ethz.ch>
 
 module floatli_top #(
   // FPU configuration
