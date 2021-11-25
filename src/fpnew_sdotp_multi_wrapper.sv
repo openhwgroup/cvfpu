@@ -1,4 +1,4 @@
-// Copyright 2019 ETH Zurich and University of Bologna.
+// Copyright 2019-2021 ETH Zurich and University of Bologna.
 //
 // Copyright and related rights are licensed under the Solderpad Hardware
 // License, Version 0.51 (the "License"); you may not use this file except in
@@ -8,10 +8,12 @@
 // this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+//
+// SPDX-License-Identifier: SHL-0.51
 
-// Author: Stefan Mach <smach@iis.ee.ethz.ch>
-// Author: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
 // Author: Gianna Paulin <pauling@iis.ee.ethz.ch>
+// Author: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
+// Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 `include "common_cells/registers.svh"
 
