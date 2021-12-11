@@ -595,7 +595,8 @@ module fpnew_fma #(
     .effective_subtraction_i ( effective_subtraction_q ),
     .abs_rounded_o           ( rounded_abs             ),
     .sign_o                  ( rounded_sign            ),
-    .exact_zero_o            ( result_zero             )
+    .exact_zero_o            ( result_zero             ),
+    .op_i                    ( op_i                    )
   );
 
   // Classification after rounding

@@ -718,7 +718,8 @@ module fpnew_fma_multi #(
     .effective_subtraction_i ( effective_subtraction_q ),
     .abs_rounded_o           ( rounded_abs             ),
     .sign_o                  ( rounded_sign            ),
-    .exact_zero_o            ( result_zero             )
+    .exact_zero_o            ( result_zero             ),
+    .op_i                    ( op_i                    )
   );
 
   logic [NUM_FORMATS-1:0][WIDTH-1:0] fmt_result;
