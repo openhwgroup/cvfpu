@@ -250,8 +250,8 @@ module fpnew_opgroup_fmt_slice #(
   // ------------
   // Output Side
   // ------------
-  assign result_is_vector = lane_aux[0][0];
-  assign result_is_cmp    = lane_aux[0][1];
+  assign result_is_vector = lane_aux[0][1];
+  assign result_is_cmp    = lane_aux[0][0];
   assign result_is_class  = lane_is_class[0];
 
   assign slice_regular_result = $signed({extension_bit_o, slice_result});
