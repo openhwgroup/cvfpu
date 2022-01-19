@@ -403,8 +403,9 @@ module fpnew_opgroup_multifmt_slice #(
     assign {result_vec_op, result_is_cpk} = '0;
   end
 
-  assign simd_synch_rdy  = &divsqrt_ready;
-  assign simd_synch_done = &divsqrt_done;
+  // Synch lanes if there is more than one
+  assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
+  assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
 
   // ------------
   // Output Side
