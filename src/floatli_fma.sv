@@ -1678,7 +1678,7 @@ module floatli_fma #(
   assign exp_adder_result = signed'(exp_a + exp_b + exp_carry_in);
 
   // floatli_shifter
-  assign shift_out       = shift_in << shift_out;
+  assign shift_out       = shift_in << shift_amount;
 
   // floatli mantissa multiplier
   assign prod = factor_a * factor_b;
