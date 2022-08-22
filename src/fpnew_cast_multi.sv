@@ -491,6 +491,7 @@ module fpnew_cast_multi #(
   logic [NUM_FORMATS-1:0]            fmt_uf_after_round;
 
   logic [NUM_INT_FORMATS-1:0][WIDTH-1:0] ifmt_pre_round_abs; // per format
+  logic [NUM_INT_FORMATS-1:0]            ifmt_of_after_round;
 
   logic             rounded_sign;
   logic [WIDTH-1:0] rounded_abs; // absolute value of result after rounding
@@ -575,13 +576,32 @@ module fpnew_cast_multi #(
     end
   end
 
-  // Classification after rounding select by destination format
-  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2];
-  assign of_after_round = fmt_of_after_round[dst_fmt_q2];
-
   // Negative integer result needs to be brought into two's complement
   assign rounded_int_res      = rounded_sign ? unsigned'(-rounded_abs) : rounded_abs;
   assign rounded_int_res_zero = (rounded_int_res == '0);
+
+  // Detect integer overflows after rounding (only positives)
+  for (genvar ifmt = 0; ifmt < int'(NUM_INT_FORMATS); ifmt++) begin : gen_int_overflow
+    // Set up some constants
+    localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
+
+    if (IntFmtConfig[ifmt]) begin : active_format
+      always_comb begin : detect_overflow
+        ifmt_of_after_round[ifmt] = 1'b0;
+        // Int result can overflow if we're at the max exponent
+        if (!rounded_sign && input_exp_q == signed'(INT_WIDTH - 2 + op_mod_q2)) begin
+          // Check whether the rounded MSB differs from unrounded MSB
+          ifmt_of_after_round[ifmt] = ~rounded_int_res[INT_WIDTH-2+op_mod_q2];
+        end
+      end
+    end else begin : inactive_format
+      assign ifmt_of_after_round[ifmt] = fpnew_pkg::DONT_CARE;
+    end
+  end
+
+  // Classification after rounding select by destination format
+  assign uf_after_round = fmt_uf_after_round[dst_fmt_q2];
+  assign of_after_round = dst_is_int_q ? ifmt_of_after_round[int_fmt_q2] : fmt_of_after_round[dst_fmt_q2];
 
   // -------------------------
   // FP Special case handling
@@ -666,7 +686,7 @@ module fpnew_cast_multi #(
 
   // Detect special case from source format (inf, nan, overflow, nan-boxing or negative unsigned)
   assign int_result_is_special = info_q.is_nan | info_q.is_inf |
-                                 of_before_round | ~info_q.is_boxed |
+                                 of_before_round | of_after_round | ~info_q.is_boxed |
                                  (input_sign_q & op_mod_q2 & ~rounded_int_res_zero);
 
   // All integer special cases are invalid
