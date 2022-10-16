@@ -93,6 +93,9 @@ module fpnew_divsqrt_multi #(
   logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
   logic [0:NUM_INP_REGS] inp_pipe_ready;
+  // Mask the input ready and output valid for half of the cycles
+  logic clk_half;
+  logic	hs_mask_d, hs_mask_q;
 
   // Input stage: First element of pipeline is taken from inputs
   assign inp_pipe_operands_q[0] = operands_i;
@@ -176,7 +179,7 @@ module fpnew_divsqrt_multi #(
   // Bring the FSM-generated ready outside the unit, to synchronize it with the other lanes
   assign divsqrt_ready_o = in_ready;
   // Upstream ready comes from sanitization FSM, and it is synched among all the lanes
-  assign inp_pipe_ready[NUM_INP_REGS] = simd_synch_rdy_i;
+  assign inp_pipe_ready[NUM_INP_REGS] = simd_synch_rdy_i && hs_mask_q;
 
   // Valid synch with other lanes
   // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
@@ -202,7 +205,7 @@ module fpnew_divsqrt_multi #(
       // Waiting for work
       IDLE: begin
         in_ready = 1'b1; // we're ready
-        if (in_valid_q && unit_ready) begin // New work arrives
+        if (in_valid_q && unit_ready && hs_mask_q) begin // New work arrives
           state_d = BUSY; // go into processing state
         end
       end
@@ -215,7 +218,7 @@ module fpnew_divsqrt_multi #(
           // If downstream accepts our result
           if (out_ready) begin
             state_d = IDLE; // we anticipate going back to idling..
-            if (in_valid_q && unit_ready) begin // ..unless new work comes in
+            if (in_valid_q && unit_ready && hs_mask_q) begin // ..unless new work comes in
               in_ready = 1'b1; // we acknowledge the instruction
               state_d  = BUSY; // and stay busy with it
             end
@@ -232,7 +235,7 @@ module fpnew_divsqrt_multi #(
         // If the result is accepted by downstream
         if (out_ready) begin
           state_d = IDLE; // go back to idle..
-          if (in_valid_q && unit_ready) begin // ..unless new work comes in
+          if (in_valid_q && unit_ready && hs_mask_q) begin // ..unless new work comes in
             in_ready = 1'b1; // acknowledge the new transaction
             state_d  = BUSY; // will be busy with the next instruction
           end
@@ -265,6 +268,31 @@ module fpnew_divsqrt_multi #(
   `FFL(result_mask_q,   inp_pipe_mask_q[NUM_INP_REGS],op_starting, '0)
   `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], op_starting, '0)
 
+  // Halve the clock of the internal divider so that we can achieve higher frequencies
+  clk_int_div #(
+    .DIV_VALUE_WIDTH(2),
+    .DEFAULT_DIV_VALUE(2)
+  ) i_fpu_divsqrt_clk_div (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .en_i(1'b1),
+    .test_mode_en_i(1'b0),
+    .div_i(2'd2),
+    .div_valid_i(1'b0),
+    .clk_o(clk_half)
+  );
+
+  // Toggle-FF to mask handshake in/out signals
+  // The divider is low-performance, so no issues
+  assign hs_mask_d = ~hs_mask_q;
+  always_ff @(posedge clk_i, negedge rst_ni) begin
+    if (!rst_ni) begin
+      hs_mask_q <= 1'b1;
+    end else begin
+      hs_mask_q <= hs_mask_d;
+    end
+  end
+
   // -----------------
   // DIVSQRT instance
   // -----------------
@@ -272,9 +300,10 @@ module fpnew_divsqrt_multi #(
   logic [WIDTH-1:0]   adjusted_result, held_result_q;
   fpnew_pkg::status_t unit_status, held_status_q;
   logic               hold_en;
+  logic               unit_done_slow;
 
   div_sqrt_top_mvp i_divsqrt_lei (
-   .Clk_CI           ( clk_i               ),
+   .Clk_CI           ( clk_half            ),
    .Rst_RBI          ( rst_ni              ),
    .Div_start_SI     ( div_valid           ),
    .Sqrt_start_SI    ( sqrt_valid          ),
@@ -287,8 +316,10 @@ module fpnew_divsqrt_multi #(
    .Result_DO        ( unit_result         ),
    .Fflags_SO        ( unit_status         ),
    .Ready_SO         ( unit_ready          ),
-   .Done_SO          ( unit_done           )
+   .Done_SO          ( unit_done_slow      )
   );
+
+  assign unit_done = unit_done_slow & hs_mask_q;
 
   // Adjust result width and fix FP8
   assign adjusted_result = result_is_fp8_q ? unit_result >> 8 : unit_result;
