@@ -32,8 +32,6 @@ module fpnew_rounding #(
 
   logic round_up; // Rounding decision
 
-  logic [AbsWidth-1:0] abs_value_rod; // For ROD
-
   // Take the rounding decision according to RISC-V spec
   // RoundMode | Mnemonic | Meaning
   // :--------:|:--------:|:-------
@@ -58,14 +56,13 @@ module fpnew_rounding #(
       fpnew_pkg::RDN: round_up = (| round_sticky_bits_i) ? sign_i  : 1'b0; // to 0 if +, away if -
       fpnew_pkg::RUP: round_up = (| round_sticky_bits_i) ? ~sign_i : 1'b0; // to 0 if -, away if +
       fpnew_pkg::RMM: round_up = round_sticky_bits_i[1]; // round down if < ulp/2 away, else up
+      fpnew_pkg::ROD: round_up = ~abs_value_i[0] & (| round_sticky_bits_i);
       default: round_up = fpnew_pkg::DONT_CARE; // propagate x
     endcase
   end
-  // For rounding towardsodd i.e logical OR b/w last bit of mantissa and sticky_bits.
-  assign abs_value_rod = {abs_value_i[AbsWidth-1:1],abs_value_i[0] || (|round_sticky_bits_i)};
 
   // Perform the rounding, exponent change and overflow to inf happens automagically
-  assign abs_rounded_o =(rnd_mode_i == fpnew_pkg::ROD)? abs_value_rod : abs_value_i + round_up;
+  assign abs_rounded_o = abs_value_i + round_up;
 
   // True zero result is a zero result without dirty round/sticky bits
   assign exact_zero_o = (abs_value_i == '0) && (round_sticky_bits_i == '0);
