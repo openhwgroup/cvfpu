@@ -218,7 +218,7 @@ module fpnew_fma_multi #(
   // | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
   // | ADD      | \c 0        | ADD: Set operand A to +1.0
   // | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
-  // | MUL      | \c 0        | MUL: Set operand C to +0.0
+  // | MUL      | \c 0        | MUL: Set operand C to +0.0 or -0.0 depending on the rounding mode
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
@@ -242,7 +242,11 @@ module fpnew_fma_multi #(
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
       fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding with RDN)
-        operand_c = '{sign: 1'b1, exponent: '0, mantissa: '0};
+      fpnew_pkg::MUL: begin // Set addend to +0 or -0, depending whether the rounding mode is RDN
+        if (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
+          operand_c = '{sign: 1'b0, exponent: '0, mantissa: '0};
+        else
+          operand_c = '{sign: 1'b1, exponent: '0, mantissa: '0};
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
