@@ -241,7 +241,6 @@ module fpnew_fma_multi #(
         operand_a = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
-      fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding with RDN)
       fpnew_pkg::MUL: begin // Set addend to +0 or -0, depending whether the rounding mode is RDN
         if (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
           operand_c = '{sign: 1'b0, exponent: '0, mantissa: '0};
