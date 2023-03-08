@@ -22,6 +22,7 @@ module fpnew_opgroup_multifmt_slice #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig   = '1,
   parameter fpnew_pkg::ifmt_logic_t  IntFmtConfig  = '1,
   parameter logic                    EnableVectors = 1'b1,
+  parameter logic                    PulpDivsqrt   = 1'b1,
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                     TagType       = logic,
@@ -60,6 +61,13 @@ module fpnew_opgroup_multifmt_slice #(
   // Indication of valid data in flight
   output logic                                    busy_o
 );
+
+  if ((OpGroup == fpnew_pkg::DIVSQRT) && !PulpDivsqrt &&
+      !((FpFmtConfig[0] == 1) && (FpFmtConfig[1:NUM_FORMATS-1] == '0))) begin
+    $fatal(1, "T-Head-based DivSqrt unit supported only in FP32-only configurations. \
+Set PulpDivsqrt to 1 not to use the PULP DivSqrt unit \
+or set Features.FpFmtMask to support only FP32");
+  end
 
   localparam int unsigned MAX_FP_WIDTH   = fpnew_pkg::max_fp_width(FpFmtConfig);
   localparam int unsigned MAX_INT_WIDTH  = fpnew_pkg::max_int_width(IntFmtConfig);
@@ -242,40 +250,65 @@ module fpnew_opgroup_multifmt_slice #(
         );
 
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
-        fpnew_divsqrt_multi #(
-          .FpFmtConfig ( LANE_FORMATS         ),
-          .NumPipeRegs ( NumPipeRegs          ),
-          .PipeConfig  ( PipeConfig           ),
-          .TagType     ( TagType              ),
-          .AuxType     ( logic [AUX_BITS-1:0] )
-        ) i_fpnew_divsqrt_multi (
-          .clk_i,
-          .rst_ni,
-          .operands_i      ( local_operands[1:0] ), // 2 operands
-          .is_boxed_i      ( is_boxed_2op        ), // 2 operands
-          .rnd_mode_i,
-          .op_i,
-          .dst_fmt_i,
-          .tag_i,
-          .mask_i          ( simd_mask_i[lane]   ),
-          .aux_i           ( aux_data            ),
-          .in_valid_i      ( in_valid            ),
-          .in_ready_o      ( lane_in_ready[lane] ),
-          .divsqrt_done_o   ( divsqrt_done[lane] ),
-          .simd_synch_done_i( simd_synch_done    ),
-          .divsqrt_ready_o  ( divsqrt_ready[lane]),
-          .simd_synch_rdy_i( simd_synch_rdy    ),
-          .flush_i,
-          .result_o        ( op_result           ),
-          .status_o        ( op_status           ),
-          .extension_bit_o ( lane_ext_bit[lane]  ),
-          .tag_o           ( lane_tags[lane]     ),
-          .mask_o          ( lane_masks[lane]    ),
-          .aux_o           ( lane_aux[lane]      ),
-          .out_valid_o     ( out_valid           ),
-          .out_ready_i     ( out_ready           ),
-          .busy_o          ( lane_busy[lane]     )
-        );
+        if (!PulpDivsqrt && LANE_FORMATS[0] && (LANE_FORMATS[1:fpnew_pkg::NUM_FP_FORMATS-1] == '0)) begin
+            // The T-head-based DivSqrt unit is supported only in FP32-only configurations
+            fpnew_divsqrt_multi_th_32 #(
+              .NumPipeRegs ( NumPipeRegs          ),
+              .PipeConfig  ( PipeConfig           ),
+              .TagType     ( TagType              ),
+              .AuxType     ( logic [AUX_BITS-1:0] )
+            ) i_fpnew_divsqrt_multi_th (
+              .clk_i,
+              .rst_ni,
+              .operands_i      ( local_operands[1:0] ), // 2 operands
+              .is_boxed_i      ( is_boxed_2op        ), // 2 operands
+              .rnd_mode_i,
+              .op_i,
+              .dst_fmt_i,
+              .tag_i,
+              .aux_i           ( aux_data            ),
+              .in_valid_i      ( in_valid            ),
+              .in_ready_o      ( lane_in_ready[lane] ),
+              .flush_i,
+              .result_o        ( op_result           ),
+              .status_o        ( op_status           ),
+              .extension_bit_o ( lane_ext_bit[lane]  ),
+              .tag_o           ( lane_tags[lane]     ),
+              .aux_o           ( lane_aux[lane]      ),
+              .out_valid_o     ( out_valid           ),
+              .out_ready_i     ( out_ready           ),
+              .busy_o          ( lane_busy[lane]     )
+            );
+        end else begin
+          fpnew_divsqrt_multi #(
+            .FpFmtConfig ( LANE_FORMATS         ),
+            .NumPipeRegs ( NumPipeRegs          ),
+            .PipeConfig  ( PipeConfig           ),
+            .TagType     ( TagType              ),
+            .AuxType     ( logic [AUX_BITS-1:0] )
+          ) i_fpnew_divsqrt_multi (
+            .clk_i,
+            .rst_ni,
+            .operands_i      ( local_operands[1:0] ), // 2 operands
+            .is_boxed_i      ( is_boxed_2op        ), // 2 operands
+            .rnd_mode_i,
+            .op_i,
+            .dst_fmt_i,
+            .tag_i,
+            .aux_i           ( aux_data            ),
+            .in_valid_i      ( in_valid            ),
+            .in_ready_o      ( lane_in_ready[lane] ),
+            .flush_i,
+            .result_o        ( op_result           ),
+            .status_o        ( op_status           ),
+            .extension_bit_o ( lane_ext_bit[lane]  ),
+            .tag_o           ( lane_tags[lane]     ),
+            .aux_o           ( lane_aux[lane]      ),
+            .out_valid_o     ( out_valid           ),
+            .out_ready_i     ( out_ready           ),
+            .busy_o          ( lane_busy[lane]     )
+          );
+        end
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
 
       end else if (OpGroup == fpnew_pkg::CONV) begin : lane_instance

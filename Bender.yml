@@ -13,6 +13,19 @@ sources:
   - src/fpnew_pkg.sv
   - src/fpnew_cast_multi.sv
   - src/fpnew_classifier.sv
+  - src/fdsu/rtl/gated_clk_cell.v
+  - src/fdsu/rtl/pa_fdsu_ctrl.v
+  - src/fdsu/rtl/pa_fdsu_ff.v
+  - src/fdsu/rtl/pa_fdsu_pack_single.v
+  - src/fdsu/rtl/pa_fdsu_prepare.v
+  - src/fdsu/rtl/pa_fdsu_round_single.v
+  - src/fdsu/rtl/pa_fdsu_special.v
+  - src/fdsu/rtl/pa_fdsu_srt_single.v
+  - src/fdsu/rtl/pa_fdsu_top.v
+  - src/fdsu/rtl/pa_fpu_dp.v
+  - src/fdsu/rtl/pa_fpu_frbus.v
+  - src/fdsu/rtl/pa_fpu_src_type.v
+  - src/fpnew_divsqrt_multi_th_32.sv
   - src/fpnew_divsqrt_multi.sv
   - src/fpnew_fma.sv
   - src/fpnew_fma_multi.sv
