@@ -10,6 +10,8 @@
     rev: "d45f0634d6a3638f39984899b0adb0b69726646e"
   }
 
+  patch_dir: "patches/opene906"
+
   exclude_from_upstream: [
     "doc",
     "smart_run",

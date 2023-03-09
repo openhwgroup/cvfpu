@@ -24,31 +24,31 @@ module pa_fpu_frbus(
   fpu_idu_fwd_fflags,
   fpu_idu_fwd_vld
 );
-                                
-input           ctrl_frbus_ex2_wb_req;           
+
+input           ctrl_frbus_ex2_wb_req;
 input   [31:0]  dp_frbus_ex2_data;        
-input   [4 :0]  dp_frbus_ex2_fflags;                   
+input   [4 :0]  dp_frbus_ex2_fflags;
 input   [31:0]  fdsu_frbus_data;          
-input   [4 :0]  fdsu_frbus_fflags;                 
-input           fdsu_frbus_wb_vld;                                
+input   [4 :0]  fdsu_frbus_fflags;
+input           fdsu_frbus_wb_vld;
 output  [31:0]  fpu_idu_fwd_data;
-output  [4 :0]  fpu_idu_fwd_fflags;               
-output          fpu_idu_fwd_vld;           
+output  [4 :0]  fpu_idu_fwd_fflags;
+output          fpu_idu_fwd_vld;
 
 reg     [31:0]  frbus_wb_data;            
-reg     [4 :0]  frbus_wb_fflags;                     
-                                   
-wire            ctrl_frbus_ex2_wb_req;                 
+reg     [4 :0]  frbus_wb_fflags;
+
+wire            ctrl_frbus_ex2_wb_req;
 wire    [31:0]  fdsu_frbus_data;          
-wire    [4 :0]  fdsu_frbus_fflags;               
-wire            fdsu_frbus_wb_vld;                     
+wire    [4 :0]  fdsu_frbus_fflags;
+wire            fdsu_frbus_wb_vld;
 wire    [31:0]  fpu_idu_fwd_data;
-wire    [4 :0]  fpu_idu_fwd_fflags;                 
-wire            fpu_idu_fwd_vld;               
-wire            frbus_ex2_wb_vld;                    
-wire            frbus_fdsu_wb_vld;                                                             
-wire            frbus_wb_vld; 
-wire    [3 :0]  frbus_source_vld;                                  
+wire    [4 :0]  fpu_idu_fwd_fflags;
+wire            fpu_idu_fwd_vld;
+wire            frbus_ex2_wb_vld;
+wire            frbus_fdsu_wb_vld;
+wire            frbus_wb_vld;
+wire    [3 :0]  frbus_source_vld;
 
 
 //==========================================================

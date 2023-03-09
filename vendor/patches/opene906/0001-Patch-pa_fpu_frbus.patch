@@ -4,13 +4,13 @@ Date: Thu, 9 Mar 2023 12:19:04 +0100
 Subject: [PATCH] Patch pa_fpu_frbus
 
 ---
- .../gen_rtl/fpu/rtl/pa_fpu_frbus.v                 | 311 ++-------------------
+ E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v                 | 311 ++-------------------
  1 file changed, 31 insertions(+), 280 deletions(-)
 
-diff --git a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
+diff --git a/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v b/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
 index 02271e0..40b614b 100644
---- a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
-+++ b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
+--- a/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
++++ b/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v
 @@ -13,327 +13,78 @@ See the License for the specific language governing permissions and
  limitations under the License.
  */
@@ -69,8 +69,8 @@ index 02271e0..40b614b 100644
 -input           ctrl_frbus_ex3_wb_req;    
 -input           ctrl_frbus_ex4_wb_req;    
 -input           ctrl_xx_ex2_warm_up;      
-+                                
-+input           ctrl_frbus_ex2_wb_req;           
++
++input           ctrl_frbus_ex2_wb_req;
  input   [31:0]  dp_frbus_ex2_data;        
 -input   [4 :0]  dp_frbus_ex2_fflags;      
 -input   [4 :0]  dp_frbus_ex2_freg;        
@@ -80,7 +80,7 @@ index 02271e0..40b614b 100644
 -input   [31:0]  dp_frbus_ex4_data;        
 -input   [4 :0]  dp_frbus_ex4_fflags;      
 -input   [4 :0]  dp_frbus_ex4_freg;        
-+input   [4 :0]  dp_frbus_ex2_fflags;                   
++input   [4 :0]  dp_frbus_ex2_fflags;
  input   [31:0]  fdsu_frbus_data;          
 -input   [4 :0]  fdsu_frbus_fflags;        
 -input   [4 :0]  fdsu_frbus_freg;          
@@ -105,11 +105,11 @@ index 02271e0..40b614b 100644
 -output          frbus_ctrl_ex3_wb_grant;  
 -output          frbus_ctrl_ex4_wb_grant;  
 -output          frbus_fdsu_wb_grant;      
-+input   [4 :0]  fdsu_frbus_fflags;                 
-+input           fdsu_frbus_wb_vld;                                
++input   [4 :0]  fdsu_frbus_fflags;
++input           fdsu_frbus_wb_vld;
 +output  [31:0]  fpu_idu_fwd_data;
-+output  [4 :0]  fpu_idu_fwd_fflags;               
-+output          fpu_idu_fwd_vld;           
++output  [4 :0]  fpu_idu_fwd_fflags;
++output          fpu_idu_fwd_vld;
  
 -// &Regs; @25
 -reg     [4 :0]  fpu_wb_float_fflags;      
@@ -135,9 +135,9 @@ index 02271e0..40b614b 100644
 -wire    [31:0]  dp_frbus_ex4_data;        
 -wire    [4 :0]  dp_frbus_ex4_fflags;      
 -wire    [4 :0]  dp_frbus_ex4_freg;        
-+reg     [4 :0]  frbus_wb_fflags;                     
-+                                   
-+wire            ctrl_frbus_ex2_wb_req;                 
++reg     [4 :0]  frbus_wb_fflags;
++
++wire            ctrl_frbus_ex2_wb_req;
  wire    [31:0]  fdsu_frbus_data;          
 -wire    [4 :0]  fdsu_frbus_fflags;        
 -wire    [4 :0]  fdsu_frbus_freg;          
@@ -184,15 +184,15 @@ index 02271e0..40b614b 100644
 -wire            pad_yy_icg_scan_en;       
 -wire            rtu_fpu_ex3_wb_grant;     
 -wire            rtu_fpu_fgpr_wb_grant;    
-+wire    [4 :0]  fdsu_frbus_fflags;               
-+wire            fdsu_frbus_wb_vld;                     
++wire    [4 :0]  fdsu_frbus_fflags;
++wire            fdsu_frbus_wb_vld;
 +wire    [31:0]  fpu_idu_fwd_data;
-+wire    [4 :0]  fpu_idu_fwd_fflags;                 
-+wire            fpu_idu_fwd_vld;               
-+wire            frbus_ex2_wb_vld;                    
-+wire            frbus_fdsu_wb_vld;                                                             
-+wire            frbus_wb_vld; 
-+wire    [3 :0]  frbus_source_vld;                                  
++wire    [4 :0]  fpu_idu_fwd_fflags;
++wire            fpu_idu_fwd_vld;
++wire            frbus_ex2_wb_vld;
++wire            frbus_fdsu_wb_vld;
++wire            frbus_wb_vld;
++wire    [3 :0]  frbus_source_vld;
  
  
 -parameter FLEN = `FLEN;

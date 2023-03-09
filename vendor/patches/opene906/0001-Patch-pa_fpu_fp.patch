@@ -4,13 +4,13 @@ Date: Thu, 9 Mar 2023 12:18:39 +0100
 Subject: [PATCH] Patch pa_fpu_fp
 
 ---
- .../E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v   | 379 ++-------------------
+ E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v   | 379 ++-------------------
  1 file changed, 32 insertions(+), 347 deletions(-)
 
-diff --git a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
+diff --git a/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v b/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
 index f8343c8..ed48cf2 100644
---- a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
-+++ b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
+--- a/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
++++ b/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v
 @@ -13,7 +13,6 @@ See the License for the specific language governing permissions and
  limitations under the License.
  */
@@ -114,7 +114,7 @@ index f8343c8..ed48cf2 100644
 -input   [31:0]  falu_fpu_ex3_result;        
 -input           falu_fpu_ex3_result_vld;    
 -input           falu_fpu_ex3_wb_gpr;        
-+input           ctrl_xx_ex1_warm_up;                             
++input           ctrl_xx_ex1_warm_up;
  input   [4 :0]  fdsu_fpu_ex1_fflags;        
  input   [7 :0]  fdsu_fpu_ex1_special_sel;   
 -input   [3 :0]  fdsu_fpu_ex1_special_sign;  
@@ -129,8 +129,8 @@ index f8343c8..ed48cf2 100644
 -input           forever_cpuclk;             
 -input   [4 :0]  idu_fpu_ex1_dst_freg;       
 -input           idu_fpu_ex1_dst_freg_vld;   
-+input   [3 :0]  fdsu_fpu_ex1_special_sign;       
-+input           forever_cpuclk;              
++input   [3 :0]  fdsu_fpu_ex1_special_sign;
++input           forever_cpuclk;
  input   [2 :0]  idu_fpu_ex1_eu_sel;         
  input   [9 :0]  idu_fpu_ex1_func;           
  input           idu_fpu_ex1_gateclk_vld;    
@@ -146,7 +146,7 @@ index f8343c8..ed48cf2 100644
 -output  [31:0]  dp_frbus_ex4_data;          
 -output  [4 :0]  dp_frbus_ex4_fflags;        
 -output  [4 :0]  dp_frbus_ex4_freg;          
-+output  [4 :0]  dp_frbus_ex2_fflags;                         
++output  [4 :0]  dp_frbus_ex2_fflags;
  output  [2 :0]  dp_xx_ex1_cnan;             
  output  [2 :0]  dp_xx_ex1_id;               
  output  [2 :0]  dp_xx_ex1_inf;              
@@ -160,9 +160,9 @@ index f8343c8..ed48cf2 100644
 -output  [31:0]  dp_xx_ex2_srcf2;            
 -output  [2 :0]  dp_xx_ex3_rm;               
 -output  [2 :0]  dp_xx_ex4_rm;               
-+output  [2 :0]  dp_xx_ex1_qnan;                          
-+output  [2 :0]  dp_xx_ex1_snan;                         
-+output  [2 :0]  dp_xx_ex1_zero;                                                  
++output  [2 :0]  dp_xx_ex1_qnan;
++output  [2 :0]  dp_xx_ex1_snan;
++output  [2 :0]  dp_xx_ex1_zero;
  output          ex2_inst_wb;                
  
 -// &Regs; @26
@@ -175,8 +175,8 @@ index f8343c8..ed48cf2 100644
 -reg             ex2_freg_vld;               
 -reg     [31:0]  ex2_result;                 
 -reg     [2 :0]  ex2_rm;                     
-+reg     [4 :0]  ex2_fflags;                              
-+reg     [31:0]  ex2_result;                                      
++reg     [4 :0]  ex2_fflags;
++reg     [31:0]  ex2_result;
  reg     [31:0]  ex2_special_data;           
  reg     [6 :0]  ex2_special_sel;            
 -reg     [3 :0]  ex2_special_sign;           
@@ -184,7 +184,7 @@ index f8343c8..ed48cf2 100644
 -reg     [2 :0]  ex3_rm;                     
 -reg     [4 :0]  ex4_freg;                   
 -reg     [2 :0]  ex4_rm;                     
-+reg     [3 :0]  ex2_special_sign;                                                
++reg     [3 :0]  ex2_special_sign;
  
 -// &Wires; @27
  wire            cp0_fpu_icg_en;             
@@ -199,7 +199,7 @@ index f8343c8..ed48cf2 100644
 -wire            ctrl_xx_ex3_inst_vld;       
 -wire            ctrl_xx_ex3_stall;          
 -wire            ctrl_xx_ex3_warm_up;        
-+wire            ctrl_xx_ex1_warm_up;                         
++wire            ctrl_xx_ex1_warm_up;
  wire    [31:0]  dp_frbus_ex2_data;          
 -wire    [4 :0]  dp_frbus_ex2_fflags;        
 -wire    [4 :0]  dp_frbus_ex2_freg;          
@@ -209,7 +209,7 @@ index f8343c8..ed48cf2 100644
 -wire    [31:0]  dp_frbus_ex4_data;          
 -wire    [4 :0]  dp_frbus_ex4_fflags;        
 -wire    [4 :0]  dp_frbus_ex4_freg;          
-+wire    [4 :0]  dp_frbus_ex2_fflags;                        
++wire    [4 :0]  dp_frbus_ex2_fflags;
  wire    [2 :0]  dp_xx_ex1_cnan;             
  wire    [2 :0]  dp_xx_ex1_id;               
  wire    [2 :0]  dp_xx_ex1_inf;              
@@ -223,15 +223,15 @@ index f8343c8..ed48cf2 100644
 -wire    [31:0]  dp_xx_ex2_srcf2;            
 -wire    [2 :0]  dp_xx_ex3_rm;               
 -wire    [2 :0]  dp_xx_ex4_rm;               
-+wire    [2 :0]  dp_xx_ex1_qnan;                           
-+wire    [2 :0]  dp_xx_ex1_snan;                       
-+wire    [2 :0]  dp_xx_ex1_zero;                                               
++wire    [2 :0]  dp_xx_ex1_qnan;
++wire    [2 :0]  dp_xx_ex1_snan;
++wire    [2 :0]  dp_xx_ex1_zero;
  wire    [2 :0]  ex1_decode_rm;              
  wire            ex1_double;                 
 -wire    [2 :0]  ex1_eu_sel;                 
 -wire    [4 :0]  ex1_freg;                   
 -wire            ex1_freg_vld;               
-+wire    [2 :0]  ex1_eu_sel;                               
++wire    [2 :0]  ex1_eu_sel;
  wire    [9 :0]  ex1_func;                   
  wire    [2 :0]  ex1_global_rm;              
  wire    [2 :0]  ex1_rm;                     
@@ -259,7 +259,7 @@ index f8343c8..ed48cf2 100644
 -wire    [31:0]  falu_fpu_ex3_result;        
 -wire            falu_fpu_ex3_result_vld;    
 -wire            falu_fpu_ex3_wb_gpr;        
-+wire            ex2_inst_wb;                                
++wire            ex2_inst_wb;
  wire    [4 :0]  fdsu_fpu_ex1_fflags;        
  wire    [7 :0]  fdsu_fpu_ex1_special_sel;   
 -wire    [3 :0]  fdsu_fpu_ex1_special_sign;  
@@ -274,8 +274,8 @@ index f8343c8..ed48cf2 100644
 -wire            forever_cpuclk;             
 -wire    [4 :0]  idu_fpu_ex1_dst_freg;       
 -wire            idu_fpu_ex1_dst_freg_vld;   
-+wire    [3 :0]  fdsu_fpu_ex1_special_sign;         
-+wire            forever_cpuclk;               
++wire    [3 :0]  fdsu_fpu_ex1_special_sign;
++wire            forever_cpuclk;
  wire    [2 :0]  idu_fpu_ex1_eu_sel;         
  wire    [9 :0]  idu_fpu_ex1_func;           
  wire            idu_fpu_ex1_gateclk_vld;    

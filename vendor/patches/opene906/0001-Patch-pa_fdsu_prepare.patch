@@ -4,13 +4,13 @@ Date: Thu, 9 Mar 2023 12:17:22 +0100
 Subject: [PATCH] Patch pa_fdsu_prepare
 
 ---
- vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v | 6 ++----
+ E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v | 6 ++----
  1 file changed, 2 insertions(+), 4 deletions(-)
 
-diff --git a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
+diff --git a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
 index 56d179b..f7bc5d2 100644
---- a/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
-+++ b/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
+--- a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
++++ b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
 @@ -122,12 +122,10 @@ wire    [59:0]  sqrt_remainder;
  wire            sqrt_sign;               
  
