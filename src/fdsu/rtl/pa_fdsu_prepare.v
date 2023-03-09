@@ -151,7 +151,7 @@ assign ex1_oper_frac[51:0] = ex1_op1_sel ? ex1_oper1_frac[51:0]
                                          : ex1_oper0_frac[51:0];
 
 // &Instance("pa_fdsu_ff1", "x_frac_expnt"); @63
-pa_fdsu_ff  x_frac_expnt (
+pa_fdsu_ff1  x_frac_expnt (
   .fanc_shift_num          (ex1_oper_id_frac[51:0] ),
   .frac_bin_val            (ex1_oper_id_expnt[12:0]),
   .frac_num                (ex1_oper_frac[51:0]    )
