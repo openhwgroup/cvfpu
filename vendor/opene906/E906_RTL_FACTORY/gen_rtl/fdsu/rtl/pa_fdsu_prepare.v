@@ -122,12 +122,10 @@ wire    [59:0]  sqrt_remainder;
 wire            sqrt_sign;               
 
 
-parameter FLEN = `FLEN;
-
 assign ex1_sqrt                    = idu_fpu_ex1_func[0];
 assign ex1_div                     = idu_fpu_ex1_func[1];
-assign ex1_oper0[63:0]             = {32'b0, idu_fpu_ex1_srcf0[FLEN-1:0] & {32{fdsu_ex1_sel}}};
-assign ex1_oper1[63:0]             = {32'b0, idu_fpu_ex1_srcf1[FLEN-1:0] & {32{fdsu_ex1_sel}}};
+assign ex1_oper0[63:0]             = {32'b0, idu_fpu_ex1_srcf0[31:0] & {32{fdsu_ex1_sel}}};
+assign ex1_oper1[63:0]             = {32'b0, idu_fpu_ex1_srcf1[31:0] & {32{fdsu_ex1_sel}}};
 assign ex1_double                  = 1'b0;
 assign ex1_single                  = 1'b1;
 // &Force("bus", "idu_fpu_ex1_func", 9, 0); @43
