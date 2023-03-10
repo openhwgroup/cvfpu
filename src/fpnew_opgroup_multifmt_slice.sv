@@ -252,7 +252,7 @@ or set Features.FpFmtMask to support only FP32");
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
         if (!PulpDivsqrt && LANE_FORMATS[0] && (LANE_FORMATS[1:fpnew_pkg::NUM_FP_FORMATS-1] == '0)) begin
             // The T-head-based DivSqrt unit is supported only in FP32-only configurations
-            fpnew_divsqrt_multi_th_32 #(
+            fpnew_divsqrt_th_32 #(
               .NumPipeRegs ( NumPipeRegs          ),
               .PipeConfig  ( PipeConfig           ),
               .TagType     ( TagType              ),
@@ -264,7 +264,6 @@ or set Features.FpFmtMask to support only FP32");
               .is_boxed_i      ( is_boxed_2op        ), // 2 operands
               .rnd_mode_i,
               .op_i,
-              .dst_fmt_i,
               .tag_i,
               .aux_i           ( aux_data            ),
               .in_valid_i      ( in_valid            ),

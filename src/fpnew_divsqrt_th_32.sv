@@ -18,7 +18,7 @@
 
 `include "common_cells/registers.svh"
 
-module fpnew_divsqrt_multi_th_32 #(
+module fpnew_divsqrt_th_32 #(
   // FP32-only DivSqrt
   // FPU configuration
   parameter int unsigned             NumPipeRegs = 0,
@@ -36,7 +36,6 @@ module fpnew_divsqrt_multi_th_32 #(
   input  logic [NUM_FORMATS-1:0][1:0] is_boxed_i, // 2 operands
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
   input  fpnew_pkg::operation_e       op_i,
-  input  fpnew_pkg::fp_format_e       dst_fmt_i,
   input  TagType                      tag_i,
   input  AuxType                      aux_i,
   // Input Handshake
@@ -78,14 +77,12 @@ module fpnew_divsqrt_multi_th_32 #(
   logic [1:0][WIDTH-1:0] operands_q;
   fpnew_pkg::roundmode_e rnd_mode_q;
   fpnew_pkg::operation_e op_q;
-  fpnew_pkg::fp_format_e dst_fmt_q;
   logic                  in_valid_q;
 
   // Input pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_INP_REGS][1:0][WIDTH-1:0]       inp_pipe_operands_q;
   fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q;
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
-  fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
   AuxType                [0:NUM_INP_REGS]                       inp_pipe_aux_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
@@ -96,7 +93,6 @@ module fpnew_divsqrt_multi_th_32 #(
   assign inp_pipe_operands_q[0] = operands_i;
   assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
   assign inp_pipe_op_q[0]       = op_i;
-  assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
   assign inp_pipe_tag_q[0]      = tag_i;
   assign inp_pipe_aux_q[0]      = aux_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
@@ -118,7 +114,6 @@ module fpnew_divsqrt_multi_th_32 #(
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
-    `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
@@ -126,7 +121,6 @@ module fpnew_divsqrt_multi_th_32 #(
   assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
   assign rnd_mode_q = inp_pipe_rnd_mode_q[NUM_INP_REGS];
   assign op_q       = inp_pipe_op_q[NUM_INP_REGS];
-  assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
   assign in_valid_q = inp_pipe_valid_q[NUM_INP_REGS];
 
   // ------------
