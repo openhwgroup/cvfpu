@@ -38,6 +38,9 @@ For more in-depth explanations on how to configure the unit and the layout of th
 | `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                      |
 | `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits |
 | `TagType`        | The SystemVerilog data type of the operation tag                                                                             |
+| `MaskType`       | The SystemVerilog data type of the mask vector                                                                               |
+| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits|
+| `NumLanes`*      | Number of vectorial lanes in the system (this parameter is derived, and it is not supposed to be changed by the user)        |
 
 
 ### Ports
@@ -58,6 +61,7 @@ As the width of some input/output signals is defined by the configuration, it is
 | `int_fmt_i`      | in        | `int_format_e`       | Integer format                                                 |
 | `vectorial_op_i` | in        | `logic`              | Vectorial operation select                                     |
 | `tag_i`          | in        | `TagType`            | Operation tag input                                            |
+| `simd_mask_i`    | in        | `MaskType`           | Vector mask input                                              |
 | `in_valid_i`     | in        | `logic`              | Input data valid (see [Handshake](#handshake-interface))       |
 | `in_ready_o`     | out       | `logic`              | Input interface ready (see [Handshake](#handshake-interface))  |
 | `flush_i`        | in        | `logic`              | Synchronous pipeline reset                                     |
@@ -84,6 +88,7 @@ Enumeration of type `logic [2:0]` holding available rounding modes, encoded for 
 | `RDN`      | `3'b010` | Toward negative infinity                             |
 | `RUP`      | `3'b011` | Toward positive infinity                             |
 | `RMM`      | `3'b100` | To nearest, tie away from zero                       |
+| `ROD`      | `3'b101` | To odd                                               |
 | `DYN`      | `3'b111` | *RISC-V Dynamic RM, invalid if passed to operations* |
 
 ##### `operation_e` - FP Operation
