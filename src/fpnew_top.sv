@@ -18,10 +18,11 @@ module fpnew_top #(
   parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
   parameter type                            TagType        = logic,
-  parameter int unsigned                    NumLanes       = fpnew_pkg::max_num_lanes(Features.Width, Features.FpFmtMask, Features.EnableVectors),
   parameter int unsigned                    TrueSIMDClass  = 0,
-  parameter type                            MaskType       = logic [NumLanes-1:0],
+  parameter int unsigned                    EnableSIMDMask = 0,
   // Do not change
+  localparam int unsigned NumLanes     = fpnew_pkg::max_num_lanes(Features.Width, Features.FpFmtMask, Features.EnableVectors),
+  localparam type         MaskType     = logic [NumLanes-1:0],
   localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
 ) (
@@ -91,6 +92,10 @@ module fpnew_top #(
     end
   end
 
+  // Filter out the mask if not used
+  MaskType simd_mask;
+  assign simd_mask = simd_mask_i | ~{NumLanes{logic'(EnableSIMDMask)}};
+
   // -------------------------
   // Generate Operation Blocks
   // -------------------------
@@ -132,7 +137,7 @@ module fpnew_top #(
       .int_fmt_i,
       .vectorial_op_i,
       .tag_i,
-      .simd_mask_i     ( simd_mask_i           ),
+      .simd_mask_i     ( simd_mask             ),
       .in_valid_i      ( in_valid              ),
       .in_ready_o      ( opgrp_in_ready[opgrp] ),
       .flush_i,
