@@ -2,7 +2,8 @@
 
 Parametric floating-point unit with support for standard RISC-V formats and operations as well as transprecision formats, written in SystemVerilog.
 
-Maintainer: Stefan Mach <smach@iis.ee.ethz.ch>
+Maintainer: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
+Principal Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 ## Features
 
@@ -137,6 +138,32 @@ Furthermore, this repository tries to adhere to [SemVer](https://semver.org/), a
 ## Licensing
 
 FPnew is released under the *SolderPad Hardware License*, which is a permissive license based on Apache 2.0. Please refer to the [license file](LICENSE) for further information.
+
+
+## Publication
+
+If you use FPnew in your work, you can cite us:
+
+<details>
+<summary>FPnew Publication</summary>
+<p>
+
+```
+@article{mach2020fpnew,
+  title={Fpnew: An open-source multiformat floating-point unit architecture for energy-proportional transprecision computing},
+  author={Mach, Stefan and Schuiki, Fabian and Zaruba, Florian and Benini, Luca},
+  journal={IEEE Transactions on Very Large Scale Integration (VLSI) Systems},
+  volume={29},
+  number={4},
+  pages={774--787},
+  year={2020},
+  publisher={IEEE}
+}
+```
+
+</p>
+</details>
+
 
 ## Acknowledgement
 

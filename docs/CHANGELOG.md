@@ -11,14 +11,22 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 ## [Unreleased]
 
 ### Added
+- Citation file `CITATION.cff`
+- Add support for RISC-V compliant classify in vectorial mode when the vector element width is at least 10 bits
+- Add `mask` input signal to mask exceptions from inactive SIMD elements
+- Add support for rounding toward odd (RISC-V V 1.0 compliant)
+
 ### Changed
+- Code ownership to @lucabertaccini
+
 ### Fixed
+- Fix de-synchronization among vectorial lanes during variable-latency operations (`fdiv`, `fsqrt`)
 
 
 ## [0.6.6] - 2021-04-19
 
 ### Changed
-- [common_cells] Bump common cells version
+- [common_cells] Bump common cells version [(#44)](https://github.com/pulp-platform/fpnew/issues/44)
 
 ## [0.6.5] - 2020-11-06
 

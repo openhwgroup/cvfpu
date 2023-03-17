@@ -8,6 +8,8 @@
 // this License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+//
+// SPDX-License-Identifier: SHL-0.51
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
@@ -31,6 +33,7 @@ module fpnew_fma #(
   input fpnew_pkg::operation_e     op_i,
   input logic                      op_mod_i,
   input TagType                    tag_i,
+  input logic                      mask_i,
   input AuxType                    aux_i,
   // Input Handshake
   input  logic                     in_valid_i,
@@ -41,6 +44,7 @@ module fpnew_fma #(
   output fpnew_pkg::status_t       status_o,
   output logic                     extension_bit_o,
   output TagType                   tag_o,
+  output logic                     mask_o,
   output AuxType                   aux_o,
   // Output handshake
   output logic                     out_valid_o,
@@ -64,8 +68,8 @@ module fpnew_fma #(
   // datapath leakage. This is either given by the exponent bits or the width of the LZC result.
   // In most reasonable FP formats the internal exponent will be wider than the LZC result.
   localparam int unsigned EXP_WIDTH = unsigned'(fpnew_pkg::maximum(EXP_BITS + 2, LZC_RESULT_WIDTH));
-  // Shift amount width: maximum internal mantissa size is 3p+3 bits
-  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 3);
+  // Shift amount width: maximum internal mantissa size is 3p+4 bits
+  localparam int unsigned SHIFT_AMOUNT_WIDTH = $clog2(3 * PRECISION_BITS + 5);
   // Pipelines
   localparam NUM_INP_REGS = PipeConfig == fpnew_pkg::BEFORE
                             ? NumPipeRegs
@@ -102,6 +106,7 @@ module fpnew_fma #(
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                 inp_pipe_op_q;
   logic                  [0:NUM_INP_REGS]                 inp_pipe_op_mod_q;
   TagType                [0:NUM_INP_REGS]                 inp_pipe_tag_q;
+  logic                  [0:NUM_INP_REGS]                 inp_pipe_mask_q;
   AuxType                [0:NUM_INP_REGS]                 inp_pipe_aux_q;
   logic                  [0:NUM_INP_REGS]                 inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -114,6 +119,7 @@ module fpnew_fma #(
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_op_mod_q[0]   = op_mod_i;
   assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_mask_q[0]     = mask_i;
   assign inp_pipe_aux_q[0]      = aux_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
   // Input stage: Propagate pipeline ready signal to updtream circuitry
@@ -137,6 +143,7 @@ module fpnew_fma #(
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_op_mod_q[i+1],   inp_pipe_op_mod_q[i],   reg_ena, '0)
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
 
@@ -167,7 +174,7 @@ module fpnew_fma #(
   // | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
   // | ADD      | \c 0        | ADD: Set operand A to +1.0
   // | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
-  // | MUL      | \c 0        | MUL: Set operand C to +0.0
+  // | MUL      | \c 0        | MUL: Set operand C to +0.0 or -0.0 depending on the rounding mode
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
@@ -190,8 +197,11 @@ module fpnew_fma #(
         operand_a = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
-      fpnew_pkg::MUL: begin // Set addend to -0 (for proper rounding with RDN)
-        operand_c = '{sign: 1'b1, exponent: '0, mantissa: '0};
+      fpnew_pkg::MUL: begin // Set addend to +0 or -0, depending whether the rounding mode is RDN
+        if (inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN)
+          operand_c = '{sign: 1'b0, exponent: '0, mantissa: '0};
+        else
+          operand_c = '{sign: 1'b1, exponent: '0, mantissa: '0};
         info_c    = '{is_zero: 1'b1, is_boxed: 1'b1, default: 1'b0}; //zero, boxed value.
       end
       default: begin // propagate don't cares
@@ -403,6 +413,7 @@ module fpnew_fma #(
   fp_t                   [0:NUM_MID_REGS]                         mid_pipe_spec_res_q;
   fpnew_pkg::status_t    [0:NUM_MID_REGS]                         mid_pipe_spec_stat_q;
   TagType                [0:NUM_MID_REGS]                         mid_pipe_tag_q;
+  logic                  [0:NUM_MID_REGS]                         mid_pipe_mask_q;
   AuxType                [0:NUM_MID_REGS]                         mid_pipe_aux_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -422,6 +433,7 @@ module fpnew_fma #(
   assign mid_pipe_spec_res_q[0]    = special_result;
   assign mid_pipe_spec_stat_q[0]   = special_status;
   assign mid_pipe_tag_q[0]         = inp_pipe_tag_q[NUM_INP_REGS];
+  assign mid_pipe_mask_q[0]        = inp_pipe_mask_q[NUM_INP_REGS];
   assign mid_pipe_aux_q[0]         = inp_pipe_aux_q[NUM_INP_REGS];
   assign mid_pipe_valid_q[0]       = inp_pipe_valid_q[NUM_INP_REGS];
   // Input stage: Propagate pipeline ready signal to input pipe
@@ -453,6 +465,7 @@ module fpnew_fma #(
     `FFL(mid_pipe_spec_res_q[i+1],    mid_pipe_spec_res_q[i],    reg_ena, '0)
     `FFL(mid_pipe_spec_stat_q[i+1],   mid_pipe_spec_stat_q[i],   reg_ena, '0)
     `FFL(mid_pipe_tag_q[i+1],         mid_pipe_tag_q[i],         reg_ena, TagType'('0))
+    `FFL(mid_pipe_mask_q[i+1],        mid_pipe_mask_q[i],        reg_ena, '0)
     `FFL(mid_pipe_aux_q[i+1],         mid_pipe_aux_q[i],         reg_ena, AuxType'('0))
   end
   // Output stage: assign selected pipe outputs to signals for later use
@@ -629,6 +642,7 @@ module fpnew_fma #(
   fp_t                [0:NUM_OUT_REGS] out_pipe_result_q;
   fpnew_pkg::status_t [0:NUM_OUT_REGS] out_pipe_status_q;
   TagType             [0:NUM_OUT_REGS] out_pipe_tag_q;
+  logic               [0:NUM_OUT_REGS] out_pipe_mask_q;
   AuxType             [0:NUM_OUT_REGS] out_pipe_aux_q;
   logic               [0:NUM_OUT_REGS] out_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -638,6 +652,7 @@ module fpnew_fma #(
   assign out_pipe_result_q[0] = result_d;
   assign out_pipe_status_q[0] = status_d;
   assign out_pipe_tag_q[0]    = mid_pipe_tag_q[NUM_MID_REGS];
+  assign out_pipe_mask_q[0]   = mid_pipe_mask_q[NUM_MID_REGS];
   assign out_pipe_aux_q[0]    = mid_pipe_aux_q[NUM_MID_REGS];
   assign out_pipe_valid_q[0]  = mid_pipe_valid_q[NUM_MID_REGS];
   // Input stage: Propagate pipeline ready signal to inside pipe
@@ -658,6 +673,7 @@ module fpnew_fma #(
     `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
     `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
     `FFL(out_pipe_tag_q[i+1],    out_pipe_tag_q[i],    reg_ena, TagType'('0))
+    `FFL(out_pipe_mask_q[i+1],   out_pipe_mask_q[i],   reg_ena, '0)
     `FFL(out_pipe_aux_q[i+1],    out_pipe_aux_q[i],    reg_ena, AuxType'('0))
   end
   // Output stage: Ready travels backwards from output side, driven by downstream circuitry
@@ -667,6 +683,7 @@ module fpnew_fma #(
   assign status_o        = out_pipe_status_q[NUM_OUT_REGS];
   assign extension_bit_o = 1'b1; // always NaN-Box result
   assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign mask_o          = out_pipe_mask_q[NUM_OUT_REGS];
   assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
   assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
   assign busy_o          = (| {inp_pipe_valid_q, mid_pipe_valid_q, out_pipe_valid_q});
