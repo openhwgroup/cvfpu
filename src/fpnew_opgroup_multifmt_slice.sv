@@ -27,7 +27,9 @@ module fpnew_opgroup_multifmt_slice #(
   parameter type                     TagType       = logic,
   // Do not change
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
-  localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS
+  localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
+  localparam int unsigned NUM_SIMD_LANES = fpnew_pkg::max_num_lanes(Width, FpFmtConfig, EnableVectors),
+  localparam type         MaskType     = logic [NUM_SIMD_LANES-1:0]
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
@@ -42,6 +44,7 @@ module fpnew_opgroup_multifmt_slice #(
   input fpnew_pkg::int_format_e                   int_fmt_i,
   input logic                                     vectorial_op_i,
   input TagType                                   tag_i,
+  input MaskType                                  simd_mask_i,
   // Input Handshake
   input  logic                                    in_valid_i,
   output logic                                    in_ready_o,
@@ -67,7 +70,7 @@ module fpnew_opgroup_multifmt_slice #(
       fpnew_pkg::maximum($clog2(NUM_FORMATS), $clog2(NUM_INT_FORMATS));
   localparam int unsigned AUX_BITS = FMT_BITS + 2; // also add vectorial and integer flags
 
-  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
+  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid, divsqrt_done, divsqrt_ready; // Handshake signals for the lanes
   logic                 vectorial_op;
   logic [FMT_BITS-1:0]  dst_fmt; // destination format to pass along with operation
   logic [AUX_BITS-1:0]  aux_data;
@@ -88,6 +91,7 @@ module fpnew_opgroup_multifmt_slice #(
   fpnew_pkg::status_t [NUM_LANES-1:0]   lane_status;
   logic   [NUM_LANES-1:0]               lane_ext_bit; // only the first one is actually used
   TagType [NUM_LANES-1:0]               lane_tags; // only the first one is actually used
+  logic   [NUM_LANES-1:0]               lane_masks;
   logic   [NUM_LANES-1:0][AUX_BITS-1:0] lane_aux; // only the first one is actually used
   logic   [NUM_LANES-1:0]               lane_busy; // dito
 
@@ -95,6 +99,8 @@ module fpnew_opgroup_multifmt_slice #(
   logic [FMT_BITS-1:0] result_fmt;
   logic                result_fmt_is_int, result_is_cpk;
   logic [1:0]          result_vec_op; // info for vectorial results (for packing)
+
+  logic simd_synch_rdy, simd_synch_done;
 
   // -----------
   // Input Side
@@ -215,6 +221,7 @@ module fpnew_opgroup_multifmt_slice #(
           .src_fmt_i,
           .dst_fmt_i,
           .tag_i,
+          .mask_i          ( simd_mask_i[lane]   ),
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
           .in_ready_o      ( lane_in_ready[lane] ),
@@ -223,6 +230,7 @@ module fpnew_opgroup_multifmt_slice #(
           .status_o        ( op_status           ),
           .extension_bit_o ( lane_ext_bit[lane]  ),
           .tag_o           ( lane_tags[lane]     ),
+          .mask_o          ( lane_masks[lane]    ),
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
@@ -245,14 +253,20 @@ module fpnew_opgroup_multifmt_slice #(
           .op_i,
           .dst_fmt_i,
           .tag_i,
+          .mask_i          ( simd_mask_i[lane]   ),
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
           .in_ready_o      ( lane_in_ready[lane] ),
+          .divsqrt_done_o   ( divsqrt_done[lane] ),
+          .simd_synch_done_i( simd_synch_done    ),
+          .divsqrt_ready_o  ( divsqrt_ready[lane]),
+          .simd_synch_rdy_i( simd_synch_rdy    ),
           .flush_i,
           .result_o        ( op_result           ),
           .status_o        ( op_status           ),
           .extension_bit_o ( lane_ext_bit[lane]  ),
           .tag_o           ( lane_tags[lane]     ),
+          .mask_o          ( lane_masks[lane]    ),
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
@@ -280,6 +294,7 @@ module fpnew_opgroup_multifmt_slice #(
           .dst_fmt_i,
           .int_fmt_i,
           .tag_i,
+          .mask_i          ( simd_mask_i[lane]   ),
           .aux_i           ( aux_data            ),
           .in_valid_i      ( in_valid            ),
           .in_ready_o      ( lane_in_ready[lane] ),
@@ -288,6 +303,7 @@ module fpnew_opgroup_multifmt_slice #(
           .status_o        ( op_status           ),
           .extension_bit_o ( lane_ext_bit[lane]  ),
           .tag_o           ( lane_tags[lane]     ),
+          .mask_o          ( lane_masks[lane]    ),
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
@@ -401,6 +417,10 @@ module fpnew_opgroup_multifmt_slice #(
     assign {result_vec_op, result_is_cpk} = '0;
   end
 
+  // Synch lanes if there is more than one
+  assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
+  assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
+
   // ------------
   // Output Side
   // ------------
@@ -422,7 +442,8 @@ module fpnew_opgroup_multifmt_slice #(
     automatic fpnew_pkg::status_t temp_status;
     temp_status = '0;
     for (int i = 0; i < int'(NUM_LANES); i++)
-      temp_status |= lane_status[i];
+      temp_status |= lane_status[i] & {5{lane_masks[i]}};
     status_o = temp_status;
   end
+
 endmodule

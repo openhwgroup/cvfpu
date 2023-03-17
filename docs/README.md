@@ -24,13 +24,13 @@ FPnew is a parametric floating-point unit which supports standard RISC-V operati
 The top-level module of the FPU is `fpnew_top` and its interface is further described in this section.
 FPnew uses a synchronous interface using handshaking to transfer data into and out of the FPU.
 
-All array types are packed due to poor support of unpacked arrays in some EDA tools.  
+All array types are packed due to poor support of unpacked arrays in some EDA tools.
 SystemVerilog `interface`s are not used due to poor support in some EDA tools.
 
 
 ### Parameters
 
-The configuration parameters use data types defined in `fpnew_pkg` which are structs containing multi-dimensional arrays of custom enumeration types.  
+The configuration parameters use data types defined in `fpnew_pkg` which are structs containing multi-dimensional arrays of custom enumeration types.
 For more in-depth explanations on how to configure the unit and the layout of the types used, please refer to the [Configuration Section](#configuration).
 
 |  Parameter Name  |                                                         Description                                                          |
@@ -38,11 +38,12 @@ For more in-depth explanations on how to configure the unit and the layout of th
 | `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                      |
 | `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits |
 | `TagType`        | The SystemVerilog data type of the operation tag                                                                             |
-
+| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits|
+| `EnableSIMDMask` | Enable the RISC-V floating-point status flags masking of inactive vectorial lanes. When disabled, `simd_mask_i` is inactive  |
 
 ### Ports
 
-Many ports use custom types and enumerations from `fpnew_pkg` to improve code structure internally (see [Data Types](#data-types)).  
+Many ports use custom types and enumerations from `fpnew_pkg` to improve code structure internally (see [Data Types](#data-types)).
 As the width of some input/output signals is defined by the configuration, it is denoted `W` in the following table.
 
 |    Port Name     | Direction |         Type         |                          Description                           |
@@ -58,6 +59,7 @@ As the width of some input/output signals is defined by the configuration, it is
 | `int_fmt_i`      | in        | `int_format_e`       | Integer format                                                 |
 | `vectorial_op_i` | in        | `logic`              | Vectorial operation select                                     |
 | `tag_i`          | in        | `TagType`            | Operation tag input                                            |
+| `simd_mask_i`    | in        | `MaskType`           | Vector mask input for the status flags                         |
 | `in_valid_i`     | in        | `logic`              | Input data valid (see [Handshake](#handshake-interface))       |
 | `in_ready_o`     | out       | `logic`              | Input interface ready (see [Handshake](#handshake-interface))  |
 | `flush_i`        | in        | `logic`              | Synchronous pipeline reset                                     |
@@ -84,6 +86,7 @@ Enumeration of type `logic [2:0]` holding available rounding modes, encoded for 
 | `RDN`      | `3'b010` | Toward negative infinity                             |
 | `RUP`      | `3'b011` | Toward positive infinity                             |
 | `RMM`      | `3'b100` | To nearest, tie away from zero                       |
+| `ROD`      | `3'b101` | To odd                                               |
 | `DYN`      | `3'b111` | *RISC-V Dynamic RM, invalid if passed to operations* |
 
 ##### `operation_e` - FP Operation
@@ -197,6 +200,10 @@ Tags are an optional feature of FPnew and can be controlled by setting the `TagT
 In order to disable the use of tags, set `TagType` to `logic` (the default value), and bind the `tag_i` port to a static value.
 Furthermore ensure that your synthesis tool removes static registers.
 
+### Mask for the status flags
+
+This input is meant to be used in vectorial mode. The mask for the status flags is an input vector with `NumLanes` bits, and each bit can mask the status flags of a different FPU vectorial lane. This helps not make the final output flag signal dirty due to status flags from inactive lanes.
+If `simd_mask_i[n] == 1'b0`, the `n`th FPU lane will be masked for this operation and its resulting status flags will not be propagated to the final output status flag.
 
 ## Configuration
 
@@ -324,7 +331,7 @@ Currently, the follwoing unit types are available for the FPU operation groups:
   '{default: MERGED},   // DIVSQRT
   '{default: PARALLEL}, // NONCOMP
   '{default: MERGED}}   // CONV`
-``` 
+```
 (all formats within operation group use same type)
 
 
@@ -348,7 +355,7 @@ The configuration  `pipe_config_t` is an enumeration of type `logic [1:0]` holdi
 ### Adding Custom Formats
 
 In order to add custom FP or integer formats to the FPU, it is necessary to make small changes to `fpnew_pkg`.
-New formats can easily be added by extending the default list of available formats, and/or by changing or removing the defaults. 
+New formats can easily be added by extending the default list of available formats, and/or by changing or removing the defaults.
 
 Namely, the following parameters and types shall be adapted:
 ```

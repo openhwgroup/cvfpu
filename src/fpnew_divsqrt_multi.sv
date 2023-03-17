@@ -35,16 +35,22 @@ module fpnew_divsqrt_multi #(
   input  fpnew_pkg::operation_e       op_i,
   input  fpnew_pkg::fp_format_e       dst_fmt_i,
   input  TagType                      tag_i,
+  input  logic                        mask_i,
   input  AuxType                      aux_i,
   // Input Handshake
   input  logic                        in_valid_i,
   output logic                        in_ready_o,
+  output logic                        divsqrt_done_o,
+  input  logic                        simd_synch_done_i,
+  output logic                        divsqrt_ready_o,
+  input  logic                        simd_synch_rdy_i,
   input  logic                        flush_i,
   // Output signals
   output logic [WIDTH-1:0]            result_o,
   output fpnew_pkg::status_t          status_o,
   output logic                        extension_bit_o,
   output TagType                      tag_o,
+  output logic                        mask_o,
   output AuxType                      aux_o,
   // Output handshake
   output logic                        out_valid_o,
@@ -84,6 +90,7 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
+  logic                  [0:NUM_INP_REGS]                       inp_pipe_mask_q;
   AuxType                [0:NUM_INP_REGS]                       inp_pipe_aux_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -95,6 +102,7 @@ module fpnew_divsqrt_multi #(
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
   assign inp_pipe_tag_q[0]      = tag_i;
+  assign inp_pipe_mask_q[0]     = mask_i;
   assign inp_pipe_aux_q[0]      = aux_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
   // Input stage: Propagate pipeline ready signal to updtream circuitry
@@ -117,6 +125,7 @@ module fpnew_divsqrt_multi #(
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
+    `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
   end
   // Output stage: assign selected pipe outputs to signals for later use
@@ -154,20 +163,29 @@ module fpnew_divsqrt_multi #(
   // ------------
   // Control FSM
   // ------------
+
   logic in_ready;               // input handshake with upstream
   logic div_valid, sqrt_valid;  // input signalling with unit
-  logic unit_ready, unit_done;  // status signals from unit instance
+  logic unit_ready, unit_done, unit_done_q;  // status signals from unit instance
   logic op_starting;            // high in the cycle a new operation starts
   logic out_valid, out_ready;   // output handshake with downstream
-  logic hold_result;            // whether to put result into hold register
-  logic data_is_held;           // data in hold register is valid
   logic unit_busy;              // valid data in flight
   // FSM states
   typedef enum logic [1:0] {IDLE, BUSY, HOLD} fsm_state_e;
   fsm_state_e state_q, state_d;
 
-  // Upstream ready comes from sanitization FSM
-  assign inp_pipe_ready[NUM_INP_REGS] = in_ready;
+  // Ready synch with other lanes
+  // Bring the FSM-generated ready outside the unit, to synchronize it with the other lanes
+  assign divsqrt_ready_o = in_ready;
+  // Upstream ready comes from sanitization FSM, and it is synched among all the lanes
+  assign inp_pipe_ready[NUM_INP_REGS] = simd_synch_rdy_i;
+
+  // Valid synch with other lanes
+  // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
+  // As soon as all the lanes are over, we can clear this FF and start with a new operation
+  `FFLARNC(unit_done_q, unit_done, unit_done, simd_synch_done_i, 1'b0, clk_i, rst_ni);
+  // Tell the other units that this unit has finished now or in the past
+  assign divsqrt_done_o = unit_done_q | unit_done;
 
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
   assign div_valid   = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
@@ -179,8 +197,6 @@ module fpnew_divsqrt_multi #(
     // Default assignments
     in_ready     = 1'b0;
     out_valid    = 1'b0;
-    hold_result  = 1'b0;
-    data_is_held = 1'b0;
     unit_busy    = 1'b0;
     state_d      = state_q;
 
@@ -195,8 +211,8 @@ module fpnew_divsqrt_multi #(
       // Operation in progress
       BUSY: begin
         unit_busy = 1'b1; // data in flight
-        // If the unit is done with processing
-        if (unit_done) begin
+        // If all the lanes are done with processing
+        if (simd_synch_done_i) begin
           out_valid = 1'b1; // try to commit result downstream
           // If downstream accepts our result
           if (out_ready) begin
@@ -207,7 +223,6 @@ module fpnew_divsqrt_multi #(
             end
           // Otherwise if downstream is not ready for the result
           end else begin
-            hold_result = 1'b1; // activate the hold register
             state_d     = HOLD; // wait for the pipeline to take the data
           end
         end
@@ -215,7 +230,6 @@ module fpnew_divsqrt_multi #(
       // Waiting with valid result for downstream
       HOLD: begin
         unit_busy    = 1'b1; // data in flight
-        data_is_held = 1'b1; // data in hold register is valid
         out_valid    = 1'b1; // try to commit result downstream
         // If the result is accepted by downstream
         if (out_ready) begin
@@ -244,11 +258,13 @@ module fpnew_divsqrt_multi #(
   // Hold additional information while the operation is in progress
   logic result_is_fp8_q;
   TagType result_tag_q;
+  logic result_mask_q;
   AuxType result_aux_q;
 
   // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
   `FFL(result_is_fp8_q, input_is_fp8,                 op_starting, '0)
   `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], op_starting, '0)
+  `FFL(result_mask_q,   inp_pipe_mask_q[NUM_INP_REGS],op_starting, '0)
   `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], op_starting, '0)
 
   // -----------------
@@ -257,6 +273,7 @@ module fpnew_divsqrt_multi #(
   logic [63:0]        unit_result;
   logic [WIDTH-1:0]   adjusted_result, held_result_q;
   fpnew_pkg::status_t unit_status, held_status_q;
+  logic               hold_en;
 
   div_sqrt_top_mvp i_divsqrt_lei (
    .Clk_CI           ( clk_i               ),
@@ -278,9 +295,12 @@ module fpnew_divsqrt_multi #(
   // Adjust result width and fix FP8
   assign adjusted_result = result_is_fp8_q ? unit_result >> 8 : unit_result;
 
+  // Hold the result when one lane has finished execution, except when all the lanes finish together
+  // and the result can be accepted downstream
+  assign hold_en = unit_done & (~simd_synch_done_i | ~out_ready);
   // The Hold register (load, no reset)
-  `FFLNR(held_result_q, adjusted_result, hold_result, clk_i)
-  `FFLNR(held_status_q, unit_status,     hold_result, clk_i)
+  `FFLNR(held_result_q, adjusted_result, hold_en, clk_i)
+  `FFLNR(held_status_q, unit_status,     hold_en, clk_i)
 
   // --------------
   // Output Select
@@ -288,8 +308,8 @@ module fpnew_divsqrt_multi #(
   logic [WIDTH-1:0]   result_d;
   fpnew_pkg::status_t status_d;
   // Prioritize hold register data
-  assign result_d = data_is_held ? held_result_q : adjusted_result;
-  assign status_d = data_is_held ? held_status_q : unit_status;
+  assign result_d = unit_done_q ? held_result_q : adjusted_result;
+  assign status_d = unit_done_q ? held_status_q : unit_status;
 
   // ----------------
   // Output Pipeline
@@ -298,6 +318,7 @@ module fpnew_divsqrt_multi #(
   logic               [0:NUM_OUT_REGS][WIDTH-1:0] out_pipe_result_q;
   fpnew_pkg::status_t [0:NUM_OUT_REGS]            out_pipe_status_q;
   TagType             [0:NUM_OUT_REGS]            out_pipe_tag_q;
+  logic               [0:NUM_OUT_REGS]            out_pipe_mask_q;
   AuxType             [0:NUM_OUT_REGS]            out_pipe_aux_q;
   logic               [0:NUM_OUT_REGS]            out_pipe_valid_q;
   // Ready signal is combinatorial for all stages
@@ -307,6 +328,7 @@ module fpnew_divsqrt_multi #(
   assign out_pipe_result_q[0] = result_d;
   assign out_pipe_status_q[0] = status_d;
   assign out_pipe_tag_q[0]    = result_tag_q;
+  assign out_pipe_mask_q[0]   = result_mask_q;
   assign out_pipe_aux_q[0]    = result_aux_q;
   assign out_pipe_valid_q[0]  = out_valid;
   // Input stage: Propagate pipeline ready signal to inside pipe
@@ -327,6 +349,7 @@ module fpnew_divsqrt_multi #(
     `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
     `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
     `FFL(out_pipe_tag_q[i+1],    out_pipe_tag_q[i],    reg_ena, TagType'('0))
+    `FFL(out_pipe_mask_q[i+1],   out_pipe_mask_q[i],   reg_ena, '0)
     `FFL(out_pipe_aux_q[i+1],    out_pipe_aux_q[i],    reg_ena, AuxType'('0))
   end
   // Output stage: Ready travels backwards from output side, driven by downstream circuitry
@@ -336,6 +359,7 @@ module fpnew_divsqrt_multi #(
   assign status_o        = out_pipe_status_q[NUM_OUT_REGS];
   assign extension_bit_o = 1'b1; // always NaN-Box result
   assign tag_o           = out_pipe_tag_q[NUM_OUT_REGS];
+  assign mask_o          = out_pipe_mask_q[NUM_OUT_REGS];
   assign aux_o           = out_pipe_aux_q[NUM_OUT_REGS];
   assign out_valid_o     = out_pipe_valid_q[NUM_OUT_REGS];
   assign busy_o          = (| {inp_pipe_valid_q, unit_busy, out_pipe_valid_q});

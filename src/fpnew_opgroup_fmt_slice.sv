@@ -22,8 +22,11 @@ module fpnew_opgroup_fmt_slice #(
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
   parameter type                     TagType       = logic,
+  parameter int unsigned             TrueSIMDClass = 0,
   // Do not change
-  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup)
+  localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
+  localparam int unsigned NUM_LANES    = fpnew_pkg::num_lanes(Width, FpFormat, EnableVectors),
+  localparam type         MaskType     = logic [NUM_LANES-1:0]
 ) (
   input logic                               clk_i,
   input logic                               rst_ni,
@@ -35,6 +38,7 @@ module fpnew_opgroup_fmt_slice #(
   input logic                               op_mod_i,
   input logic                               vectorial_op_i,
   input TagType                             tag_i,
+  input MaskType                            simd_mask_i,
   // Input Handshake
   input  logic                              in_valid_i,
   output logic                              in_ready_o,
@@ -52,7 +56,7 @@ module fpnew_opgroup_fmt_slice #(
 );
 
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
-  localparam int unsigned NUM_LANES = fpnew_pkg::num_lanes(Width, FpFormat, EnableVectors);
+  localparam int unsigned SIMD_WIDTH = unsigned'(Width/NUM_LANES);
 
 
   logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
@@ -65,6 +69,7 @@ module fpnew_opgroup_fmt_slice #(
   logic                  [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
   fpnew_pkg::classmask_e [NUM_LANES-1:0] lane_class_mask;
   TagType                [NUM_LANES-1:0] lane_tags; // only the first one is actually used
+  logic                  [NUM_LANES-1:0] lane_masks;
   logic                  [NUM_LANES-1:0] lane_vectorial, lane_busy, lane_is_class; // dito
 
   logic result_is_vector, result_is_class;
@@ -115,6 +120,7 @@ module fpnew_opgroup_fmt_slice #(
           .op_i,
           .op_mod_i,
           .tag_i,
+          .mask_i          ( simd_mask_i[lane]    ),
           .aux_i           ( vectorial_op         ), // Remember whether operation was vectorial
           .in_valid_i      ( in_valid             ),
           .in_ready_o      ( lane_in_ready[lane]  ),
@@ -123,6 +129,7 @@ module fpnew_opgroup_fmt_slice #(
           .status_o        ( op_status            ),
           .extension_bit_o ( lane_ext_bit[lane]   ),
           .tag_o           ( lane_tags[lane]      ),
+          .mask_o          ( lane_masks[lane]     ),
           .aux_o           ( lane_vectorial[lane] ),
           .out_valid_o     ( out_valid            ),
           .out_ready_i     ( out_ready            ),
@@ -176,6 +183,7 @@ module fpnew_opgroup_fmt_slice #(
           .op_i,
           .op_mod_i,
           .tag_i,
+          .mask_i          ( simd_mask_i[lane]     ),
           .aux_i           ( vectorial_op          ), // Remember whether operation was vectorial
           .in_valid_i      ( in_valid              ),
           .in_ready_o      ( lane_in_ready[lane]   ),
@@ -186,6 +194,7 @@ module fpnew_opgroup_fmt_slice #(
           .class_mask_o    ( lane_class_mask[lane] ),
           .is_class_o      ( lane_is_class[lane]   ),
           .tag_o           ( lane_tags[lane]       ),
+          .mask_o          ( lane_masks[lane]      ),
           .aux_o           ( lane_vectorial[lane]  ),
           .out_valid_o     ( out_valid             ),
           .out_ready_i     ( out_ready             ),
@@ -215,7 +224,10 @@ module fpnew_opgroup_fmt_slice #(
     assign slice_result[(unsigned'(lane)+1)*FP_WIDTH-1:unsigned'(lane)*FP_WIDTH] = local_result;
 
     // Create Classification results
-    if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
+    if (TrueSIMDClass && SIMD_WIDTH >= 10) begin : vectorial_true_class // true vectorial class blocks are 10bits in size
+      assign slice_vec_class_result[lane*SIMD_WIDTH +: 10] = lane_class_mask[lane];
+      assign slice_vec_class_result[(lane+1)*SIMD_WIDTH-1 -: SIMD_WIDTH-10] = '0;
+    end else if ((lane+1)*8 <= Width) begin : vectorial_class // vectorial class blocks are 8bits in size
       assign local_sign = (lane_class_mask[lane] == fpnew_pkg::NEGINF ||
                            lane_class_mask[lane] == fpnew_pkg::NEGNORM ||
                            lane_class_mask[lane] == fpnew_pkg::NEGSUBNORM ||
@@ -248,9 +260,11 @@ module fpnew_opgroup_fmt_slice #(
 
   localparam int unsigned CLASS_VEC_BITS = (NUM_LANES*8 > Width) ? 8 * (Width / 8) : NUM_LANES*8;
 
-  // Pad out unused vec_class bits
-  if (CLASS_VEC_BITS < Width) begin : pad_vectorial_class
-    assign slice_vec_class_result[Width-1:CLASS_VEC_BITS] = '0;
+  // Pad out unused vec_class bits if each classify result is on 8 bits
+  if (!(TrueSIMDClass && SIMD_WIDTH >= 10)) begin
+    if (CLASS_VEC_BITS < Width) begin : pad_vectorial_class
+      assign slice_vec_class_result[Width-1:CLASS_VEC_BITS] = '0;
+    end
   end
 
   // localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
@@ -272,7 +286,7 @@ module fpnew_opgroup_fmt_slice #(
     automatic fpnew_pkg::status_t temp_status;
     temp_status = '0;
     for (int i = 0; i < int'(NUM_LANES); i++)
-      temp_status |= lane_status[i];
+      temp_status |= lane_status[i] & {5{lane_masks[i]}};
     status_o = temp_status;
   end
 endmodule
