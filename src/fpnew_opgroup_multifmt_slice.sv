@@ -342,7 +342,7 @@ module fpnew_opgroup_multifmt_slice #(
       assign lane_out_valid[lane] = out_valid & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
+      assign local_result      = lane_out_valid[lane] ? op_result : {(LANE_WIDTH){lane_ext_bit[0]}};
       assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
@@ -352,7 +352,7 @@ module fpnew_opgroup_multifmt_slice #(
       assign lane_aux[lane]       = 1'b0; // unused lane
       assign lane_tags[lane]      = 1'b0; // unused lane
       assign lane_ext_bit[lane]   = 1'b1; // NaN-box unused lane
-      assign local_result         = '{default: lane_ext_bit[0]}; // sign-extend/nan box
+      assign local_result         = {(LANE_WIDTH){lane_ext_bit[0]}}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
       assign lane_busy[lane]      = 1'b0;
     end
