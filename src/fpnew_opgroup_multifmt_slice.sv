@@ -181,6 +181,9 @@ module fpnew_opgroup_multifmt_slice #(
         for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
           local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
         end
+        if (NUM_OPERANDS == 3) begin
+          local_operands[NUM_OPERANDS-1] = operands_i[NUM_OPERANDS-1] >> LANE*fpnew_pkg::fp_width(dst_fmt_i);
+        end
 
         // override operand 0 for some conversions
         if (OpGroup == fpnew_pkg::CONV) begin
