@@ -179,10 +179,11 @@ module fpnew_opgroup_multifmt_slice #(
       // Slice out the operands for this lane, upper bits are ignored in the unit
       always_comb begin : prepare_input
         for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
-          local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
-        end
-        if (NUM_OPERANDS == 3) begin
-          local_operands[NUM_OPERANDS-1] = operands_i[NUM_OPERANDS-1] >> LANE*fpnew_pkg::fp_width(dst_fmt_i);
+          if (i == 2) begin
+            local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(dst_fmt_i);
+          end else begin
+            local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
+          end
         end
 
         // override operand 0 for some conversions
