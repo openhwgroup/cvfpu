@@ -21,6 +21,7 @@ module fpnew_opgroup_fmt_slice #(
   parameter logic                    EnableVectors = 1'b1,
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    ExtRegEna     = 1'b0,
   parameter type                     TagType       = logic,
   parameter int unsigned             TrueSIMDClass = 0,
   // Do not change
@@ -52,7 +53,9 @@ module fpnew_opgroup_fmt_slice #(
   output logic                              out_valid_o,
   input  logic                              out_ready_i,
   // Indication of valid data in flight
-  output logic                              busy_o
+  output logic                              busy_o,
+  // External register enable override
+  input  logic [NumPipeRegs-1:0]            reg_ena_i
 );
 
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
@@ -133,7 +136,8 @@ module fpnew_opgroup_fmt_slice #(
           .aux_o           ( lane_vectorial[lane] ),
           .out_valid_o     ( out_valid            ),
           .out_ready_i     ( out_ready            ),
-          .busy_o          ( lane_busy[lane]      )
+          .busy_o          ( lane_busy[lane]      ),
+          .reg_ena_i
         );
         assign lane_is_class[lane]   = 1'b0;
         assign lane_class_mask[lane] = fpnew_pkg::NEGINF;
@@ -164,7 +168,8 @@ module fpnew_opgroup_fmt_slice #(
         //   .aux_o           ( lane_vectorial[lane] ),
         //   .out_valid_o     ( out_valid            ),
         //   .out_ready_i     ( out_ready            ),
-        //   .busy_o          ( lane_busy[lane]      )
+        //   .busy_o          ( lane_busy[lane]      ),
+        //   .reg_ena_i
         // );
         // assign lane_is_class[lane] = 1'b0;
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
@@ -198,7 +203,8 @@ module fpnew_opgroup_fmt_slice #(
           .aux_o           ( lane_vectorial[lane]  ),
           .out_valid_o     ( out_valid             ),
           .out_ready_i     ( out_ready             ),
-          .busy_o          ( lane_busy[lane]       )
+          .busy_o          ( lane_busy[lane]       ),
+          .reg_ena_i
         );
       end // ADD OTHER OPTIONS HERE
 
@@ -207,8 +213,8 @@ module fpnew_opgroup_fmt_slice #(
       assign lane_out_valid[lane] = out_valid   & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
+      assign local_result      = (lane_out_valid[lane] | ExtRegEna) ? op_result : '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = (lane_out_valid[lane] | ExtRegEna) ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin
