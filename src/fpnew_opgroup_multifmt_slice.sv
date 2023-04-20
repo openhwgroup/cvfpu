@@ -96,9 +96,14 @@ module fpnew_opgroup_multifmt_slice #(
   logic                result_fmt_is_int, result_is_cpk;
   logic [1:0]          result_vec_op; // info for vectorial results (for packing)
 
+  fpnew_pkg::roundmode_e rnd_mode;
+
   // -----------
   // Input Side
   // -----------
+  assign rnd_mode = ((rnd_mode_i == fpnew_pkg::RSR) || (rnd_mode_i == fpnew_pkg::RR))
+                     ? fpnew_pkg::RNE : rnd_mode_i; // RSR and RR supported only on SDOTP module
+
   assign in_ready_o   = lane_in_ready[0]; // Upstream ready is given by first lane
   assign vectorial_op = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
 
@@ -177,7 +182,9 @@ module fpnew_opgroup_multifmt_slice #(
       logic [LANE_WIDTH-1:0]                   op_result;       // lane-local results
       fpnew_pkg::status_t                      op_status;
 
-      assign in_valid = in_valid_i & ((lane == 0) | vectorial_op); // upper lanes only for vectors
+      logic lane_is_used;
+      assign lane_is_used = (ACTIVE_FORMATS[src_fmt_i] & ~is_up_cast) | (ACTIVE_FORMATS[dst_fmt_i] & is_up_cast);
+      assign in_valid = in_valid_i & ((lane == 0) | vectorial_op) & lane_is_used; // upper lanes only for vectors
 
       // Slice out the operands for this lane, upper bits are ignored in the unit
       always_comb begin : prepare_input
@@ -187,7 +194,11 @@ module fpnew_opgroup_multifmt_slice #(
 
         if (OpGroup == fpnew_pkg::DOTP) begin
           for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
-            local_operands[i] = operands_i[i] >> LANE*2*fpnew_pkg::fp_width(src_fmt_i); // expanded format is twice the width of src_fmt
+            if (i == 2) begin
+              local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(dst_fmt_i); // expanded format the width of dst_fmt
+            end else begin
+              local_operands[i] = operands_i[i] >> LANE*2*fpnew_pkg::fp_width(src_fmt_i); // expanded format is twice the width of src_fmt
+            end
           end
         end else if (OpGroup == fpnew_pkg::CONV) begin // override operand 0 for some conversions
           // Source is an integer
@@ -221,7 +232,7 @@ module fpnew_opgroup_multifmt_slice #(
           .rst_ni,
           .operands_i      ( local_operands  ),
           .is_boxed_i,
-          .rnd_mode_i,
+          .rnd_mode_i      ( rnd_mode        ),
           .op_i,
           .op_mod_i,
           .src_fmt_i,
@@ -283,7 +294,7 @@ module fpnew_opgroup_multifmt_slice #(
           .rst_ni,
           .operands_i      ( local_operands[1:0] ), // 2 operands
           .is_boxed_i      ( is_boxed_2op        ), // 2 operands
-          .rnd_mode_i,
+          .rnd_mode_i      ( rnd_mode            ),
           .op_i,
           .dst_fmt_i,
           .tag_i,
@@ -315,7 +326,7 @@ module fpnew_opgroup_multifmt_slice #(
           .rst_ni,
           .operands_i      ( local_operands[0]   ),
           .is_boxed_i      ( is_boxed_1op        ),
-          .rnd_mode_i,
+          .rnd_mode_i      ( rnd_mode            ),
           .op_i,
           .op_mod_i,
           .src_fmt_i,

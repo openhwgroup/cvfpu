@@ -709,11 +709,16 @@ module fpnew_fma_multi #(
 
   // Perform the rounding
   fpnew_rounding #(
-    .AbsWidth ( SUPER_EXP_BITS + SUPER_MAN_BITS )
+    .AbsWidth  ( SUPER_EXP_BITS + SUPER_MAN_BITS ),
+    .EnableRSR ( 0 )
   ) i_fpnew_rounding (
+    .clk_i,
+    .rst_ni,
+    .en_rsr_i                ( 1'b0                    ),
     .abs_value_i             ( pre_round_abs           ),
     .sign_i                  ( pre_round_sign          ),
     .round_sticky_bits_i     ( round_sticky_bits       ),
+    .stochastic_rounding_bits_i ( '0                   ),
     .rnd_mode_i              ( rnd_mode_q              ),
     .effective_subtraction_i ( effective_subtraction_q ),
     .abs_rounded_o           ( rounded_abs             ),

@@ -535,11 +535,16 @@ module fpnew_cast_multi #(
   assign pre_round_abs = dst_is_int_q ? ifmt_pre_round_abs[int_fmt_q2] : fmt_pre_round_abs[dst_fmt_q2];
 
   fpnew_rounding #(
-    .AbsWidth ( WIDTH )
+    .AbsWidth ( WIDTH ),
+    .EnableRSR ( 0 )
   ) i_fpnew_rounding (
+    .clk_i,
+    .rst_ni,
+    .en_rsr_i                ( 1'b0              ),
     .abs_value_i             ( pre_round_abs     ),
     .sign_i                  ( input_sign_q      ), // source format
     .round_sticky_bits_i     ( round_sticky_bits ),
+    .stochastic_rounding_bits_i ( '0             ),
     .rnd_mode_i              ( rnd_mode_q        ),
     .effective_subtraction_i ( 1'b0              ), // no operation happened
     .abs_rounded_o           ( rounded_abs       ),

@@ -14,13 +14,23 @@
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
 module fpnew_rounding #(
-  parameter int unsigned AbsWidth=2 // Width of the abolute value, without sign bit
+  parameter int unsigned          AbsWidth      = 2, // Width of the abolute value, without sign bit
+  parameter logic                 EnableRSR     = 0,
+  parameter int unsigned          RsrPrecision  = 12,
+  //LFSR patameters
+  parameter int unsigned          LfsrWidth     = 32,
+  parameter logic [LfsrWidth-1:0] RstVal        = '1
 ) (
+  // LFSR inputs
+  input logic                  clk_i,
+  input logic                  rst_ni,
   // Input value
   input logic [AbsWidth-1:0]   abs_value_i,             // absolute value without sign
   input logic                  sign_i,
+  input logic                  en_rsr_i,
   // Rounding information
   input logic [1:0]            round_sticky_bits_i,     // round and sticky bits {RS}
+  input logic [RsrPrecision-1:0] stochastic_rounding_bits_i,
   input fpnew_pkg::roundmode_e rnd_mode_i,
   input logic                  effective_subtraction_i, // sign of inputs affects rounding of zeroes
   // Output value
@@ -32,7 +42,7 @@ module fpnew_rounding #(
 
   logic round_up; // Rounding decision
 
-  // Take the rounding decision according to RISC-V spec
+  // Take the rounding decision according to RISC-V spec, plus additional unbiased rounding modes
   // RoundMode | Mnemonic | Meaning
   // :--------:|:--------:|:-------
   //    000    |   RNE    | Round to Nearest, ties to Even
@@ -40,10 +50,35 @@ module fpnew_rounding #(
   //    010    |   RDN    | Round Down (towards -\infty)
   //    011    |   RUP    | Round Up (towards \infty)
   //    100    |   RMM    | Round to Nearest, ties to Max Magnitude
+  //    101    |   RSR    | Round by Stochastic Rounding
+  //    100    |   RR     | Round by Random Rounding
   //  others   |          | *invalid*
+
+  // LFSR generating random numbers for RSR mode
+  logic [RsrPrecision-1:0] lfsr_out;
+
+  if (EnableRSR) begin : gen_lfsr
+    lfsr #(
+      .LfsrWidth       ( LfsrWidth           ),
+      .OutWidth        ( RsrPrecision        ),
+      .RstVal          ( RstVal              ),
+      .CipherLayers    ( 0                   ),
+      .CipherReg       ( 0                   )
+    ) i_lfsr (
+      .clk_i           ( clk_i               ),
+      .rst_ni          ( rst_ni              ),
+      .en_i            ( en_rsr_i            ),
+      .out_o           ( lfsr_out            )
+    );
+  end else begin
+    assign lfsr_out = '0;
+  end
+
+  // Rounding results by stochastic rounding
   always_comb begin : rounding_decision
     unique case (rnd_mode_i)
-      fpnew_pkg::RNE: // Decide accoring to round/sticky bits
+      // Decide according to round/sticky bits
+      fpnew_pkg::RNE:
         unique case (round_sticky_bits_i)
           2'b00,
           2'b01: round_up = 1'b0;           // < ulp/2 away, round down
@@ -55,6 +90,22 @@ module fpnew_rounding #(
       fpnew_pkg::RDN: round_up = (| round_sticky_bits_i) ? sign_i  : 1'b0; // to 0 if +, away if -
       fpnew_pkg::RUP: round_up = (| round_sticky_bits_i) ? ~sign_i : 1'b0; // to 0 if -, away if +
       fpnew_pkg::RMM: round_up = round_sticky_bits_i[1]; // round down if < ulp/2 away, else up
+      // Decide stochastically, comparing trailing bits and pseudo-random number
+      fpnew_pkg::RSR: begin
+        if (EnableRSR) begin
+          round_up = (lfsr_out < stochastic_rounding_bits_i) ? 1'b1 : 1'b0;
+        end else begin
+          round_up = fpnew_pkg::DONT_CARE;
+        end
+      end
+      // Decide randomly
+      fpnew_pkg::RR: begin
+        if (EnableRSR) begin
+          round_up = lfsr_out[RsrPrecision-1]; // round up if MSB LSFR is 1
+        end else begin
+          round_up = fpnew_pkg::DONT_CARE;
+        end
+      end
       default: round_up = fpnew_pkg::DONT_CARE; // propagate x
     endcase
   end

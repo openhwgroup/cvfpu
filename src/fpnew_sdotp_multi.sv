@@ -47,6 +47,9 @@ module fpnew_sdotp_multi #(
                                                               // Supported source formats (FP8, FP8ALT, FP16, FP16ALT)
   parameter fpnew_pkg::fmt_logic_t   DstDotpFpFmtConfig = '1, // FP8 and FP8alt are not supported
                                                               // Supported destination formats (FP16, FP16ALTt, FP32)
+  parameter logic                    EnableRSR    = 1,
+  parameter int unsigned             RsrPrecision = 12,
+  parameter int unsigned             LfsrInternalPrecision = 32,
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
@@ -109,6 +112,8 @@ module fpnew_sdotp_multi #(
   // Destination precision bits 'p_dst' include the implicit bit
   localparam int unsigned DST_PRECISION_BITS = SUPER_DST_MAN_BITS + 1;
   localparam int unsigned ADDITIONAL_PRECISION_BITS = fpnew_pkg::maximum(DST_PRECISION_BITS - 2 * PRECISION_BITS, 0);
+  // Extra bits in intermediate results for stochastic rounding (RSR),'RSRexbits'
+  localparam int unsigned RSR_PRECISION_BITS = RsrPrecision;
   // The leading-zero counter operates on LZC_SUM_WIDTH bits
   localparam int unsigned LZC_SUM_WIDTH  = 2*DST_PRECISION_BITS + PRECISION_BITS + 5;
   localparam int unsigned LZC_RESULT_WIDTH = $clog2(LZC_SUM_WIDTH);
@@ -376,13 +381,15 @@ module fpnew_sdotp_multi #(
     end
   end
 
+  // -------------------------------------------
+  // Operation selection and operand adjustment
+  // -------------------------------------------
   fp_src_t             operand_a, operand_b, operand_c, operand_d;
   fp_dst_t             operand_e;
   fp_dst_t             operand_a_vsum, operand_c_vsum;
   fpnew_pkg::fp_info_t info_a, info_b, info_c, info_d, info_e;
   logic                a_sign, c_sign;
 
-  // Operation selection and operand adjustment
   // | \c op_q  | \c op_mod_q | Operation Adjustment
   // |:--------:|:-----------:|---------------------
   // | SDOTP    | \c 0        | SDOTP:  none
@@ -1229,12 +1236,14 @@ module fpnew_sdotp_multi #(
   logic                                             pre_round_sign;
   logic [SUPER_DST_EXP_BITS+SUPER_DST_MAN_BITS-1:0] pre_round_abs; // absolute value of result before rounding
   logic [1:0]                                       round_sticky_bits;
+  logic [RSR_PRECISION_BITS-1:0]                    stochastic_rounding_bits; // bits for RSR rounding mode
 
   logic of_before_round, of_after_round; // overflow
   logic uf_before_round, uf_after_round; // underflow
 
   logic [NUM_FORMATS-1:0][SUPER_DST_EXP_BITS+SUPER_DST_MAN_BITS-1:0] fmt_pre_round_abs; // per format
   logic [NUM_FORMATS-1:0][1:0]                                       fmt_round_sticky_bits;
+  logic [NUM_FORMATS-1:0][RSR_PRECISION_BITS-1:0]                    fmt_stochastic_rounding_bits;// bits for RSR rounding mode
 
   logic [NUM_FORMATS-1:0]                           fmt_of_after_round;
   logic [NUM_FORMATS-1:0]                           fmt_uf_after_round;
@@ -1252,9 +1261,11 @@ module fpnew_sdotp_multi #(
     // Set up some constants
     localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(fpnew_pkg::fp_format_e'(fmt));
     localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(fpnew_pkg::fp_format_e'(fmt));
+    localparam int unsigned ALL_EXTRA_BITS = SUPER_DST_MAN_BITS-MAN_BITS+1+DST_PRECISION_BITS+PRECISION_BITS+2+1;
 
     logic [EXP_BITS-1:0] pre_round_exponent;
     logic [MAN_BITS-1:0] pre_round_mantissa;
+    logic [ALL_EXTRA_BITS-1:0] pre_round_all_extra_bits;
 
     if (DstDotpFpFmtConfig[fmt]) begin : active_dst_format
 
@@ -1266,6 +1277,9 @@ module fpnew_sdotp_multi #(
       // Round bit is after mantissa (1 in case of overflow for rounding)
       assign fmt_round_sticky_bits[fmt][1] = final_mantissa[SUPER_DST_MAN_BITS-MAN_BITS] |
                                              of_before_round;
+      assign pre_round_all_extra_bits = {final_mantissa[SUPER_DST_MAN_BITS-MAN_BITS:0], sum_sticky_bits};
+      assign fmt_stochastic_rounding_bits[fmt] = (of_before_round) ? '1
+                                                  : pre_round_all_extra_bits[(ALL_EXTRA_BITS-1)-:RSR_PRECISION_BITS];
 
       // remaining bits in mantissa to sticky (1 in case of overflow for rounding)
       if (MAN_BITS < SUPER_DST_MAN_BITS) begin : narrow_sticky
@@ -1277,6 +1291,7 @@ module fpnew_sdotp_multi #(
     end else begin : inactive_format
       assign fmt_pre_round_abs[fmt] = '{default: fpnew_pkg::DONT_CARE};
       assign fmt_round_sticky_bits[fmt] = '{default: fpnew_pkg::DONT_CARE};
+      assign fmt_stochastic_rounding_bits[fmt] = '{default: fpnew_pkg::DONT_CARE};
     end
   end
 
@@ -1284,22 +1299,33 @@ module fpnew_sdotp_multi #(
   assign pre_round_abs      = fmt_pre_round_abs[dst_fmt_q2];
 
   // In case of overflow, the round and sticky bits are set for proper rounding
+  assign stochastic_rounding_bits = fmt_stochastic_rounding_bits[dst_fmt_q2];
   assign round_sticky_bits  = fmt_round_sticky_bits[dst_fmt_q2];
   assign pre_round_sign     = (info_max_is_zero_q && (pre_round_abs == '0) && (| round_sticky_bits))
                               ? final_sign_zero_q : final_sign_z;
 
+  logic enable_rsr;
+  assign enable_rsr = ((rnd_mode_q == fpnew_pkg::RSR) || (rnd_mode_q == fpnew_pkg::RR))
+                      && (mid_pipe_ready[NUM_MID_REGS] && mid_pipe_valid_q[NUM_MID_REGS]);
   // Perform the rounding
   fpnew_rounding #(
-    .AbsWidth ( SUPER_DST_EXP_BITS + SUPER_DST_MAN_BITS )
+    .AbsWidth     ( SUPER_DST_EXP_BITS + SUPER_DST_MAN_BITS ),
+    .EnableRSR    ( EnableRSR             ),
+    .RsrPrecision ( RSR_PRECISION_BITS    ),
+    .LfsrWidth    ( LfsrInternalPrecision )
   ) i_fpnew_rounding (
-    .abs_value_i             ( pre_round_abs           ),
-    .sign_i                  ( pre_round_sign          ),
-    .round_sticky_bits_i     ( round_sticky_bits       ),
-    .rnd_mode_i              ( rnd_mode_q              ),
-    .effective_subtraction_i ( effective_subtraction_z ),
-    .abs_rounded_o           ( rounded_abs             ),
-    .sign_o                  ( rounded_sign            ),
-    .exact_zero_o            ( result_zero             )
+    .clk_i                      ( clk_i                    ),
+    .rst_ni                     ( rst_ni                   ),
+    .abs_value_i                ( pre_round_abs            ),
+    .en_rsr_i                   ( enable_rsr               ),
+    .sign_i                     ( pre_round_sign           ),
+    .round_sticky_bits_i        ( round_sticky_bits        ),
+    .stochastic_rounding_bits_i ( stochastic_rounding_bits ),
+    .rnd_mode_i                 ( rnd_mode_q               ),
+    .effective_subtraction_i    ( effective_subtraction_z  ),
+    .abs_rounded_o              ( rounded_abs              ),
+    .sign_o                     ( rounded_sign             ),
+    .exact_zero_o               ( result_zero              )
   );
 
   logic [NUM_FORMATS-1:0][DST_WIDTH-1:0] fmt_result;
