@@ -34,6 +34,7 @@ module fpnew_sdotp_multi_wrapper #(
 ) (
   input logic                      clk_i,
   input logic                      rst_ni,
+  input logic [33:0]               sdotp_hart_id_i,
   // Input signals
   input logic [2:0][OPERAND_WIDTH-1:0] operands_i, // 3 operands
   input logic [NUM_FORMATS-1:0][2:0]   is_boxed_i, // 3 operands
@@ -145,6 +146,7 @@ module fpnew_sdotp_multi_wrapper #(
   ) i_fpnew_sdotp_multi (
     .clk_i,
     .rst_ni,
+    .sdotp_hart_id_i,
     .operand_a_i     ( local_src_fmt_operand_a[src_fmt_i] ),
     .operand_b_i     ( local_src_fmt_operand_b[src_fmt_i] ),
     .operand_c_i     ( local_src_fmt_operand_c[src_fmt_i] ),

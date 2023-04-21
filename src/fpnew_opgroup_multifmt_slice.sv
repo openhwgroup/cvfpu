@@ -31,6 +31,7 @@ module fpnew_opgroup_multifmt_slice #(
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
+  input logic [31:0]                              hart_id_i,
   // Input signals
   input logic [NUM_OPERANDS-1:0][Width-1:0]       operands_i,
   input logic [NUM_FORMATS-1:0][NUM_OPERANDS-1:0] is_boxed_i,
@@ -261,6 +262,7 @@ module fpnew_opgroup_multifmt_slice #(
         ) i_fpnew_sdotp_multi_wrapper (
           .clk_i,
           .rst_ni,
+          .sdotp_hart_id_i ( {hart_id_i, 2'b00} + lane ),
           .operands_i      ( local_operands[2:0] ), // 3 operands
           .is_boxed_i,
           .rnd_mode_i,

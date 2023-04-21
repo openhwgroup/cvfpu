@@ -30,6 +30,7 @@ module fpnew_opgroup_block #(
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
+  input logic [31:0]                              hart_id_i,
   // Input signals
   input logic [NUM_OPERANDS-1:0][Width-1:0]       operands_i,
   input logic [NUM_FORMATS-1:0][NUM_OPERANDS-1:0] is_boxed_i,
@@ -173,6 +174,7 @@ module fpnew_opgroup_block #(
     ) i_multifmt_slice (
       .clk_i,
       .rst_ni,
+      .hart_id_i,
       .operands_i,
       .is_boxed_i,
       .rnd_mode_i,

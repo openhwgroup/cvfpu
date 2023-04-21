@@ -24,6 +24,7 @@ module fpnew_rounding #(
   // LFSR inputs
   input logic                  clk_i,
   input logic                  rst_ni,
+  input logic [33:0]           id_i,
   // Input value
   input logic [AbsWidth-1:0]   abs_value_i,             // absolute value without sign
   input logic                  sign_i,
@@ -58,7 +59,7 @@ module fpnew_rounding #(
   logic [RsrPrecision-1:0] lfsr_out;
 
   if (EnableRSR) begin : gen_lfsr
-    lfsr #(
+    lfsr_sr #(
       .LfsrWidth       ( LfsrWidth           ),
       .OutWidth        ( RsrPrecision        ),
       .RstVal          ( RstVal              ),
@@ -67,6 +68,7 @@ module fpnew_rounding #(
     ) i_lfsr (
       .clk_i           ( clk_i               ),
       .rst_ni          ( rst_ni              ),
+      .id_i            ( id_i                ),
       .en_i            ( en_rsr_i            ),
       .out_o           ( lfsr_out            )
     );

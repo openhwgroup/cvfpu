@@ -61,6 +61,7 @@ module fpnew_sdotp_multi #(
 ) (
   input  logic                        clk_i,
   input  logic                        rst_ni,
+  input  logic [33:0]                 sdotp_hart_id_i,
   // Input signals
   // op_a and op_c will contain useful bits in [SRC_WIDTH-1:0] for EXSDOTP, EXVSUM
   // op_a and op_c will contain useful bits in [DST_WIDTH-1:0] for VSUM (non-expanding)
@@ -1316,6 +1317,7 @@ module fpnew_sdotp_multi #(
   ) i_fpnew_rounding (
     .clk_i                      ( clk_i                    ),
     .rst_ni                     ( rst_ni                   ),
+    .id_i                       ( sdotp_hart_id_i          ),
     .abs_value_i                ( pre_round_abs            ),
     .en_rsr_i                   ( enable_rsr               ),
     .sign_i                     ( pre_round_sign           ),

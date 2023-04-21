@@ -24,6 +24,7 @@ module fpnew_top #(
 ) (
   input logic                               clk_i,
   input logic                               rst_ni,
+  input logic [31:0]                        hart_id_i,
   // Input signals
   input logic [NUM_OPERANDS-1:0][WIDTH-1:0] operands_i,
   input fpnew_pkg::roundmode_e              rnd_mode_i,
@@ -117,6 +118,7 @@ module fpnew_top #(
     ) i_opgroup_block (
       .clk_i,
       .rst_ni,
+      .hart_id_i,
       .operands_i      ( operands_i[NUM_OPS-1:0] ),
       .is_boxed_i      ( input_boxed             ),
       .rnd_mode_i,
