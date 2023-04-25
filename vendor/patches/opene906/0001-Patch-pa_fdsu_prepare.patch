@@ -1,0 +1,31 @@
+From 37d26413e3bb82a79073bd036677fa653f0bb540 Mon Sep 17 00:00:00 2001
+From: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
+Date: Thu, 9 Mar 2023 12:17:22 +0100
+Subject: [PATCH] Patch pa_fdsu_prepare
+
+---
+ E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
+index 56d179b..f7bc5d2 100644
+--- a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
++++ b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v
+@@ -122,12 +122,10 @@ wire    [59:0]  sqrt_remainder;
+ wire            sqrt_sign;               
+ 
+ 
+-parameter FLEN = `FLEN;
+-
+ assign ex1_sqrt                    = idu_fpu_ex1_func[0];
+ assign ex1_div                     = idu_fpu_ex1_func[1];
+-assign ex1_oper0[63:0]             = {32'b0, idu_fpu_ex1_srcf0[FLEN-1:0] & {32{fdsu_ex1_sel}}};
+-assign ex1_oper1[63:0]             = {32'b0, idu_fpu_ex1_srcf1[FLEN-1:0] & {32{fdsu_ex1_sel}}};
++assign ex1_oper0[63:0]             = {32'b0, idu_fpu_ex1_srcf0[31:0] & {32{fdsu_ex1_sel}}};
++assign ex1_oper1[63:0]             = {32'b0, idu_fpu_ex1_srcf1[31:0] & {32{fdsu_ex1_sel}}};
+ assign ex1_double                  = 1'b0;
+ assign ex1_single                  = 1'b1;
+ // &Force("bus", "idu_fpu_ex1_func", 9, 0); @43
+-- 
+2.16.5
+
