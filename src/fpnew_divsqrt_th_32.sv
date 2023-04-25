@@ -27,7 +27,8 @@ module fpnew_divsqrt_th_32 #(
   parameter type                     AuxType     = logic,
   // Do not change
   localparam int unsigned WIDTH       = 32,
-  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
+  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS,
+  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
 ) (
   input  logic                        clk_i,
   input  logic                        rst_ni,
@@ -56,7 +57,7 @@ module fpnew_divsqrt_th_32 #(
   // Indication of valid data in flight
   output logic                        busy_o,
   // External register enable override
-  input  logic [NumPipeRegs-1:0]      reg_ena_i
+  input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
 );
 
   // ----------

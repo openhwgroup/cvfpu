@@ -26,7 +26,8 @@ module fpnew_cast_multi #(
   // Do not change
   localparam int unsigned WIDTH = fpnew_pkg::maximum(fpnew_pkg::max_fp_width(FpFmtConfig),
                                                      fpnew_pkg::max_int_width(IntFmtConfig)),
-  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
+  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS,
+  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
 ) (
   input  logic                   clk_i,
   input  logic                   rst_ni,
@@ -59,7 +60,7 @@ module fpnew_cast_multi #(
   // Indication of valid data in flight
   output logic                   busy_o,
   // External register enable override
-  input  logic [NumPipeRegs-1:0] reg_ena_i
+  input  logic [ExtRegEnaWidth-1:0] reg_ena_i
 );
 
   // ----------

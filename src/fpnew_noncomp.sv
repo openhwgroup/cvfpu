@@ -21,8 +21,9 @@ module fpnew_noncomp #(
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
   parameter type                     TagType     = logic,
   parameter type                     AuxType     = logic,
-
-  localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat) // do not change
+  // Do not change
+  localparam int unsigned WIDTH = fpnew_pkg::fp_width(FpFormat),
+  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
 ) (
   input logic                  clk_i,
   input logic                  rst_ni,
@@ -54,7 +55,7 @@ module fpnew_noncomp #(
   // Indication of valid data in flight
   output logic                     busy_o,
   // External register enable override
-  input  logic [NumPipeRegs-1:0]   reg_ena_i
+  input  logic [ExtRegEnaWidth-1:0] reg_ena_i
 );
 
   // ----------
