@@ -18,6 +18,8 @@ module fpnew_top #(
   parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
   parameter type                            TagType        = logic,
+  parameter logic                           EnableRSR      = 1'b0, // stochastic rounding supported
+                                                                   // only by SDOTP
   // Do not change
   localparam int unsigned WIDTH        = Features.Width,
   localparam int unsigned NUM_OPERANDS = 3
@@ -109,6 +111,7 @@ module fpnew_top #(
       .OpGroup       ( fpnew_pkg::opgroup_e'(opgrp)    ),
       .Width         ( WIDTH                           ),
       .EnableVectors ( Features.EnableVectors          ),
+      .EnableRSR     ( EnableRSR                       ),
       .FpFmtMask     ( Features.FpFmtMask              ),
       .IntFmtMask    ( Features.IntFmtMask             ),
       .FmtPipeRegs   ( Implementation.PipeRegs[opgrp]  ),

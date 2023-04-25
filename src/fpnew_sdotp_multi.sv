@@ -47,7 +47,7 @@ module fpnew_sdotp_multi #(
                                                               // Supported source formats (FP8, FP8ALT, FP16, FP16ALT)
   parameter fpnew_pkg::fmt_logic_t   DstDotpFpFmtConfig = '1, // FP8 and FP8alt are not supported
                                                               // Supported destination formats (FP16, FP16ALTt, FP32)
-  parameter logic                    EnableRSR    = 1,
+  parameter logic                    EnableRSR    = 1'b1,
   parameter int unsigned             RsrPrecision = 12,
   parameter int unsigned             LfsrInternalPrecision = 32,
   parameter int unsigned             NumPipeRegs = 0,

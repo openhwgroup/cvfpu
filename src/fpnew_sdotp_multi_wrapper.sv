@@ -18,23 +18,25 @@
 `include "common_cells/registers.svh"
 
 module fpnew_sdotp_multi_wrapper #(
+  parameter int unsigned             LaneWidth   = 64,
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig = '1,
   parameter int unsigned             NumPipeRegs = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig  = fpnew_pkg::BEFORE,
+  parameter logic                    EnableRSR   = 1'b1,
   parameter type                     TagType     = logic,
   parameter type                     AuxType     = logic,
 
   // Do not change
   localparam fpnew_pkg::fmt_logic_t FpSrcFmtConfig = FpFmtConfig[0] ? (FpFmtConfig & 6'b001111) : (FpFmtConfig & 6'b000101),
-  localparam fpnew_pkg::fmt_logic_t FpDstFmtConfig = fpnew_pkg::get_dotp_dst_fmts(FpSrcFmtConfig),
-  localparam int                     SRC_WIDTH     = fpnew_pkg::max_fp_width(FpSrcFmtConfig),
-  localparam int                     DST_WIDTH     = 2*fpnew_pkg::max_fp_width(FpSrcFmtConfig), // do not change, current assumption of sdotpex_multi
-  localparam int                     OPERAND_WIDTH = 4*fpnew_pkg::max_fp_width(FpSrcFmtConfig), // do not change, current assumption of sdotpex_multi
-  localparam int unsigned NUM_FORMATS              = fpnew_pkg::NUM_FP_FORMATS
+  localparam fpnew_pkg::fmt_logic_t FpDstFmtConfig = fpnew_pkg::get_dotp_dst_fmts(FpFmtConfig, FpSrcFmtConfig),
+  localparam int                    SRC_WIDTH      = fpnew_pkg::max_fp_width(FpSrcFmtConfig),
+  localparam int                    DST_WIDTH      = 2*fpnew_pkg::max_fp_width(FpSrcFmtConfig), // do not change, current assumption of sdotpex_multi
+  localparam int                    OPERAND_WIDTH  = LaneWidth,
+  localparam int unsigned           NUM_FORMATS    = fpnew_pkg::NUM_FP_FORMATS
 ) (
-  input logic                      clk_i,
-  input logic                      rst_ni,
-  input logic [33:0]               sdotp_hart_id_i,
+  input logic                          clk_i,
+  input logic                          rst_ni,
+  input logic [33:0]                   sdotp_hart_id_i,
   // Input signals
   input logic [2:0][OPERAND_WIDTH-1:0] operands_i, // 3 operands
   input logic [NUM_FORMATS-1:0][2:0]   is_boxed_i, // 3 operands
@@ -112,7 +114,11 @@ module fpnew_sdotp_multi_wrapper #(
       if (op_i == fpnew_pkg::VSUM) begin
         local_src_fmt_operand_a[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[0][FP_WIDTH_DST_MIN-1:0];
         local_src_fmt_operand_b[fmt][FP_WIDTH_MIN-1:0]     = '1;
-        local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[2][FP_WIDTH_DST_MIN-1:0];
+        if(FP_WIDTH == LaneWidth) begin
+          local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[1][FP_WIDTH_DST_MIN-1:0];
+        end else begin
+          local_src_fmt_operand_c[fmt][FP_WIDTH_DST_MIN-1:0] = tmp_operands[2][FP_WIDTH_DST_MIN-1:0];
+        end
         local_src_fmt_operand_d[fmt][FP_WIDTH_MIN-1:0]     = '1;
       end else begin
         local_src_fmt_operand_a[fmt][FP_WIDTH_MIN-1:0] = tmp_operands[0][FP_WIDTH_MIN-1:0];
@@ -131,14 +137,14 @@ module fpnew_sdotp_multi_wrapper #(
         local_is_boxed[fmt][2] = '1;
         local_is_boxed[fmt][3] = '1;
       end
-      // for dst format sized operand keep is_boxed input
-      local_is_boxed[fmt][4] = is_boxed_i[src_fmt_i][2];
+      local_is_boxed[fmt][4] = is_boxed_i[dst_fmt_i][2];
     end
   end
 
   fpnew_sdotp_multi #(
     .SrcDotpFpFmtConfig ( FpSrcFmtConfig ), // FP8, FP8ALT, FP16, FP16ALT
     .DstDotpFpFmtConfig ( FpDstFmtConfig ), // FP32, FP16, FP16ALT
+    .EnableRSR          ( EnableRSR      ),
     .NumPipeRegs        ( NumPipeRegs    ),
     .PipeConfig         ( PipeConfig     ),
     .TagType            ( TagType        ),
@@ -173,7 +179,9 @@ module fpnew_sdotp_multi_wrapper #(
     .busy_o
   );
 
-  assign local_result[2*DST_WIDTH-1:DST_WIDTH] = '1;
+  if(OPERAND_WIDTH > DST_WIDTH) begin
+   assign local_result[OPERAND_WIDTH-1:DST_WIDTH]  = '1;
+  end
   assign result_o                              = local_result;
 
 endmodule

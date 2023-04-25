@@ -283,7 +283,7 @@ package fpnew_pkg;
                   '{default: MERGED},   // DIVSQRT
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED},   // CONV
-                  '{default: MERGED}},  // DOTP
+                  '{default: DISABLED}},  // DOTP
     PipeConfig: BEFORE
   };
 
@@ -464,25 +464,38 @@ package fpnew_pkg;
     return res;
   endfunction
 
+  //Returns how many DOTP lanes should be generated
+  function automatic int num_dotp_lanes(int unsigned width,
+                                        fmt_logic_t cfg);
+    return (cfg[FP16] || cfg[FP16ALT]) && (cfg[FP32] || cfg[FP8] || cfg[FP8ALT]) ?
+               (width / (2*min_fp_width(cfg))) : 0;
+  endfunction
+
   // Returns a mask of active FP formats that are currenlty supported for DOTP operations
   function automatic fmt_logic_t get_dotp_lane_formats(int unsigned width,
                                                        fmt_logic_t cfg,
                                                        int unsigned lane_no);
     automatic fmt_logic_t res;
-    for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
-      // Mask active formats with the number of lanes for that format, CPK at least twice
-      res[fmt] = cfg[fmt] && ((width / (fp_width(fp_format_e'(fmt))*2) > (lane_no/2)) && DOTP_FORMATS[fmt]);
+    automatic fmt_logic_t mask;
+    int unsigned nr_16to32bit_lanes = (cfg[FP32]) ? (width / 32) : 0;
+    if (lane_no < nr_16to32bit_lanes)
+      mask = 6'b101111;  //lane should be 16-bit -> 32-bit
+    else
+      mask = 6'b001111;  //lane should be  8-bit -> 16-bit
+    res = cfg & mask;
     return res;
   endfunction
 
   // Returns the dotp dest FP format string
-  function automatic fmt_logic_t get_dotp_dst_fmts(fmt_logic_t cfg);
+  function automatic fmt_logic_t get_dotp_dst_fmts(fmt_logic_t cfg, fmt_logic_t src_cfg);
     automatic fmt_logic_t res;
-    unique case (cfg) // goes through some of the allowed configurations
-      6'b001111:  res=6'b101111; // fp8(alt) -> fp16(alt) & fp16(alt) -> fp32
-      6'b000101:  res=6'b001111; // fp8(alt) -> fp16(alt)
-      default: return '0;
-    endcase
+    res = { cfg[FP32] && (src_cfg[FP16] || src_cfg[FP16ALT] || src_cfg[FP8] || src_cfg[FP8ALT]),
+            1'b0,                                               // FP64 not supported as dstFmt
+            cfg[FP16] && (src_cfg[FP8] || src_cfg[FP8ALT]),
+            cfg[FP8],                                           // FP8 supported as dstFmt for VSUM
+            cfg[FP16ALT] && (src_cfg[FP8] || src_cfg[FP8ALT]),
+            cfg[FP8ALT]                                         // FP8ALT supported as dstFmt for VSUM
+    };
     return res;
   endfunction
 
