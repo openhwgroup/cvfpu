@@ -591,6 +591,7 @@ module fpnew_fma #(
   ) i_fpnew_rounding (
     .clk_i,
     .rst_ni,
+    .id_i                    ( '0                      ),
     .en_rsr_i                ( 1'b0                    ),
     .abs_value_i             ( pre_round_abs           ),
     .sign_i                  ( pre_round_sign          ),
