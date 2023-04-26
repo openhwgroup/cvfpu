@@ -86,13 +86,11 @@ or set Features.FpFmtMask to support only FP32");
   // additional flags for CONV
   logic       dst_fmt_is_int, dst_is_cpk;
   logic [1:0] dst_vec_op; // info for vectorial results (for packing)
-  logic [2:0] target_aux_d, target_aux_q;
+  logic [2:0] target_aux_d;
   logic       is_up_cast, is_down_cast;
 
   logic [NUM_FORMATS-1:0][Width-1:0]     fmt_slice_result;
   logic [NUM_INT_FORMATS-1:0][Width-1:0] ifmt_slice_result;
-  logic [Width-1:0]                      conv_slice_result;
-
 
   logic [Width-1:0] conv_target_d, conv_target_q; // vectorial conversions update a register
 
@@ -251,33 +249,35 @@ or set Features.FpFmtMask to support only FP32");
 
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
         if (!PulpDivsqrt && LANE_FORMATS[0] && (LANE_FORMATS[1:fpnew_pkg::NUM_FP_FORMATS-1] == '0)) begin
-            // The T-head-based DivSqrt unit is supported only in FP32-only configurations
-            fpnew_divsqrt_th_32 #(
-              .NumPipeRegs ( NumPipeRegs          ),
-              .PipeConfig  ( PipeConfig           ),
-              .TagType     ( TagType              ),
-              .AuxType     ( logic [AUX_BITS-1:0] )
-            ) i_fpnew_divsqrt_multi_th (
-              .clk_i,
-              .rst_ni,
-              .operands_i      ( local_operands[1:0] ), // 2 operands
-              .is_boxed_i      ( is_boxed_2op        ), // 2 operands
-              .rnd_mode_i,
-              .op_i,
-              .tag_i,
-              .aux_i           ( aux_data            ),
-              .in_valid_i      ( in_valid            ),
-              .in_ready_o      ( lane_in_ready[lane] ),
-              .flush_i,
-              .result_o        ( op_result           ),
-              .status_o        ( op_status           ),
-              .extension_bit_o ( lane_ext_bit[lane]  ),
-              .tag_o           ( lane_tags[lane]     ),
-              .aux_o           ( lane_aux[lane]      ),
-              .out_valid_o     ( out_valid           ),
-              .out_ready_i     ( out_ready           ),
-              .busy_o          ( lane_busy[lane]     )
-            );
+          // The T-head-based DivSqrt unit is supported only in FP32-only configurations
+          fpnew_divsqrt_th_32 #(
+            .NumPipeRegs ( NumPipeRegs          ),
+            .PipeConfig  ( PipeConfig           ),
+            .TagType     ( TagType              ),
+            .AuxType     ( logic [AUX_BITS-1:0] )
+          ) i_fpnew_divsqrt_multi_th (
+            .clk_i,
+            .rst_ni,
+            .operands_i      ( local_operands[1:0] ), // 2 operands
+            .is_boxed_i      ( is_boxed_2op        ), // 2 operands
+            .rnd_mode_i,
+            .op_i,
+            .tag_i,
+            .mask_i          ( simd_mask_i[lane]   ),
+            .aux_i           ( aux_data            ),
+            .in_valid_i      ( in_valid            ),
+            .in_ready_o      ( lane_in_ready[lane] ),
+            .flush_i,
+            .result_o        ( op_result           ),
+            .status_o        ( op_status           ),
+            .extension_bit_o ( lane_ext_bit[lane]  ),
+            .tag_o           ( lane_tags[lane]     ),
+            .mask_o          ( lane_masks[lane]    ),
+            .aux_o           ( lane_aux[lane]      ),
+            .out_valid_o     ( out_valid           ),
+            .out_ready_i     ( out_ready           ),
+            .busy_o          ( lane_busy[lane]     )
+          );
         end else begin
           fpnew_divsqrt_multi #(
             .FpFmtConfig ( LANE_FORMATS         ),
@@ -288,24 +288,30 @@ or set Features.FpFmtMask to support only FP32");
           ) i_fpnew_divsqrt_multi (
             .clk_i,
             .rst_ni,
-            .operands_i      ( local_operands[1:0] ), // 2 operands
-            .is_boxed_i      ( is_boxed_2op        ), // 2 operands
+            .operands_i       ( local_operands[1:0] ), // 2 operands
+            .is_boxed_i       ( is_boxed_2op        ), // 2 operands
             .rnd_mode_i,
             .op_i,
             .dst_fmt_i,
             .tag_i,
-            .aux_i           ( aux_data            ),
-            .in_valid_i      ( in_valid            ),
-            .in_ready_o      ( lane_in_ready[lane] ),
+            .mask_i           ( simd_mask_i[lane]   ),
+            .aux_i            ( aux_data            ),
+            .in_valid_i       ( in_valid            ),
+            .in_ready_o       ( lane_in_ready[lane] ),
+            .divsqrt_done_o   ( divsqrt_done[lane]  ),
+            .simd_synch_done_i( simd_synch_done     ),
+            .divsqrt_ready_o  ( divsqrt_ready[lane] ),
+            .simd_synch_rdy_i ( simd_synch_rdy      ),
             .flush_i,
-            .result_o        ( op_result           ),
-            .status_o        ( op_status           ),
-            .extension_bit_o ( lane_ext_bit[lane]  ),
-            .tag_o           ( lane_tags[lane]     ),
-            .aux_o           ( lane_aux[lane]      ),
-            .out_valid_o     ( out_valid           ),
-            .out_ready_i     ( out_ready           ),
-            .busy_o          ( lane_busy[lane]     )
+            .result_o         ( op_result           ),
+            .status_o         ( op_status           ),
+            .extension_bit_o  ( lane_ext_bit[lane]  ),
+            .tag_o            ( lane_tags[lane]     ),
+            .mask_o           ( lane_masks[lane]    ),
+            .aux_o            ( lane_aux[lane]      ),
+            .out_valid_o      ( out_valid           ),
+            .out_ready_i      ( out_ready           ),
+            .busy_o           ( lane_busy[lane]     )
           );
         end
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
@@ -453,9 +459,15 @@ or set Features.FpFmtMask to support only FP32");
     assign {result_vec_op, result_is_cpk} = '0;
   end
 
-  // Synch lanes if there is more than one
-  assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
-  assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
+  if (PulpDivsqrt) begin
+    // Synch lanes if there is more than one
+    assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
+    assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
+  end else begin
+    // Unused (alternative divider only supported for scalar FP32 divsqrt)
+    assign simd_synch_rdy  = '0;
+    assign simd_synch_done = '0;
+  end
 
   // ------------
   // Output Side
