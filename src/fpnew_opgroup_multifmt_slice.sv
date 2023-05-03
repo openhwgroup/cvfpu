@@ -317,7 +317,8 @@ or set Features.FpFmtMask to support only FP32");
             .aux_o            ( lane_aux[lane]      ),
             .out_valid_o      ( out_valid           ),
             .out_ready_i      ( out_ready           ),
-            .busy_o           ( lane_busy[lane]     )
+            .busy_o           ( lane_busy[lane]     ),
+            .reg_ena_i
           );
         end
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
