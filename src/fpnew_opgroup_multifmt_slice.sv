@@ -25,12 +25,14 @@ module fpnew_opgroup_multifmt_slice #(
   parameter logic                    PulpDivsqrt   = 1'b1,
   parameter int unsigned             NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t PipeConfig    = fpnew_pkg::BEFORE,
+  parameter logic                    ExtRegEna     = 1'b0,
   parameter type                     TagType       = logic,
   // Do not change
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
   localparam int unsigned NUM_SIMD_LANES = fpnew_pkg::max_num_lanes(Width, FpFmtConfig, EnableVectors),
-  localparam type         MaskType     = logic [NUM_SIMD_LANES-1:0]
+  localparam type         MaskType     = logic [NUM_SIMD_LANES-1:0],
+  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
@@ -59,7 +61,9 @@ module fpnew_opgroup_multifmt_slice #(
   output logic                                    out_valid_o,
   input  logic                                    out_ready_i,
   // Indication of valid data in flight
-  output logic                                    busy_o
+  output logic                                    busy_o,
+  // External register enable override
+  input  logic [ExtRegEnaWidth-1:0]               reg_ena_i
 );
 
   if ((OpGroup == fpnew_pkg::DIVSQRT) && !PulpDivsqrt &&
@@ -244,7 +248,8 @@ or set Features.FpFmtMask to support only FP32");
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
-          .busy_o          ( lane_busy[lane]     )
+          .busy_o          ( lane_busy[lane]     ),
+          .reg_ena_i
         );
 
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
@@ -276,7 +281,8 @@ or set Features.FpFmtMask to support only FP32");
             .aux_o           ( lane_aux[lane]      ),
             .out_valid_o     ( out_valid           ),
             .out_ready_i     ( out_ready           ),
-            .busy_o          ( lane_busy[lane]     )
+            .busy_o          ( lane_busy[lane]     ),
+            .reg_ena_i
           );
         end else begin
           fpnew_divsqrt_multi #(
@@ -311,7 +317,8 @@ or set Features.FpFmtMask to support only FP32");
             .aux_o            ( lane_aux[lane]      ),
             .out_valid_o      ( out_valid           ),
             .out_ready_i      ( out_ready           ),
-            .busy_o           ( lane_busy[lane]     )
+            .busy_o           ( lane_busy[lane]     ),
+            .reg_ena_i
           );
         end
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
@@ -349,7 +356,8 @@ or set Features.FpFmtMask to support only FP32");
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
-          .busy_o          ( lane_busy[lane]     )
+          .busy_o          ( lane_busy[lane]     ),
+          .reg_ena_i
         );
       end // ADD OTHER OPTIONS HERE
 
@@ -358,8 +366,8 @@ or set Features.FpFmtMask to support only FP32");
       assign lane_out_valid[lane] = out_valid & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
+      assign local_result      = (lane_out_valid[lane] | ExtRegEna) ? op_result : '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = (lane_out_valid[lane] | ExtRegEna) ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin : inactive_lane
@@ -443,7 +451,7 @@ or set Features.FpFmtMask to support only FP32");
       // Valid: enabled by ready signal, synchronous clear with the flush signal
       `FFLARNC(byp_pipe_valid_q[i+1], byp_pipe_valid_q[i], byp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
       // Enable register if pipleine ready and a valid data item is present
-      assign reg_ena = byp_pipe_ready[i] & byp_pipe_valid_q[i];
+      assign reg_ena = (byp_pipe_ready[i] & byp_pipe_valid_q[i]) | reg_ena_i[i];
       // Generate the pipeline registers within the stages, use enable-registers
       `FFL(byp_pipe_target_q[i+1],  byp_pipe_target_q[i],  reg_ena, '0)
       `FFL(byp_pipe_aux_q[i+1],     byp_pipe_aux_q[i],     reg_ena, '0)
