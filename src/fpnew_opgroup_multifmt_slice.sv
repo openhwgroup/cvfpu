@@ -429,10 +429,17 @@ or set Features.FpFmtMask to support only FP32");
       assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = '{default: lane_ext_bit[0]};
   end
 
-  // Mute int results if unused
-  for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : int_results_disabled
+  for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : extend_or_mute_int_result
+    // Mute int results if unused
     if (OpGroup != fpnew_pkg::CONV) begin : mute_int_result
       assign ifmt_slice_result[ifmt] = '0;
+
+    // Extend slice result if needed
+    end else begin : extend_int_result
+      // Set up some constants
+      localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
+      if (NUM_LANES*INT_WIDTH < Width)
+        assign ifmt_slice_result[ifmt][Width-1:NUM_LANES*INT_WIDTH] = '0;
     end
   end
 
