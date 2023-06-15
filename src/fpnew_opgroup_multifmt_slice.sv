@@ -137,6 +137,8 @@ or set Features.FpFmtMask to support only FP32");
   // CONV passes one operand for assembly after the unit: opC for cpk, opB for others
   if (OpGroup == fpnew_pkg::CONV) begin : conv_target
     assign conv_target_d = dst_is_cpk ? operands_i[2] : operands_i[1];
+  end else begin : not_conv_target
+    assign conv_target_d = '0;
   end
 
   // For 2-operand units, prepare boxing info
@@ -302,6 +304,7 @@ or set Features.FpFmtMask to support only FP32");
             .tag_i,
             .mask_i           ( simd_mask_i[lane]   ),
             .aux_i            ( aux_data            ),
+            .vectorial_op_i   ( vectorial_op        ),
             .in_valid_i       ( in_valid            ),
             .in_ready_o       ( lane_in_ready[lane] ),
             .divsqrt_done_o   ( divsqrt_done[lane]  ),
@@ -373,7 +376,13 @@ or set Features.FpFmtMask to support only FP32");
     end else begin : inactive_lane
       assign lane_out_valid[lane] = 1'b0; // unused lane
       assign lane_in_ready[lane]  = 1'b0; // unused lane
-      assign local_result         = '{default: lane_ext_bit[0]}; // sign-extend/nan box
+      assign lane_aux[lane]       = 1'b0; // unused lane
+      assign lane_masks[lane]     = 1'b1; // unused lane
+      assign lane_tags[lane]      = 1'b0; // unused lane
+      assign divsqrt_done[lane]   = 1'b0; // unused lane
+      assign divsqrt_ready[lane]  = 1'b0; // unused lane
+      assign lane_ext_bit[lane]   = 1'b1; // NaN-box unused lane
+      assign local_result         = {(LANE_WIDTH){lane_ext_bit[0]}}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
       assign lane_busy[lane]      = 1'b0;
     end
@@ -420,10 +429,17 @@ or set Features.FpFmtMask to support only FP32");
       assign fmt_slice_result[fmt][Width-1:NUM_LANES*FP_WIDTH] = '{default: lane_ext_bit[0]};
   end
 
-  // Mute int results if unused
-  for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : int_results_disabled
+  for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : extend_or_mute_int_result
+    // Mute int results if unused
     if (OpGroup != fpnew_pkg::CONV) begin : mute_int_result
       assign ifmt_slice_result[ifmt] = '0;
+
+    // Extend slice result if needed
+    end else begin : extend_int_result
+      // Set up some constants
+      localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
+      if (NUM_LANES*INT_WIDTH < Width)
+        assign ifmt_slice_result[ifmt][Width-1:NUM_LANES*INT_WIDTH] = '0;
     end
   end
 
@@ -465,6 +481,7 @@ or set Features.FpFmtMask to support only FP32");
     assign {result_vec_op, result_is_cpk} = byp_pipe_aux_q[NumPipeRegs];
   end else begin : no_conv
     assign {result_vec_op, result_is_cpk} = '0;
+    assign conv_target_q = '0;
   end
 
   if (PulpDivsqrt) begin
