@@ -33,13 +33,14 @@ SystemVerilog `interface`s are not used due to poor support in some EDA tools.
 The configuration parameters use data types defined in `fpnew_pkg` which are structs containing multi-dimensional arrays of custom enumeration types.
 For more in-depth explanations on how to configure the unit and the layout of the types used, please refer to the [Configuration Section](#configuration).
 
-|  Parameter Name  |                                                         Description                                                          |
-|------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                      |
-| `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits |
-| `TagType`        | The SystemVerilog data type of the operation tag                                                                             |
-| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits|
-| `EnableSIMDMask` | Enable the RISC-V floating-point status flags masking of inactive vectorial lanes. When disabled, `simd_mask_i` is inactive  |
+|  Parameter Name  |                                                         Description                                                           |
+|------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                       |
+| `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits  |
+| `PulpDivsqrt`    | Enables T-head-based DivSqrt unit when set to 0. Supported for FP32-only instances                                            |
+| `TagType`        | The SystemVerilog data type of the operation tag                                                                              |
+| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits |
+| `EnableSIMDMask` | Enable the RISC-V floating-point status flags masking of inactive vectorial lanes. When disabled, `simd_mask_i` is inactive   |
 
 ### Ports
 

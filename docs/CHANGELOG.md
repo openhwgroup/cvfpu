@@ -8,7 +8,22 @@ In this sense, we interpret the "Public API" of a hardware module as its port/pa
 Versions of the IP in the same major relase are "pin-compatible" with each other. Minor relases are permitted to add new parameters as long as their default bindings ensure backwards compatibility.
 
 
-## [Unreleased]
+## [0.8.0] - 2023-06-02
+
+### Added
+- Add external reg enable to slices [(#89)](https://github.com/openhwgroup/cvfpu/pull/89)
+- Integrate new 32b divider [(#79)](https://github.com/openhwgroup/cvfpu/pull/79)
+
+### Changed
+- CHANGELOG.md, README.md and docs/README.md
+- Moved @lucabertaccini to Authors
+- Added Pasquale Davide Schiavone and Pascal Gouedo as maintainers
+
+### Fixed
+- multifmt slice uses wrong FP width for third operand [(#86)](https://github.com/openhwgroup/cvfpu/issues/86)
+- Fix DivSqrt lanes synchronization [(#90)](https://github.com/openhwgroup/cvfpu/pull/90)
+
+## [0.7.0] - 2023-03-20
 
 ### Added
 - Citation file `CITATION.cff`
@@ -18,10 +33,13 @@ Versions of the IP in the same major relase are "pin-compatible" with each other
 
 ### Changed
 - Code ownership to @lucabertaccini
+- Fix licence headers
 
 ### Fixed
 - Fix de-synchronization among vectorial lanes during variable-latency operations (`fdiv`, `fsqrt`)
-
+- Correct sign for RDN in floating point multiplications ([#54](https://github.com/openhwgroup/cvfpu/issues/54), [#63](https://github.com/openhwgroup/cvfpu/issues/63), [#728](https://github.com/openhwgroup/cv32e40p/issues/728))
+- Fix shift amount width in fma and fma_multi [(#66)](https://github.com/openhwgroup/cvfpu/pull/66)
+- Fix f2i cast edge cases [(#64)](https://github.com/openhwgroup/cvfpu/pull/64)
 
 ## [0.6.6] - 2021-04-19
 
