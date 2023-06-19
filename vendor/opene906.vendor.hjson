@@ -1,0 +1,50 @@
+// Copyright 2023 ETH Zurich and University of Bologna.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+{
+  name: "opene906",
+  target_dir: "opene906"
+
+  upstream: {
+    url: "https://github.com/T-head-Semi/opene906"
+    rev: "d45f0634d6a3638f39984899b0adb0b69726646e"
+  }
+
+  patch_dir: "patches/opene906"
+
+  exclude_from_upstream: [
+    "doc",
+    "smart_run",
+    "E906_RTL_FACTORY/gen_rtl/biu",
+    "E906_RTL_FACTORY/gen_rtl/bmu",
+    "E906_RTL_FACTORY/gen_rtl/biu",
+    "E906_RTL_FACTORY/gen_rtl/bmu",
+    "E906_RTL_FACTORY/gen_rtl/clic",
+    "E906_RTL_FACTORY/gen_rtl/clk/rtl/pa_clkrst_top.v",
+    "E906_RTL_FACTORY/gen_rtl/clk/rtl/pa_clk_top.v",
+    "E906_RTL_FACTORY/gen_rtl/clint",
+    "E906_RTL_FACTORY/gen_rtl/common",
+    "E906_RTL_FACTORY/gen_rtl/cp0",
+    "E906_RTL_FACTORY/gen_rtl/cpu",
+    "E906_RTL_FACTORY/gen_rtl/dtu",
+    "E906_RTL_FACTORY/gen_rtl/falu",
+    "E906_RTL_FACTORY/gen_rtl/filelists",
+    "E906_RTL_FACTORY/gen_rtl/fmau",
+    "E906_RTL_FACTORY/gen_rtl/fpga",
+    "E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_ctrl.v",
+    "E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_top.v",
+    "E906_RTL_FACTORY/gen_rtl/idu",
+    "E906_RTL_FACTORY/gen_rtl/ifu",
+    "E906_RTL_FACTORY/gen_rtl/iu",
+    "E906_RTL_FACTORY/gen_rtl/lsu",
+    "E906_RTL_FACTORY/gen_rtl/pmp",
+    "E906_RTL_FACTORY/gen_rtl/pmu",
+    "E906_RTL_FACTORY/gen_rtl/rst",
+    "E906_RTL_FACTORY/gen_rtl/rtu",
+    "E906_RTL_FACTORY/gen_rtl/sysmap",
+    "E906_RTL_FACTORY/gen_rtl/tcipif",
+    "E906_RTL_FACTORY/gen_rtl/tdt",
+    "E906_RTL_FACTORY/setup"
+  ]
+
+}

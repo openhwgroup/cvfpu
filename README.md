@@ -2,8 +2,8 @@
 
 Parametric floating-point unit with support for standard RISC-V formats and operations as well as transprecision formats, written in SystemVerilog.
 
-Maintainer: Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
-Principal Author: Stefan Mach <smach@iis.ee.ethz.ch>
+Maintainers: Pasquale Davide Schiavone <davide@openhwgroup.org>, Pascal Gouedo <pascal.gouedo@dolphin.fr><br>
+Authors: Stefan Mach <smach@iis.ee.ethz.ch>, Luca Bertaccini <lbertaccini@iis.ee.ethz.ch>
 
 ## Features
 
@@ -22,9 +22,9 @@ Multiple integer formats with arbitrary number of bits (as source or destionatio
 - Addition/Subtraction
 - Multiplication
 - Fused multiply-add in four flavours (`fmadd`, `fmsub`, `fnmadd`, `fnmsub`)
-- Division<sup>1</sup>
-- Square root<sup>1</sup>
-- Minimum/Maximum<sup>2</sup>
+- Division<sup>1,2</sup>
+- Square root<sup>1,2</sup>
+- Minimum/Maximum<sup>3</sup>
 - Comparisons
 - Sign-Injections (`copy`, `abs`, `negate`, `copySign` etc.)
 - Conversions among all supported FP formats
@@ -38,8 +38,9 @@ E.g.: Support for double-precision (64bit) operations and two simultaneous singl
 
 It is also possible to generate only a subset of operations if e.g. divisions are not needed.
 
-<sup>1</sup>Some compliance issues with IEEE 754-2008 are currently known to exist<br>
-<sup>2</sup>Implementing IEEE 754-201x `minimumNumber` and `maximumNumber`, respectively
+<sup>1</sup>Some compliance issues with IEEE 754-2008 are currently known to exist for the PULP DivSqrt unit (Rounding mismatches have been reported in GitHub issues. This can lead to results being off by 1ulp, and the inexact flag not being properly raised in these cases as well)<br>
+<sup>2</sup>Two DivSqrt units are supported: the multi-format PULP DivSqrt unit and a 32-bit unit integrated from the T-Head OpenE906. The `PulpDivsqrt` parameter can be set to 1 or 0 to select the former or the latter unit, respectively.<br>
+<sup>3</sup>Implementing IEEE 754-201x `minimumNumber` and `maximumNumber`, respectively
 
 ### Rounding modes
 All IEEE 754-2008 rounding modes are supported, namely
@@ -87,7 +88,8 @@ It is discouraged to `import` all of `fpnew_pkg` into your source files. Instead
 fpnew_top #(
   .Features       ( fpnew_pkg::RV64D          ),
   .Implementation ( fpnew_pkg::DEFAULT_NOREGS ),
-  .TagType        ( logic                     )
+  .TagType        ( logic                     ),
+  .PulpDivsqrt    ( 1'b1                      )
 ) i_fpnew_top (
   .clk_i,
   .rst_ni,
@@ -99,6 +101,7 @@ fpnew_top #(
   .dst_fmt_i,
   .int_fmt_i,
   .vectorial_op_i,
+  .simd_mask_i,
   .tag_i,
   .in_valid_i,
   .in_ready_o,
@@ -137,8 +140,9 @@ Furthermore, this repository tries to adhere to [SemVer](https://semver.org/), a
 
 ## Licensing
 
-FPnew is released under the *SolderPad Hardware License*, which is a permissive license based on Apache 2.0. Please refer to the [license file](LICENSE) for further information.
+FPnew is released under the *SolderPad Hardware License*, which is a permissive license based on Apache 2.0. Please refer to the [SolderPad license file](LICENSE.solderpad) for further information.
 
+The T-Head E906 DivSqrt unit, integrated into FPnew in [`vendor/opene906`](vendor/opene906), is reseased under the *Apache License, Version 2.0*. Please refer to the [Apache 2.0 license file](LICENSE.apache) for further information.
 
 ## Publication
 
