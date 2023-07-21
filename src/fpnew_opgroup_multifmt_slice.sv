@@ -484,7 +484,7 @@ or set Features.FpFmtMask to support only FP32");
     assign conv_target_q = '0;
   end
 
-  if (PulpDivsqrt) begin
+  if (PulpDivsqrt && !ExtRegEna) begin
     // Synch lanes if there is more than one
     assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
     assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
