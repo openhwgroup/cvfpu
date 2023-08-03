@@ -210,7 +210,9 @@ module fpnew_divsqrt_multi #(
   // Valid synch with other lanes
   // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
   // As soon as all the lanes are over, we can clear this FF and start with a new operation
-  `FFLARNC(unit_done_q, unit_done, unit_done, simd_synch_done_i | reg_ena_i[NUM_INP_REGS-1], 1'b0, clk_i, rst_ni)
+  logic unit_done_clear;
+  `FFLARNC(unit_done_q, unit_done, unit_done, unit_done_clear, 1'b0, clk_i, rst_ni)
+  assign unit_done_clear = simd_synch_done_i | reg_ena_i[NUM_INP_REGS-1];
   // Tell the other units that this unit has finished now or in the past
   assign divsqrt_done_o = (unit_done_q | unit_done) & result_vec_op_q;
 
