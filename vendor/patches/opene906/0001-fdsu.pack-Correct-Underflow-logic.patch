@@ -1,0 +1,30 @@
+From e441ef74e80c7efe93ccacd60a03cf75e8167394 Mon Sep 17 00:00:00 2001
+From: Greg Davill <greg.davill@gmail.com>
+Date: Tue, 11 Jul 2023 15:10:57 +0930
+Subject: [PATCH] fdsu.pack: Correct Underflow logic
+
+Handle correct behavior when executing DIV instruction.
+Flag underflow if result with unbounded exponent would lie between
++/-b^(emin). Even if rounded result is exactly [+/-]01.000000.
+Use ex4_denorm_potnt_norm, a flag that is set when a denormal result
+rounds to a normal result.
+---
+ E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v
+index 87139a2..d22e85b 100644
+--- a/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v
++++ b/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v
+@@ -222,7 +222,7 @@ end
+ assign ex4_rst_norm[31:0] = {fdsu_ex4_result_sign,
+                                   ex4_expnt_rst[7:0],
+                                   ex4_frac_23[22:0]};
+-assign ex4_cor_uf            = (fdsu_ex4_uf && !ex4_denorm_potnt_norm || ex4_uf_plus)
++assign ex4_cor_uf            = (fdsu_ex4_uf || ex4_denorm_potnt_norm || ex4_uf_plus)
+                                && fdsu_ex4_nx;
+ assign ex4_cor_nx            =  fdsu_ex4_nx 
+                                 || fdsu_ex4_of 
+-- 
+2.38.0.windows.1
+
