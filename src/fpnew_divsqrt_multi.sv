@@ -142,6 +142,9 @@ module fpnew_divsqrt_multi #(
   assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
   assign in_valid_q = inp_pipe_valid_q[NUM_INP_REGS];
 
+  logic ext_op_start_q;
+  `FF(ext_op_start_q, reg_ena_i[NUM_INP_REGS-1], 1'b0)
+
   // -----------------
   // Input processing
   // -----------------
@@ -183,8 +186,8 @@ module fpnew_divsqrt_multi #(
   fsm_state_e state_q, state_d;
 
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
-  assign div_valid   = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
-  assign sqrt_valid  = in_valid_q & (op_q != fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign div_valid   = ((in_valid_q & in_ready & ~flush_i) | ext_op_start_q) & (op_q == fpnew_pkg::DIV);
+  assign sqrt_valid  = ((in_valid_q & in_ready & ~flush_i) | ext_op_start_q) & (op_q != fpnew_pkg::DIV);
   assign op_starting = div_valid | sqrt_valid;
 
   // Hold additional information while the operation is in progress
@@ -207,7 +210,9 @@ module fpnew_divsqrt_multi #(
   // Valid synch with other lanes
   // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
   // As soon as all the lanes are over, we can clear this FF and start with a new operation
-  `FFLARNC(unit_done_q, unit_done, unit_done, simd_synch_done, 1'b0, clk_i, rst_ni)
+  logic unit_done_clear;
+  `FFLARNC(unit_done_q, unit_done, unit_done, unit_done_clear, 1'b0, clk_i, rst_ni)
+  assign unit_done_clear = simd_synch_done | reg_ena_i[NUM_INP_REGS-1];
   // Tell the other units that this unit has finished now or in the past
   assign divsqrt_done_o = (unit_done_q | unit_done) & result_vec_op_q;
 
@@ -289,20 +294,20 @@ module fpnew_divsqrt_multi #(
   logic               hold_en;
 
   div_sqrt_top_mvp i_divsqrt_lei (
-   .Clk_CI           ( clk_i               ),
-   .Rst_RBI          ( rst_ni              ),
-   .Div_start_SI     ( div_valid           ),
-   .Sqrt_start_SI    ( sqrt_valid          ),
-   .Operand_a_DI     ( divsqrt_operands[0] ),
-   .Operand_b_DI     ( divsqrt_operands[1] ),
-   .RM_SI            ( rnd_mode_q          ),
-   .Precision_ctl_SI ( '0                  ),
-   .Format_sel_SI    ( divsqrt_fmt         ),
-   .Kill_SI          ( flush_i             ),
-   .Result_DO        ( unit_result         ),
-   .Fflags_SO        ( unit_status         ),
-   .Ready_SO         ( unit_ready          ),
-   .Done_SO          ( unit_done           )
+   .Clk_CI           ( clk_i                               ),
+   .Rst_RBI          ( rst_ni                              ),
+   .Div_start_SI     ( div_valid                           ),
+   .Sqrt_start_SI    ( sqrt_valid                          ),
+   .Operand_a_DI     ( divsqrt_operands[0]                 ),
+   .Operand_b_DI     ( divsqrt_operands[1]                 ),
+   .RM_SI            ( rnd_mode_q                          ),
+   .Precision_ctl_SI ( '0                                  ),
+   .Format_sel_SI    ( divsqrt_fmt                         ),
+   .Kill_SI          ( flush_i | reg_ena_i[NUM_INP_REGS-1] ),
+   .Result_DO        ( unit_result                         ),
+   .Fflags_SO        ( unit_status                         ),
+   .Ready_SO         ( unit_ready                          ),
+   .Done_SO          ( unit_done                           )
   );
 
   // Adjust result width and fix FP8
