@@ -6,13 +6,15 @@ package:
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
-  common_cells: {git: "https://github.com/pulp-platform/common_cells.git",         version: 1.21.0}
   fpu_div_sqrt_mvp: {git: "https://github.com/pulp-platform/fpu_div_sqrt_mvp.git", version: 1.0.4}
 
 sources:
   - src/fpnew_pkg.sv
   - src/fpnew_cast_multi.sv
   - src/fpnew_classifier.sv
+  - vendor/common_cells/src/cf_math_pkg.sv
+  - vendor/common_cells/src/rr_arb_tree.sv
+  - vendor/common_cells/src/lzc.sv
   - vendor/opene906/E906_RTL_FACTORY/gen_rtl/clk/rtl/gated_clk_cell.v
   - vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ctrl.v
   - vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ff1.v
