@@ -230,8 +230,8 @@ module fpnew_fma_multi #(
   // | FMADD    | \c 1        | FMSUB: Invert sign of operand C
   // | FNMSUB   | \c 0        | FNMSUB: Invert sign of operand A
   // | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
-  // | ADD      | \c 0        | ADD: Set operand A to +1.0
-  // | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
+  // | ADD/ADDS | \c 0        | ADD: Set operand A to +1.0
+  // | ADD/ADDS | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
   // | MUL      | \c 0        | MUL: Set operand C to +0.0 or -0.0 depending on the rounding mode
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
