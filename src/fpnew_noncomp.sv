@@ -260,7 +260,7 @@ module fpnew_noncomp #(
     cmp_result = '0; // false
     cmp_status = '0; // no flags
 
-    // Signalling NaNs always compare as false and are illegal
+    // Signalling NaNs always compare as false (except for "not equal" compares) and are illegal
     if (signalling_nan) begin
       cmp_status.NV = 1'b1; // invalid operation
       cmp_result    = inp_pipe_rnd_mode_q[NUM_INP_REGS] == fpnew_pkg::RDN && inp_pipe_op_mod_q[NUM_INP_REGS];
