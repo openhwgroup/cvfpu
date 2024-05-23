@@ -251,7 +251,8 @@ module fpnew_fma_multi #(
     unique case (inp_pipe_op_q[NUM_INP_REGS])
       fpnew_pkg::FMADD:  ; // do nothing
       fpnew_pkg::FNMSUB: operand_a.sign = ~operand_a.sign; // invert sign of product
-      fpnew_pkg::ADD: begin // Set multiplicand to +1
+      fpnew_pkg::ADD,
+      fpnew_pkg::ADDS: begin // Set multiplicand to +1
         operand_a = '{sign: 1'b0, exponent: fpnew_pkg::bias(src_fmt_q), mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
@@ -381,7 +382,9 @@ module fpnew_fma_multi #(
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents are biased to dst fmt.
-  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal})); // 0 as subnorm
+  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal}) // 0 as subnorm
+                                   - signed'(fpnew_pkg::bias(src2_fmt_q))
+                                   + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
   // Biased product exponent is the sum of encoded exponents minus the bias.
   assign exponent_product = (info_a.is_zero || info_b.is_zero) // in case the product is zero, set minimum exp.
                             ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q))
