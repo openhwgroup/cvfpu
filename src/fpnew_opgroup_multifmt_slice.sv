@@ -192,7 +192,7 @@ or set Features.FpFmtMask to support only FP32");
       always_comb begin : prepare_input
         for (int unsigned i = 0; i < NUM_OPERANDS; i++) begin
           if (i == 2) begin
-            local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(dst_fmt_i);
+            local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(op_i == fpnew_pkg::ADDS ? src_fmt_i : dst_fmt_i);
           end else begin
             local_operands[i] = operands_i[i] >> LANE*fpnew_pkg::fp_width(src_fmt_i);
           end
