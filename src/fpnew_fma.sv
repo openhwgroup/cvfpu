@@ -196,7 +196,8 @@ module fpnew_fma #(
     unique case (inp_pipe_op_q[NUM_INP_REGS])
       fpnew_pkg::FMADD:  ; // do nothing
       fpnew_pkg::FNMSUB: operand_a.sign = ~operand_a.sign; // invert sign of product
-      fpnew_pkg::ADD: begin // Set multiplicand to +1
+      fpnew_pkg::ADD,
+      fpnew_pkg::ADDS: begin // Set multiplicand to +1
         operand_a = '{sign: 1'b0, exponent: BIAS, mantissa: '0};
         info_a    = '{is_normal: 1'b1, is_boxed: 1'b1, default: 1'b0}; //normal, boxed value.
       end
