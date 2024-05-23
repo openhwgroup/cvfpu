@@ -34,8 +34,9 @@ module fpnew_fma_multi #(
   input  fpnew_pkg::roundmode_e       rnd_mode_i,
   input  fpnew_pkg::operation_e       op_i,
   input  logic                        op_mod_i,
-  input  fpnew_pkg::fp_format_e       src_fmt_i, // format of the multiplicands
-  input  fpnew_pkg::fp_format_e       dst_fmt_i, // format of the addend and result
+  input  fpnew_pkg::fp_format_e       src_fmt_i,  // format of the multiplicands
+  input  fpnew_pkg::fp_format_e       src2_fmt_i, // format of the addend
+  input  fpnew_pkg::fp_format_e       dst_fmt_i,  // format of the result
   input  TagType                      tag_i,
   input  logic                        mask_i,
   input  AuxType                      aux_i,
@@ -111,6 +112,7 @@ module fpnew_fma_multi #(
   // Selected pipeline output signals as non-arrays
   logic [2:0][WIDTH-1:0] operands_q;
   fpnew_pkg::fp_format_e src_fmt_q;
+  fpnew_pkg::fp_format_e src2_fmt_q;
   fpnew_pkg::fp_format_e dst_fmt_q;
 
   // Input pipeline signals, index i holds signal after i register stages
@@ -120,6 +122,7 @@ module fpnew_fma_multi #(
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_op_mod_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_src_fmt_q;
+  fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_src2_fmt_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_mask_q;
@@ -135,6 +138,7 @@ module fpnew_fma_multi #(
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_op_mod_q[0]   = op_mod_i;
   assign inp_pipe_src_fmt_q[0]  = src_fmt_i;
+  assign inp_pipe_src2_fmt_q[0] = src2_fmt_i;
   assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
   assign inp_pipe_tag_q[0]      = tag_i;
   assign inp_pipe_mask_q[0]     = mask_i;
@@ -161,6 +165,7 @@ module fpnew_fma_multi #(
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_op_mod_q[i+1],   inp_pipe_op_mod_q[i],   reg_ena, '0)
     `FFL(inp_pipe_src_fmt_q[i+1],  inp_pipe_src_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
+    `FFL(inp_pipe_src2_fmt_q[i+1], inp_pipe_src2_fmt_q[i], reg_ena, fpnew_pkg::fp_format_e'(0))
     `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
     `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
@@ -169,6 +174,7 @@ module fpnew_fma_multi #(
   // Output stage: assign selected pipe outputs to signals for later use
   assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
   assign src_fmt_q  = inp_pipe_src_fmt_q[NUM_INP_REGS];
+  assign src2_fmt_q = inp_pipe_src2_fmt_q[NUM_INP_REGS];
   assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
 
   // -----------------
@@ -224,20 +230,20 @@ module fpnew_fma_multi #(
   // | FMADD    | \c 1        | FMSUB: Invert sign of operand C
   // | FNMSUB   | \c 0        | FNMSUB: Invert sign of operand A
   // | FNMSUB   | \c 1        | FNMADD: Invert sign of operands A and C
-  // | ADD      | \c 0        | ADD: Set operand A to +1.0
-  // | ADD      | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
+  // | ADD/ADDS | \c 0        | ADD: Set operand A to +1.0
+  // | ADD/ADDS | \c 1        | SUB: Set operand A to +1.0, invert sign of operand C
   // | MUL      | \c 0        | MUL: Set operand C to +0.0 or -0.0 depending on the rounding mode
   // | *others* | \c -        | *invalid*
   // \note \c op_mod_q always inverts the sign of the addend.
   always_comb begin : op_select
 
     // Default assignments - packing-order-agnostic
-    operand_a = {fmt_sign[src_fmt_q][0], fmt_exponent[src_fmt_q][0], fmt_mantissa[src_fmt_q][0]};
-    operand_b = {fmt_sign[src_fmt_q][1], fmt_exponent[src_fmt_q][1], fmt_mantissa[src_fmt_q][1]};
-    operand_c = {fmt_sign[dst_fmt_q][2], fmt_exponent[dst_fmt_q][2], fmt_mantissa[dst_fmt_q][2]};
-    info_a    = info_q[src_fmt_q][0];
-    info_b    = info_q[src_fmt_q][1];
-    info_c    = info_q[dst_fmt_q][2];
+    operand_a = {fmt_sign[src_fmt_q ][0], fmt_exponent[src_fmt_q ][0], fmt_mantissa[src_fmt_q ][0]};
+    operand_b = {fmt_sign[src_fmt_q ][1], fmt_exponent[src_fmt_q ][1], fmt_mantissa[src_fmt_q ][1]};
+    operand_c = {fmt_sign[src2_fmt_q][2], fmt_exponent[src2_fmt_q][2], fmt_mantissa[src2_fmt_q][2]};
+    info_a    = info_q[src_fmt_q ][0];
+    info_b    = info_q[src_fmt_q ][1];
+    info_c    = info_q[src2_fmt_q][2];
 
     // op_mod_q inverts sign of operand C
     operand_c.sign = operand_c.sign ^ inp_pipe_op_mod_q[NUM_INP_REGS];

@@ -120,7 +120,8 @@ package fpnew_pkg;
     FMADD, FNMSUB, ADD, MUL,     // ADDMUL operation group
     DIV, SQRT,                   // DIVSQRT operation group
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
-    F2F, F2I, I2F, CPKAB, CPKCD  // CONV operation group
+    F2F, F2I, I2F, CPKAB, CPKCD, // CONV operation group
+    ADDS                         // ADDMUL operation group (ADDS is added here to preserve bit encoding of operations)
   } operation_e;
 
   // -------------------
@@ -367,11 +368,11 @@ package fpnew_pkg;
   // Returns the operation group of the given operation
   function automatic opgroup_e get_opgroup(operation_e op);
     unique case (op)
-      FMADD, FNMSUB, ADD, MUL:     return ADDMUL;
-      DIV, SQRT:                   return DIVSQRT;
-      SGNJ, MINMAX, CMP, CLASSIFY: return NONCOMP;
-      F2F, F2I, I2F, CPKAB, CPKCD: return CONV;
-      default:                     return NONCOMP;
+      FMADD, FNMSUB, ADD, ADDS, MUL: return ADDMUL;
+      DIV, SQRT:                     return DIVSQRT;
+      SGNJ, MINMAX, CMP, CLASSIFY:   return NONCOMP;
+      F2F, F2I, I2F, CPKAB, CPKCD:   return CONV;
+      default:                       return NONCOMP;
     endcase
   endfunction
 
