@@ -18,7 +18,7 @@ module fpnew_opgroup_block #(
   // FPU configuration
   parameter int unsigned                Width         = 32,
   parameter logic                       EnableVectors = 1'b1,
-  parameter logic                       PulpDivsqrt   = 1'b1,
+  parameter fpnew_pkg::divsqrt_unit_t   DivSqrtSel    = fpnew_pkg::THMULTI,
   parameter fpnew_pkg::fmt_logic_t      FpFmtMask     = '1,
   parameter fpnew_pkg::ifmt_logic_t     IntFmtMask    = '1,
   parameter fpnew_pkg::fmt_unsigned_t   FmtPipeRegs   = '{default: 0},
@@ -180,7 +180,7 @@ module fpnew_opgroup_block #(
       .FpFmtConfig   ( FpFmtMask        ),
       .IntFmtConfig  ( IntFmtMask       ),
       .EnableVectors ( EnableVectors    ),
-      .PulpDivsqrt   ( PulpDivsqrt      ),
+      .DivSqrtSel    ( DivSqrtSel       ),
       .NumPipeRegs   ( REG              ),
       .PipeConfig    ( PipeConfig       ),
       .TagType       ( TagType          )

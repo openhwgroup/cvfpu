@@ -33,14 +33,14 @@ SystemVerilog `interface`s are not used due to poor support in some EDA tools.
 The configuration parameters use data types defined in `fpnew_pkg` which are structs containing multi-dimensional arrays of custom enumeration types.
 For more in-depth explanations on how to configure the unit and the layout of the types used, please refer to the [Configuration Section](#configuration).
 
-|  Parameter Name  |                                                         Description                                                           |
-|------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                       |
-| `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits  |
-| `PulpDivsqrt`    | Enables T-head-based DivSqrt unit when set to 0. Supported for FP32-only instances                                            |
-| `TagType`        | The SystemVerilog data type of the operation tag                                                                              |
-| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits |
-| `EnableSIMDMask` | Enable the RISC-V floating-point status flags masking of inactive vectorial lanes. When disabled, `simd_mask_i` is inactive   |
+|  Parameter Name  |                                                         Description                                                          |
+|------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `Features`       | Specifies the features of the FPU, such as the set of supported formats and operations.                                      |
+| `Implementation` | Allows to control how the above features are implemented, such as the number of pipeline stages and architecture of subunits |
+| `DivSqrtSel`     | Chooses among the three supported DivSqrt units                                                                              |
+| `TagType`        | The SystemVerilog data type of the operation tag                                                                             |
+| `TrueSIMDClass`  | If enabled, the result of a classify operation in vectorial mode will be RISC-V compliant if each output has at least 10 bits|
+| `EnableSIMDMask` | Enable the RISC-V floating-point status flags masking of inactive vectorial lanes. When disabled, `simd_mask_i` is inactive  |
 
 ### Ports
 
@@ -232,7 +232,7 @@ typedef struct packed {
 ```
 The fields of this struct behave as follows:
 
-##### `Width` - Datapath Wdith
+##### `Width` - Datapath Width
 
 Specifies the width of the FPU datapath and of the input and output data ports (`operands_i`/`result_o`).
 It must be larger or equal to the width of the widest enabled FP and integer format.
@@ -352,7 +352,16 @@ The configuration  `pipe_config_t` is an enumeration of type `logic [1:0]` holdi
 | `INSIDE`      | All registers are inserted at roughly the middle of the operational unit (if not possible, `BEFORE`) |
 | `DISTRIBUTED` | Registers are evenly distributed to `INSIDE`, `BEFORE`, and `AFTER` (if no `INSIDE`, all `BEFORE`)   |
 
-
+#### `Division and Square-Root Unit Selection`
+The `DivSqrtSel` parameter is used to choose among the support DivSqrt units.
+It is of type `divsqrt_unit_t`, which is defined as:
+```SystemVerilog
+typedef enum logic[1:0] {
+  PULP,    // "PULP" instantiates the PULP DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8 and SIMD operations
+  TH32,    // "TH32" instantiates the E906 DivSqrt unit supports only FP32 (no SIMD support)
+  THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16 and SIMD operations
+} divsqrt_unit_t;
+```
 
 ### Adding Custom Formats
 
