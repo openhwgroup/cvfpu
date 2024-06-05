@@ -1,0 +1,47 @@
+// Copyright 2023 ETH Zurich and University of Bologna.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+{
+  name: "openc910",
+  target_dir: "openc910"
+
+  upstream: {
+    url: "https://github.com/T-head-Semi/openc910"
+    rev: "e0c4ad8ec7f8c70f649d826ebd6c949086453272"
+  }
+
+  exclude_from_upstream: [
+    "doc",
+    "smart_run",
+    "C910_RTL_FACTORY/gen_rtl/biu",
+    "C910_RTL_FACTORY/gen_rtl/biu/rtl",
+    "C910_RTL_FACTORY/gen_rtl/ciu",
+    "C910_RTL_FACTORY/gen_rtl/clint",
+    "C910_RTL_FACTORY/gen_rtl/clk/rtl/ct_mp_clk_top.v",
+    "C910_RTL_FACTORY/gen_rtl/clk/rtl/ct_clk_top.v",
+    "C910_RTL_FACTORY/gen_rtl/common",
+    "C910_RTL_FACTORY/gen_rtl/cp0",
+    "C910_RTL_FACTORY/gen_rtl/cpu",
+    "C910_RTL_FACTORY/gen_rtl/filelists",
+    "C910_RTL_FACTORY/gen_rtl/fpga",
+    "C910_RTL_FACTORY/gen_rtl/had",
+    "C910_RTL_FACTORY/gen_rtl/idu",
+    "C910_RTL_FACTORY/gen_rtl/ifu",
+    "C910_RTL_FACTORY/gen_rtl/iu",
+    "C910_RTL_FACTORY/gen_rtl/l2c",
+    "C910_RTL_FACTORY/gen_rtl/lsu",
+    "C910_RTL_FACTORY/gen_rtl/mmu",
+    "C910_RTL_FACTORY/gen_rtl/plic",
+    "C910_RTL_FACTORY/gen_rtl/pmp",
+    "C910_RTL_FACTORY/gen_rtl/pmu",
+    "C910_RTL_FACTORY/gen_rtl/rst",
+    "C910_RTL_FACTORY/gen_rtl/rtu",
+    "C910_RTL_FACTORY/gen_rtl/vfalu",
+    "C910_RTL_FACTORY/gen_rtl/vfmau",
+    "C910_RTL_FACTORY/gen_rtl/vfpu",
+    "C910_RTL_FACTORY/gen_rtl/vfpu/rtl",
+    "C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt_radix16_only_div.v",
+    "C910_RTL_FACTORY/setup"
+  ]
+
+}

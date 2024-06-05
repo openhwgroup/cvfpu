@@ -88,8 +88,7 @@ It is discouraged to `import` all of `fpnew_pkg` into your source files. Instead
 fpnew_top #(
   .Features       ( fpnew_pkg::RV64D          ),
   .Implementation ( fpnew_pkg::DEFAULT_NOREGS ),
-  .TagType        ( logic                     ),
-  .PulpDivsqrt    ( 1'b1                      )
+  .TagType        ( logic                     )
 ) i_fpnew_top (
   .clk_i,
   .rst_ni,

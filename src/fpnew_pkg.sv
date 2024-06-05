@@ -124,6 +124,15 @@ package fpnew_pkg;
     ADDS                         // ADDMUL operation group (ADDS is added here to preserve bit encoding of operations)
   } operation_e;
 
+  // -------------
+  // DIVSQRT UNIT
+  // -------------
+  typedef enum logic[1:0] {
+    PULP,    // "PULP" instantiates the PULP DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8 and SIMD operations
+    TH32,    // "TH32" instantiates the E906 DivSqrt unit supports only FP32 (no SIMD support)
+    THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16 and SIMD operations
+  } divsqrt_unit_t;
+
   // -------------------
   // RISC-V FP-SPECIFIC
   // -------------------
@@ -395,6 +404,13 @@ package fpnew_pkg;
   // Returns the maximum number of lanes in the FPU according to width, format config and vectors
   function automatic int unsigned max_num_lanes(int unsigned width, fmt_logic_t cfg, logic vec);
     return vec ? width / min_fp_width(cfg) : 1; // if no vectors, only one lane
+  endfunction
+
+    // Returns the maximum number of lanes in the FPU according to width, format config and vectors
+  function automatic int unsigned num_divsqrt_lanes(int unsigned width, fmt_logic_t cfg, logic vec, divsqrt_unit_t DivSqrtSel);
+    automatic fmt_logic_t cfg_tmp;
+    cfg_tmp = (DivSqrtSel == THMULTI) ? cfg & 5'b11100 : cfg;
+    return vec ? width / min_fp_width(cfg_tmp) : 1; // if no vectors, only one lane
   endfunction
 
   // Returns a mask of active FP formats that are present in lane lane_no of a multiformat slice
