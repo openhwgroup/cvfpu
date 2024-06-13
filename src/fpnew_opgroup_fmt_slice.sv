@@ -58,9 +58,7 @@ module fpnew_opgroup_fmt_slice #(
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
   localparam int unsigned SIMD_WIDTH = unsigned'(Width/NUM_LANES);
 
-
-  logic [NUM_LANES-1:0] lane_in_ready, lane_out_valid; // Handshake signals for the lanes
-  logic                 vectorial_op;
+  logic                 vectorial_op, cmp_op;
 
   logic [NUM_LANES*FP_WIDTH-1:0] slice_result;
   logic [Width-1:0]              slice_regular_result, slice_class_result, slice_vec_class_result;
@@ -68,17 +66,49 @@ module fpnew_opgroup_fmt_slice #(
   fpnew_pkg::status_t    [NUM_LANES-1:0] lane_status;
   logic                  [NUM_LANES-1:0] lane_ext_bit; // only the first one is actually used
   fpnew_pkg::classmask_e [NUM_LANES-1:0] lane_class_mask;
-  TagType                [NUM_LANES-1:0] lane_tags; // only the first one is actually used
   logic                  [NUM_LANES-1:0] lane_masks;
-  logic                  [NUM_LANES-1:0] lane_vectorial, lane_busy, lane_is_class; // dito
+  logic                  [NUM_LANES-1:0] lane_is_class; // only the first one is actually used
 
-  logic result_is_vector, result_is_class;
+  logic result_is_vector, result_is_class, result_is_cmp;
 
   // -----------
   // Input Side
   // -----------
-  assign in_ready_o   = lane_in_ready[0]; // Upstream ready is given by first lane
   assign vectorial_op = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
+
+  // ---------------
+  // Generate Aux Chain
+  // ---------------
+  // Signals to transmit reg enable to other modules
+  logic [NUM_LANES-1:0] in_lane_active, out_lane_active;
+  logic [NUM_LANES-1:0][NumPipeRegs-1:0] lane_reg_enable;
+
+  fpnew_aux #(
+    .NumPipeRegs( NumPipeRegs          ),
+    .TagType    ( TagType              ),
+    .AuxType    ( logic                ),
+    .NumLanes   ( NUM_LANES            )
+  ) i_aux (
+    .clk_i,
+    .rst_ni,
+    .tag_i,
+    .aux_i               ( cmp_op             ),
+    .is_vector_i         ( vectorial_op       ),
+    .lane_active_i       ( in_lane_active     ),
+    .in_valid_i,
+    .in_ready_o,
+    .flush_i,
+    .tag_o,
+    .aux_o               ( result_is_cmp      ),
+    .is_vector_o         ( result_is_vector   ),
+    .lane_active_o       ( out_lane_active    ),
+    .out_valid_o,
+    .out_ready_i,
+    .busy_o,
+    .reg_enable_o        ( /* Unused */       ),
+    .vector_reg_enable_o ( /* Unused */       ),
+    .lane_reg_enable_o   ( lane_reg_enable    )
+  );
 
   // ---------------
   // Generate Lanes
@@ -89,13 +119,13 @@ module fpnew_opgroup_fmt_slice #(
 
     // Generate instances only if needed, lane 0 always generated
     if ((lane == 0) || EnableVectors) begin : active_lane
-      logic in_valid, out_valid, out_ready; // lane-local handshake
 
       logic [NUM_OPERANDS-1:0][FP_WIDTH-1:0] local_operands; // lane-local operands
       logic [FP_WIDTH-1:0]                   op_result;      // lane-local results
       fpnew_pkg::status_t                    op_status;
 
-      assign in_valid = in_valid_i & ((lane == 0) | vectorial_op); // upper lanes only for vectors
+      assign in_lane_active[lane] = (lane == 0) | vectorial_op; // upper lanes only for vectors
+
       // Slice out the operands for this lane
       always_comb begin : prepare_input
         for (int i = 0; i < int'(NUM_OPERANDS); i++) begin
@@ -106,11 +136,9 @@ module fpnew_opgroup_fmt_slice #(
       // Instantiate the operation from the selected opgroup
       if (OpGroup == fpnew_pkg::ADDMUL) begin : lane_instance
         fpnew_fma #(
-          .FpFormat    ( FpFormat    ),
-          .NumPipeRegs ( NumPipeRegs ),
-          .PipeConfig  ( PipeConfig  ),
-          .TagType     ( TagType     ),
-          .AuxType     ( logic       )
+          .FpFormat    ( FpFormat             ),
+          .NumPipeRegs ( NumPipeRegs          ),
+          .PipeConfig  ( PipeConfig           )
         ) i_fma (
           .clk_i,
           .rst_ni,
@@ -119,61 +147,20 @@ module fpnew_opgroup_fmt_slice #(
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
-          .tag_i,
-          .mask_i          ( simd_mask_i[lane]    ),
-          .aux_i           ( vectorial_op         ), // Remember whether operation was vectorial
-          .in_valid_i      ( in_valid             ),
-          .in_ready_o      ( lane_in_ready[lane]  ),
-          .flush_i,
-          .result_o        ( op_result            ),
-          .status_o        ( op_status            ),
-          .extension_bit_o ( lane_ext_bit[lane]   ),
-          .tag_o           ( lane_tags[lane]      ),
-          .mask_o          ( lane_masks[lane]     ),
-          .aux_o           ( lane_vectorial[lane] ),
-          .out_valid_o     ( out_valid            ),
-          .out_ready_i     ( out_ready            ),
-          .busy_o          ( lane_busy[lane]      )
+          .mask_i          ( simd_mask_i[lane]            ),
+          .result_o        ( op_result                    ),
+          .status_o        ( op_status                    ),
+          .extension_bit_o ( lane_ext_bit[lane]           ),
+          .mask_o          ( lane_masks[lane]             ),
+          .reg_enable_i    ( lane_reg_enable[lane]        )
         );
         assign lane_is_class[lane]   = 1'b0;
         assign lane_class_mask[lane] = fpnew_pkg::NEGINF;
-      end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
-        // fpnew_divsqrt #(
-        //   .FpFormat   (FpFormat),
-        //   .NumPipeRegs(NumPipeRegs),
-        //   .PipeConfig (PipeConfig),
-        //   .TagType    (TagType),
-        //   .AuxType    (logic)
-        // ) i_divsqrt (
-        //   .clk_i,
-        //   .rst_ni,
-        //   .operands_i      ( local_operands               ),
-        //   .is_boxed_i      ( is_boxed_i[NUM_OPERANDS-1:0] ),
-        //   .rnd_mode_i,
-        //   .op_i,
-        //   .op_mod_i,
-        //   .tag_i,
-        //   .aux_i           ( vectorial_op         ), // Remember whether operation was vectorial
-        //   .in_valid_i      ( in_valid             ),
-        //   .in_ready_o      ( lane_in_ready[lane]  ),
-        //   .flush_i,
-        //   .result_o        ( op_result            ),
-        //   .status_o        ( op_status            ),
-        //   .extension_bit_o ( lane_ext_bit[lane]   ),
-        //   .tag_o           ( lane_tags[lane]      ),
-        //   .aux_o           ( lane_vectorial[lane] ),
-        //   .out_valid_o     ( out_valid            ),
-        //   .out_ready_i     ( out_ready            ),
-        //   .busy_o          ( lane_busy[lane]      )
-        // );
-        // assign lane_is_class[lane] = 1'b0;
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
         fpnew_noncomp #(
-          .FpFormat   (FpFormat),
-          .NumPipeRegs(NumPipeRegs),
-          .PipeConfig (PipeConfig),
-          .TagType    (TagType),
-          .AuxType    (logic)
+          .FpFormat   ( FpFormat             ),
+          .NumPipeRegs( NumPipeRegs          ),
+          .PipeConfig ( PipeConfig           )
         ) i_noncomp (
           .clk_i,
           .rst_ni,
@@ -182,42 +169,27 @@ module fpnew_opgroup_fmt_slice #(
           .rnd_mode_i,
           .op_i,
           .op_mod_i,
-          .tag_i,
-          .mask_i          ( simd_mask_i[lane]     ),
-          .aux_i           ( vectorial_op          ), // Remember whether operation was vectorial
-          .in_valid_i      ( in_valid              ),
-          .in_ready_o      ( lane_in_ready[lane]   ),
-          .flush_i,
-          .result_o        ( op_result             ),
-          .status_o        ( op_status             ),
-          .extension_bit_o ( lane_ext_bit[lane]    ),
-          .class_mask_o    ( lane_class_mask[lane] ),
-          .is_class_o      ( lane_is_class[lane]   ),
-          .tag_o           ( lane_tags[lane]       ),
-          .mask_o          ( lane_masks[lane]      ),
-          .aux_o           ( lane_vectorial[lane]  ),
-          .out_valid_o     ( out_valid             ),
-          .out_ready_i     ( out_ready             ),
-          .busy_o          ( lane_busy[lane]       )
+          .mask_i          ( simd_mask_i[lane]            ),
+          .result_o        ( op_result                    ),
+          .status_o        ( op_status                    ),
+          .extension_bit_o ( lane_ext_bit[lane]           ),
+          .class_mask_o    ( lane_class_mask[lane]        ),
+          .is_class_o      ( lane_is_class[lane]          ),
+          .mask_o          ( lane_masks[lane]             ),
+          .reg_enable_i    ( lane_reg_enable[lane]        )
         );
       end // ADD OTHER OPTIONS HERE
 
-      // Handshakes are only done if the lane is actually used
-      assign out_ready            = out_ready_i & ((lane == 0) | result_is_vector);
-      assign lane_out_valid[lane] = out_valid   & ((lane == 0) | result_is_vector);
-
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
+      assign local_result      = out_lane_active[lane] ? op_result : '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = out_lane_active[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin
-      assign lane_out_valid[lane] = 1'b0; // unused lane
-      assign lane_in_ready[lane]  = 1'b0; // unused lane
       assign local_result         = '{default: lane_ext_bit[0]}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
-      assign lane_busy[lane]      = 1'b0;
       assign lane_is_class[lane]  = 1'b0;
+      assign in_lane_active[lane] = 1'b0; // Lane does not exist, it can never be active
     end
 
     // Insert lane result into slice result
@@ -253,7 +225,6 @@ module fpnew_opgroup_fmt_slice #(
   // ------------
   // Output Side
   // ------------
-  assign result_is_vector = lane_vectorial[0];
   assign result_is_class  = lane_is_class[0];
 
   assign slice_regular_result = $signed({extension_bit_o, slice_result});
@@ -274,11 +245,7 @@ module fpnew_opgroup_fmt_slice #(
   // Select the proper result
   assign result_o = result_is_class ? slice_class_result : slice_regular_result;
 
-  assign extension_bit_o                              = lane_ext_bit[0]; // upper lanes unused
-  assign tag_o                                        = lane_tags[0];    // upper lanes unused
-  assign busy_o                                       = (| lane_busy);
-  assign out_valid_o                                  = lane_out_valid[0]; // upper lanes unused
-
+  assign extension_bit_o = lane_ext_bit[0]; // upper lanes unused
 
   // Collapse the lane status
   always_comb begin : output_processing
