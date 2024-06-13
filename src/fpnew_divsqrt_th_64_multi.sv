@@ -39,14 +39,9 @@ module fpnew_divsqrt_th_64_multi #(
   input  TagType                      tag_i,
   input  logic                        mask_i,
   input  AuxType                      aux_i,
-  input  logic                        vectorial_op_i,
   // Input Handshake
   input  logic                        in_valid_i,
   output logic                        in_ready_o,
-  output logic                        divsqrt_done_o,
-  input  logic                        simd_synch_done_i,
-  output logic                        divsqrt_ready_o,
-  input  logic                        simd_synch_rdy_i,
   input  logic                        flush_i,
   // Output signals
   output logic [WIDTH-1:0]            result_o,
@@ -95,7 +90,6 @@ module fpnew_divsqrt_th_64_multi #(
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_mask_q;
   AuxType                [0:NUM_INP_REGS]                       inp_pipe_aux_q;
-  logic                  [0:NUM_INP_REGS]                       inp_pipe_vec_op_q;
   logic                  [0:NUM_INP_REGS]                       inp_pipe_valid_q;
   // Ready signal is combinatorial for all stages
   logic [0:NUM_INP_REGS] inp_pipe_ready;
@@ -108,7 +102,6 @@ module fpnew_divsqrt_th_64_multi #(
   assign inp_pipe_tag_q[0]      = tag_i;
   assign inp_pipe_mask_q[0]     = mask_i;
   assign inp_pipe_aux_q[0]      = aux_i;
-  assign inp_pipe_vec_op_q[0]   = vectorial_op_i;
   assign inp_pipe_valid_q[0]    = in_valid_i;
   // Input stage: Propagate pipeline ready signal to upstream circuitry
   assign in_ready_o = inp_pipe_ready[0];
@@ -132,7 +125,6 @@ module fpnew_divsqrt_th_64_multi #(
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
     `FFL(inp_pipe_mask_q[i+1],     inp_pipe_mask_q[i],     reg_ena, '0)
     `FFL(inp_pipe_aux_q[i+1],      inp_pipe_aux_q[i],      reg_ena, AuxType'('0))
-    `FFL(inp_pipe_vec_op_q[i+1],   inp_pipe_vec_op_q[i],   reg_ena, AuxType'('0))
   end
   // Output stage: assign selected pipe outputs to signals for later use
   assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
@@ -184,11 +176,11 @@ module fpnew_divsqrt_th_64_multi #(
 
   logic in_ready;               // input handshake with upstream
   logic div_valid, sqrt_valid;  // input signalling with unit
-  logic unit_ready, unit_done, unit_done_q;  // status signals from unit instance
+  logic unit_ready, unit_done;  // status signals from unit instance
   logic op_starting;            // high in the cycle a new operation starts
   logic out_valid, out_ready;   // output handshake with downstream
   logic unit_busy;              // valid data in flight
-  logic simd_synch_done;
+
   // FSM states
   typedef enum logic [1:0] {IDLE, BUSY, HOLD} fsm_state_e;
   fsm_state_e state_q, state_d;
@@ -203,29 +195,13 @@ module fpnew_divsqrt_th_64_multi #(
   TagType result_tag_q;
   logic result_mask_q;
   AuxType result_aux_q;
-  logic result_vec_op_q;
 
   // Fill the registers everytime a valid operation arrives (load FF, active low asynch rst)
   `FFL(result_tag_q,    inp_pipe_tag_q[NUM_INP_REGS], op_starting, '0)
   `FFL(result_mask_q,   inp_pipe_mask_q[NUM_INP_REGS],op_starting, '0)
   `FFL(result_aux_q,    inp_pipe_aux_q[NUM_INP_REGS], op_starting, '0)
-  `FFL(result_vec_op_q, inp_pipe_vec_op_q[NUM_INP_REGS], op_starting, '0)
 
-  // Wait for other lanes only if the operation is vectorial
-  assign simd_synch_done = simd_synch_done_i || ~result_vec_op_q;
-
-  // Valid synch with other lanes
-  // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
-  // As soon as all the lanes are over, we can clear this FF and start with a new operation
-  `FFLARNC(unit_done_q, unit_done, unit_done, simd_synch_done, 1'b0, clk_i, rst_ni);
-  // Tell the other units that this unit has finished now or in the past
-  assign divsqrt_done_o = (unit_done_q | unit_done) & result_vec_op_q;
-
-  // Ready synch with other lanes
-  // Bring the FSM-generated ready outside the unit, to synchronize it with the other lanes
-  assign divsqrt_ready_o = in_ready;
-  // Upstream ready comes from sanitization FSM, and it is synched among all the lanes
-  assign inp_pipe_ready[NUM_INP_REGS] = result_vec_op_q ? simd_synch_rdy_i : in_ready;
+  assign inp_pipe_ready[NUM_INP_REGS] = in_ready;
 
   // FSM to safely apply and receive data from DIVSQRT unit
   always_comb begin : flag_fsm
@@ -247,7 +223,7 @@ module fpnew_divsqrt_th_64_multi #(
       BUSY: begin
         unit_busy = 1'b1; // data in flight
         // If all the lanes are done with processing
-        if (simd_synch_done_i || (~result_vec_op_q && unit_done)) begin
+        if (unit_done) begin
           out_valid = 1'b1; // try to commit result downstream
           // If downstream accepts our result
           if (out_ready) begin
@@ -413,22 +389,6 @@ module fpnew_divsqrt_th_64_multi #(
 
   assign unit_ready = !vfdsu_dp_fdiv_busy;
 
-  // Hold the result when one lane has finished execution, except when all the lanes finish together,
-  // or the operation is not vectorial, and the result can be accepted downstream
-  assign hold_en = unit_done & (~simd_synch_done_i | ~out_ready) & ~(~result_vec_op_q & out_ready);
-  // The Hold register (load, no reset)
-  `FFLNR(held_result_q, unit_result, hold_en, clk_i)
-  `FFLNR(held_status_q, unit_status, hold_en, clk_i)
-
-  // --------------
-  // Output Select
-  // --------------
-  logic [WIDTH-1:0]   result_d;
-  fpnew_pkg::status_t status_d;
-  // Prioritize hold register data
-  assign result_d[WIDTH-1:0] = unit_done_q ? held_result_q[WIDTH-1:0] : unit_result[WIDTH-1:0];
-  assign status_d = unit_done_q ? held_status_q : unit_status;
-
   // ----------------
   // Output Pipeline
   // ----------------
@@ -443,8 +403,8 @@ module fpnew_divsqrt_th_64_multi #(
   logic [0:NUM_OUT_REGS] out_pipe_ready;
 
   // Input stage: First element of pipeline is taken from inputs
-  assign out_pipe_result_q[0] = result_d;
-  assign out_pipe_status_q[0] = status_d;
+  assign out_pipe_result_q[0] = unit_result;
+  assign out_pipe_status_q[0] = unit_status;
   assign out_pipe_tag_q[0]    = result_tag_q;
   assign out_pipe_mask_q[0]   = result_mask_q;
   assign out_pipe_aux_q[0]    = result_aux_q;
