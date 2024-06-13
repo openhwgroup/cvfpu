@@ -527,10 +527,10 @@ FP16alt, FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operatio
 
   if ((DivSqrtSel != fpnew_pkg::TH32) && !ExtRegEna) begin
     // Synch lanes if there is more than one
-    assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready : divsqrt_ready[0];
-    assign simd_synch_done = EnableVectors ? &divsqrt_done  : divsqrt_done[0];
+    assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready[NUM_DIVSQRT_LANES-1:0] : divsqrt_ready[0];
+    assign simd_synch_done = EnableVectors ? &divsqrt_done[NUM_DIVSQRT_LANES-1:0]  : divsqrt_done[0];
   end else begin
-    // Unused (alternative divider only supported for scalar FP32 divsqrt)
+    // Unused (TH32 divider only supported for scalar FP32 divsqrt)
     assign simd_synch_rdy  = '0;
     assign simd_synch_done = '0;
   end
