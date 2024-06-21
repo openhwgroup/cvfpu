@@ -325,7 +325,8 @@ FP16alt, FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operatio
             .aux_o            ( lane_aux[lane]      ),
             .out_valid_o      ( out_valid           ),
             .out_ready_i      ( out_ready           ),
-            .busy_o           ( lane_busy[lane]     )
+            .busy_o           ( lane_busy[lane]     ),
+            .reg_ena_i
           );
         end else begin : gen_pulp_divsqrt
           fpnew_divsqrt_multi #(

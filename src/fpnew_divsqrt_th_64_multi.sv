@@ -26,7 +26,8 @@ module fpnew_divsqrt_th_64_multi #(
   parameter type                     AuxType     = logic,
   // Do not change
   localparam int unsigned WIDTH       = fpnew_pkg::max_fp_width(FpFmtConfig),
-  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
+  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS,
+  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
 ) (
   input  logic                        clk_i,
   input  logic                        rst_ni,
@@ -59,7 +60,9 @@ module fpnew_divsqrt_th_64_multi #(
   output logic                        out_valid_o,
   input  logic                        out_ready_i,
   // Indication of valid data in flight
-  output logic                        busy_o
+  output logic                        busy_o,
+  // External register enable override
+  input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
 );
 
   // ----------
@@ -123,7 +126,7 @@ module fpnew_divsqrt_th_64_multi #(
     // Valid: enabled by ready signal, synchronous clear with the flush signal
     `FFLARNC(inp_pipe_valid_q[i+1], inp_pipe_valid_q[i], inp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = inp_pipe_ready[i] & inp_pipe_valid_q[i];
+    assign reg_ena = (inp_pipe_ready[i] & inp_pipe_valid_q[i]) | reg_ena_i[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
@@ -140,6 +143,16 @@ module fpnew_divsqrt_th_64_multi #(
   assign op_q       = inp_pipe_op_q[NUM_INP_REGS];
   assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
   assign in_valid_q = inp_pipe_valid_q[NUM_INP_REGS];
+
+  logic last_inp_reg_ena;
+  if (NUM_INP_REGS >= 1) begin : gen_last_inp_reg_ena_valid
+    assign last_inp_reg_ena = reg_ena_i[NUM_INP_REGS-1];
+  end else begin : gen_last_inp_reg_ena_zero
+    assign last_inp_reg_ena = 1'b0;
+  end
+
+  logic ext_op_start_q;
+  `FF(ext_op_start_q, last_inp_reg_ena, 1'b0)
 
   // -----------------
   // Input processing
@@ -191,8 +204,8 @@ module fpnew_divsqrt_th_64_multi #(
   fsm_state_e state_q, state_d;
 
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
-  assign div_valid   = in_valid_q & (op_q == fpnew_pkg::DIV) & in_ready & ~flush_i;
-  assign sqrt_valid  = in_valid_q & (op_q != fpnew_pkg::DIV) & in_ready & ~flush_i;
+  assign div_valid   = ((in_valid_q & in_ready & ~flush_i) | ext_op_start_q) & (op_q == fpnew_pkg::DIV);
+  assign sqrt_valid  = ((in_valid_q & in_ready & ~flush_i) | ext_op_start_q) & (op_q != fpnew_pkg::DIV);
   assign op_starting = div_valid | sqrt_valid;
 
   // Hold additional information while the operation is in progress
@@ -214,7 +227,9 @@ module fpnew_divsqrt_th_64_multi #(
   // Valid synch with other lanes
   // When one divsqrt unit completes an operation, keep its done high, waiting for the other lanes
   // As soon as all the lanes are over, we can clear this FF and start with a new operation
-  `FFLARNC(unit_done_q, unit_done, unit_done, simd_synch_done, 1'b0, clk_i, rst_ni);
+  logic unit_done_clear;
+  `FFLARNC(unit_done_q, unit_done, unit_done, unit_done_clear, 1'b0, clk_i, rst_ni);
+  assign unit_done_clear = simd_synch_done | last_inp_reg_ena;
   // Tell the other units that this unit has finished now or in the past
   assign divsqrt_done_o = (unit_done_q | unit_done) & result_vec_op_q;
 
@@ -393,7 +408,7 @@ module fpnew_divsqrt_th_64_multi #(
     .idu_vfpu_rf_pipex_func         ( {3'b0, divsqrt_fmt_q, 13'b0 ,sqrt_op, div_op} ), // Defines format (bits 16,15) and operation (bits 1,0)
     .idu_vfpu_rf_pipex_gateclk_sel  ( func_sel                  ), // 2. Select func
     .pad_yy_icg_scan_en             ( 1'b0                      ), // SE signal for the redundant clock gating module
-    .rtu_yy_xx_flush                ( flush_i                   ), // Flush
+    .rtu_yy_xx_flush                ( flush_i | last_inp_reg_ena), // Flush
     .vfpu_yy_xx_dqnan               ( 1'b0                      ), // Disable qNaN, set to 1 if sNaN is used
     .vfpu_yy_xx_rm                  ( rm_q                      ), // Round mode. redundant if imm0 set to the same
     .pipex_dp_vfdsu_ereg            (                           ), // Don't care, used by C910
@@ -459,7 +474,7 @@ module fpnew_divsqrt_th_64_multi #(
     // Valid: enabled by ready signal, synchronous clear with the flush signal
     `FFLARNC(out_pipe_valid_q[i+1], out_pipe_valid_q[i], out_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = out_pipe_ready[i] & out_pipe_valid_q[i];
+    assign reg_ena = (out_pipe_ready[i] & out_pipe_valid_q[i]) | reg_ena_i[NUM_INP_REGS + i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
     `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)
