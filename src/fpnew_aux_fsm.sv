@@ -154,7 +154,7 @@ module fpnew_aux_fsm #(
   assign in_ready[NUM_INP_REGS] = fsm_in_ready;
 
   // Done when all active lanes are done
-  assign fsm_ready = &(lane_fsm_ready_i | ~held_lane_active);
+  assign fsm_ready = &lane_fsm_ready_i;
 
   // FSM to safely apply and receive data from DIVSQRT unit
   always_comb begin : flag_fsm

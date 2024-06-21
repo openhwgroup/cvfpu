@@ -422,7 +422,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       assign local_result         = {(LANE_WIDTH){lane_ext_bit[0]}}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
       assign in_lane_active[lane] = 1'b0; // Lane does not exist, it can never be active
-      assign lane_fsm_ready[lane] = 1'b0; // Lane does not exist, it can not be ready
+      assign lane_fsm_ready[lane] = 1'b1; // Lane does not exist, it is always ready just in case erronous data gets to the FSM in this slot
     end
 
     // Generate result packing depending on float format
