@@ -26,6 +26,8 @@ module ct_vfdsu_ctrl(
   ex1_double,
   ex1_pipedown,
   ex1_single,
+  ex1_half,
+  ex1_bfloat,
   ex2_data_clk,
   ex2_pipedown,
   ex2_srt_first_round,
@@ -43,6 +45,8 @@ module ct_vfdsu_ctrl(
   vfdsu_dp_inst_wb_req,
   vfdsu_ex2_double,
   vfdsu_ex2_single,
+  vfdsu_ex2_half,
+  vfdsu_ex2_bfloat,
   vfdsu_ifu_debug_ex2_wait,
   vfdsu_ifu_debug_idle,
   vfdsu_ifu_debug_pipe_busy
@@ -57,6 +61,8 @@ input          dp_vfdsu_fdiv_gateclk_issue;
 input          dp_vfdsu_idu_fdiv_issue;    
 input          ex1_double;                 
 input          ex1_single;                 
+input          ex1_half;
+input          ex1_bfloat;
 input          forever_cpuclk;             
 input          pad_yy_icg_scan_en;         
 input          rtu_yy_xx_flush;            
@@ -64,6 +70,8 @@ input          srt_ctrl_rem_zero;
 input          srt_ctrl_skip_srt;          
 input          vfdsu_ex2_double;           
 input          vfdsu_ex2_single;           
+input          vfdsu_ex2_half;
+input          vfdsu_ex2_bfloat;
 output         ex1_data_clk;               
 output         ex1_pipedown;               
 output         ex2_data_clk;               
@@ -106,6 +114,8 @@ wire           ex1_data_clk_en;
 wire           ex1_double;                 
 wire           ex1_pipedown;               
 wire           ex1_single;                 
+wire           ex1_half;
+wire           ex1_bfloat;
 wire           ex2_data_clk;               
 wire           ex2_data_clk_en;            
 wire           ex2_pipe_clk;               
@@ -137,6 +147,8 @@ wire           vfdsu_dp_fdiv_busy;
 wire           vfdsu_dp_inst_wb_req;       
 wire           vfdsu_ex2_double;           
 wire           vfdsu_ex2_single;           
+wire           vfdsu_ex2_half;
+wire           vfdsu_ex2_bfloat;
 wire           vfdsu_ex2_vld;              
 wire           vfdsu_ifu_debug_ex2_wait;   
 wire           vfdsu_ifu_debug_idle;       
@@ -244,8 +256,9 @@ end
 //For Double, initial is 5'b11100('d28), calculate 29 round
 //For Single, initial is 5'b01110('d14), calculate 15 round
 assign srt_cnt_ini[4:0] = (ex1_double) ? 5'b01101 :
-                           ex1_single  ? 5'b00110
-                                       : 5'b00011;
+                          (ex1_single) ? 5'b00110 :
+                          (ex1_half)   ? 5'b00011
+                                       : 5'b00010;
 
 //vfdsu ex2 pipedown signal
 assign ex2_pipedown = srt_last_round && div_st_ex2;
@@ -277,7 +290,9 @@ assign srt_secd_round  = ex2_srt_secd_round;
 
 assign ex2_srt_secd_round_pre  = srt_sm_on && srt_secd_round_pre;
 assign srt_secd_round_pre      = vfdsu_ex2_double ? srt_cnt[4:0]==5'b01101 : 
-                                 vfdsu_ex2_single ? srt_cnt[4:0]==5'b00110 : srt_cnt[4:0] == 5'b00011;
+                                 vfdsu_ex2_single ? srt_cnt[4:0]==5'b00110 :
+                                 vfdsu_ex2_half   ? srt_cnt[4:0]==5'b00011
+                                                  : srt_cnt[4:0]==5'b00010;
 
 //==========================================================
 //              EX3 Stage Control Signal

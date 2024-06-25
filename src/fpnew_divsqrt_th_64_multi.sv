@@ -157,31 +157,34 @@ module fpnew_divsqrt_th_64_multi #(
   // -----------------
   // Input processing
   // -----------------
-  logic [1:0] divsqrt_fmt;
+  logic [3:0] divsqrt_fmt;
 
   // Translate fpnew formats into divsqrt formats
   if(WIDTH == 64) begin : translate_fmt_64_bits
     always_comb begin : translate_fmt
       unique case (dst_fmt_q)
-        fpnew_pkg::FP64:    divsqrt_fmt = 2'b10;
-        fpnew_pkg::FP32:    divsqrt_fmt = 2'b01;
-        fpnew_pkg::FP16:    divsqrt_fmt = 2'b00;
-        default:            divsqrt_fmt = 2'b10; // 64 bit max width
+        fpnew_pkg::FP64:    divsqrt_fmt = 4'b1000;
+        fpnew_pkg::FP32:    divsqrt_fmt = 4'b0100;
+        fpnew_pkg::FP16:    divsqrt_fmt = 4'b0010;
+        fpnew_pkg::FP16ALT: divsqrt_fmt = 4'b0001;
+        default:            divsqrt_fmt = 4'b1000; // 64 bit max width
       endcase
     end
   end else if(WIDTH == 32) begin : translate_fmt_32_bits
     always_comb begin : translate_fmt
       unique case (dst_fmt_q)
-        fpnew_pkg::FP32:    divsqrt_fmt = 2'b01;
-        fpnew_pkg::FP16:    divsqrt_fmt = 2'b00;
-        default:            divsqrt_fmt = 2'b01; // 32 bit max width
+        fpnew_pkg::FP32:    divsqrt_fmt = 4'b0100;
+        fpnew_pkg::FP16:    divsqrt_fmt = 4'b0010;
+        fpnew_pkg::FP16ALT: divsqrt_fmt = 4'b0001;
+        default:            divsqrt_fmt = 4'b0100; // 32 bit max width
       endcase
     end
   end else if(WIDTH == 16) begin : translate_fmt_16_bits
     always_comb begin : translate_fmt
       unique case (dst_fmt_q)
-        fpnew_pkg::FP16:    divsqrt_fmt = 2'b00;
-        default:            divsqrt_fmt = 2'b00; // 16 bit max width
+        fpnew_pkg::FP16:    divsqrt_fmt = 4'b0010;
+        fpnew_pkg::FP16ALT: divsqrt_fmt = 4'b0001;
+        default:            divsqrt_fmt = 4'b0010; // 16 bit max width
       endcase
     end
   end else begin
@@ -313,7 +316,7 @@ module fpnew_divsqrt_th_64_multi #(
   
   // Regs to save current instruction
   fpnew_pkg::roundmode_e rm_q;
-  logic[1:0] divsqrt_fmt_q;
+  logic[3:0] divsqrt_fmt_q;
   fpnew_pkg::operation_e divsqrt_op_q;
   logic div_op, sqrt_op;
   logic [WIDTH-1:0] srcf0_q, srcf1_q;
@@ -329,15 +332,15 @@ module fpnew_divsqrt_th_64_multi #(
   // NaN-box inputs with max WIDTH
   if(WIDTH == 64) begin : gen_fmt_64_bits
     always_comb begin : NaN_box_inputs
-      if(divsqrt_fmt_q == 2'b10) begin // 64-bit
+      if(divsqrt_fmt_q == 4'b1000) begin // 64-bit
         srcf0[63:0] = srcf0_q[63:0];
         srcf1[63:0] = srcf1_q[63:0];
-      end else if(divsqrt_fmt_q == 2'b01) begin // 32-bit
+      end else if(divsqrt_fmt_q == 4'b0100) begin // 32-bit
         srcf0[63:32] = '1;
         srcf1[63:32] = '1;
         srcf0[31:0] = srcf0_q[31:0];
         srcf1[31:0] = srcf1_q[31:0];
-      end else if(divsqrt_fmt_q == 2'b00) begin //16-bit
+      end else if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin //16-bit
         srcf0[63:16] = '1;
         srcf1[63:16] = '1;
         srcf0[15:0] = srcf0_q[15:0];
@@ -349,12 +352,12 @@ module fpnew_divsqrt_th_64_multi #(
     end
   end else if (WIDTH == 32) begin : gen_fmt_32_bits
     always_comb begin : NaN_box_inputs
-      if(divsqrt_fmt_q == 2'b01) begin // 32-bit
+      if(divsqrt_fmt_q == 4'b0100) begin // 32-bit
         srcf0[63:32] = '1;
         srcf1[63:32] = '1;
         srcf0[31:0] = srcf0_q[31:0];
         srcf1[31:0] = srcf1_q[31:0];
-      end else if(divsqrt_fmt_q == 2'b00) begin // 16-bit
+      end else if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin // 16-bit
         srcf0[63:16] = '1;
         srcf1[63:16] = '1;
         srcf0[15:0] = srcf0_q[15:0];
@@ -366,7 +369,7 @@ module fpnew_divsqrt_th_64_multi #(
     end
   end else if (WIDTH == 16) begin : gen_fmt_16_bits
     always_comb begin : NaN_box_inputs
-      if(divsqrt_fmt_q == 2'b00) begin // 16-bit
+      if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin // 16-bit
         srcf0[63:16] = '1;
         srcf1[63:16] = '1;
         srcf0[15:0] = srcf0_q[15:0];
@@ -405,7 +408,7 @@ module fpnew_divsqrt_th_64_multi #(
     .dp_vfdsu_fdiv_gateclk_issue    ( 1'b1                      ), // Local clock enable (same as above)
     .dp_vfdsu_idu_fdiv_issue        ( op_starting               ), // 1. Issue fdiv (FSM in ctrl)
     .forever_cpuclk                 ( clk_i                     ), // Clock input
-    .idu_vfpu_rf_pipex_func         ( {3'b0, divsqrt_fmt_q, 13'b0 ,sqrt_op, div_op} ), // Defines format (bits 16,15) and operation (bits 1,0)
+    .idu_vfpu_rf_pipex_func         ( {3'b0, divsqrt_fmt_q, 11'b0 ,sqrt_op, div_op} ), // Defines format (bits 16,15) and operation (bits 1,0)
     .idu_vfpu_rf_pipex_gateclk_sel  ( func_sel                  ), // 2. Select func
     .pad_yy_icg_scan_en             ( 1'b0                      ), // SE signal for the redundant clock gating module
     .rtu_yy_xx_flush                ( flush_i | last_inp_reg_ena), // Flush
