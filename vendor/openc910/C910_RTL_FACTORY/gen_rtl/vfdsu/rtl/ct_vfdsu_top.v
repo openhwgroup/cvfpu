@@ -99,6 +99,8 @@ wire            ex1_double;
 wire            ex1_pipedown;                 
 wire            ex1_scalar;                   
 wire            ex1_single;                   
+wire            ex1_half;
+wire            ex1_bfloat;
 wire            ex1_sqrt;                     
 wire    [63:0]  ex1_src0;                     
 wire    [63:0]  ex1_src1;                     
@@ -128,6 +130,8 @@ wire            vfdsu_dp_fdiv_busy;
 wire            vfdsu_dp_inst_wb_req;         
 wire            vfdsu_ex2_double;             
 wire            vfdsu_ex2_single;             
+wire            vfdsu_ex2_half;
+wire            vfdsu_ex2_bfloat;
 wire            vfdsu_ifu_debug_ex2_wait;     
 wire            vfdsu_ifu_debug_idle;         
 wire            vfdsu_ifu_debug_pipe_busy;    
@@ -234,6 +238,8 @@ ct_vfdsu_ctrl  x_ct_vfdsu_ctrl (
   .ex1_double                  (ex1_double                 ),
   .ex1_pipedown                (ex1_pipedown               ),
   .ex1_single                  (ex1_single                 ),
+  .ex1_half                    (ex1_half                   ),
+  .ex1_bfloat                  (ex1_bfloat                 ),
   .ex2_data_clk                (ex2_data_clk               ),
   .ex2_pipedown                (ex2_pipedown               ),
   .ex2_srt_first_round         (ex2_srt_first_round        ),
@@ -251,6 +257,8 @@ ct_vfdsu_ctrl  x_ct_vfdsu_ctrl (
   .vfdsu_dp_inst_wb_req        (vfdsu_dp_inst_wb_req       ),
   .vfdsu_ex2_double            (vfdsu_ex2_double           ),
   .vfdsu_ex2_single            (vfdsu_ex2_single           ),
+  .vfdsu_ex2_half              (vfdsu_ex2_half             ),
+  .vfdsu_ex2_bfloat            (vfdsu_ex2_bfloat           ),
   .vfdsu_ifu_debug_ex2_wait    (vfdsu_ifu_debug_ex2_wait   ),
   .vfdsu_ifu_debug_idle        (vfdsu_ifu_debug_idle       ),
   .vfdsu_ifu_debug_pipe_busy   (vfdsu_ifu_debug_pipe_busy  )
@@ -266,6 +274,8 @@ ct_vfdsu_double  x_ct_vfdsu_double (
   .ex1_pipedown        (ex1_pipedown       ),
   .ex1_scalar          (ex1_scalar         ),
   .ex1_single          (ex1_single         ),
+  .ex1_half            (ex1_half           ),
+  .ex1_bfloat          (ex1_bfloat         ),
   .ex1_sqrt            (ex1_sqrt           ),
   .ex1_src0            (ex1_src0           ),
   .ex1_src1            (ex1_src1           ),
@@ -302,6 +312,8 @@ ct_vfdsu_scalar_dp  x_ct_vfdsu_scalar_dp (
   .ex1_pipedown                  (ex1_pipedown                 ),
   .ex1_scalar                    (ex1_scalar                   ),
   .ex1_single                    (ex1_single                   ),
+  .ex1_half                      (ex1_half                     ),
+  .ex1_bfloat                    (ex1_bfloat                   ),
   .ex1_sqrt                      (ex1_sqrt                     ),
   .ex1_src0                      (ex1_src0                     ),
   .ex1_src1                      (ex1_src1                     ),
@@ -321,7 +333,9 @@ ct_vfdsu_scalar_dp  x_ct_vfdsu_scalar_dp (
   .pipex_dp_vfdsu_freg_data      (pipex_dp_vfdsu_freg_data     ),
   .pipex_dp_vfdsu_vreg           (pipex_dp_vfdsu_vreg          ),
   .vfdsu_ex2_double              (vfdsu_ex2_double             ),
-  .vfdsu_ex2_single              (vfdsu_ex2_single             )
+  .vfdsu_ex2_single              (vfdsu_ex2_single             ),
+  .vfdsu_ex2_half                (vfdsu_ex2_half               ),
+  .vfdsu_ex2_bfloat              (vfdsu_ex2_bfloat             )
 );
 
 

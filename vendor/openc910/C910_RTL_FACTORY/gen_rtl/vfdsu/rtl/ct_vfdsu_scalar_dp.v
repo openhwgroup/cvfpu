@@ -30,6 +30,8 @@ module ct_vfdsu_scalar_dp(
   ex1_double,
   ex1_pipedown,
   ex1_scalar,
+  ex1_half,
+  ex1_bfloat,
   ex1_single,
   ex1_sqrt,
   ex1_src0,
@@ -50,7 +52,9 @@ module ct_vfdsu_scalar_dp(
   pipex_dp_vfdsu_freg_data,
   pipex_dp_vfdsu_vreg,
   vfdsu_ex2_double,
-  vfdsu_ex2_single
+  vfdsu_ex2_single,
+  vfdsu_ex2_half,
+  vfdsu_ex2_bfloat
 );
 
 // &Ports; @24
@@ -79,6 +83,8 @@ output          ex1_div;
 output          ex1_double;                   
 output          ex1_scalar;                   
 output          ex1_single;                   
+output          ex1_half;
+output          ex1_bfloat;
 output          ex1_sqrt;                     
 output  [63:0]  ex1_src0;                     
 output  [63:0]  ex1_src1;                     
@@ -89,11 +95,15 @@ output  [63:0]  pipex_dp_vfdsu_freg_data;
 output  [6 :0]  pipex_dp_vfdsu_vreg;          
 output          vfdsu_ex2_double;             
 output          vfdsu_ex2_single;             
+output          vfdsu_ex2_half;
+output          vfdsu_ex2_bfloat;
 
 // &Regs; @25
 reg             ex1_div;                      
 reg             ex1_double;                   
 reg             ex1_single;                   
+reg             ex1_half;
+reg             ex1_bfloat;
 reg             ex1_sqrt;                     
 reg             vfdsu_ex2_div;                
 reg             vfdsu_ex2_double;             
@@ -101,6 +111,8 @@ reg     [4 :0]  vfdsu_ex2_dst_ereg;
 reg     [6 :0]  vfdsu_ex2_dst_vreg;           
 reg     [6 :0]  vfdsu_ex2_iid;                
 reg             vfdsu_ex2_single;             
+reg             vfdsu_ex2_half;
+reg             vfdsu_ex2_bfloat;
 reg             vfdsu_ex2_sqrt;               
 reg     [4 :0]  vfdsu_ex3_dst_ereg;           
 reg     [6 :0]  vfdsu_ex3_dst_vreg;           
@@ -175,6 +187,8 @@ begin
     ex1_sqrt           <= 1'b0;
     ex1_double         <= 1'b0;
     ex1_single         <= 1'b0;
+    ex1_half           <= 1'b0;
+    ex1_bfloat         <= 1'b0;
   end
   else if(idu_vfpu_rf_pipex_gateclk_sel)
   begin
@@ -182,6 +196,8 @@ begin
     ex1_sqrt           <= idu_vfpu_rf_pipex_func[1];
     ex1_double         <= idu_vfpu_rf_pipex_func[16];
     ex1_single         <= idu_vfpu_rf_pipex_func[15];
+    ex1_half           <= idu_vfpu_rf_pipex_func[14];
+    ex1_bfloat         <= idu_vfpu_rf_pipex_func[13];
   end
 end
 assign ex1_scalar         = 1'b1;
@@ -204,6 +220,8 @@ begin
     vfdsu_ex2_iid[6:0]      <= 7'b0;
     vfdsu_ex2_double        <= 1'b0;
     vfdsu_ex2_single        <= 1'b0;
+    vfdsu_ex2_half          <= 1'b0;
+    vfdsu_ex2_bfloat        <= 1'b0;
     vfdsu_ex2_div           <=  1'b0;
     vfdsu_ex2_sqrt          <=  1'b0;
   end
@@ -214,6 +232,8 @@ begin
     vfdsu_ex2_iid[6:0]      <= dp_vfdsu_ex1_pipex_iid[6:0];
     vfdsu_ex2_double        <= ex1_double;
     vfdsu_ex2_single        <= ex1_single;
+    vfdsu_ex2_half          <= ex1_half;
+    vfdsu_ex2_bfloat        <= ex1_bfloat;
     vfdsu_ex2_div           <= ex1_div;
     vfdsu_ex2_sqrt          <= ex1_sqrt;
   end
@@ -224,6 +244,8 @@ begin
     vfdsu_ex2_iid[6:0]      <= vfdsu_ex2_iid[6:0];
     vfdsu_ex2_double        <= vfdsu_ex2_double;
     vfdsu_ex2_single        <= vfdsu_ex2_single;
+    vfdsu_ex2_half          <= ex1_half;
+    vfdsu_ex2_bfloat        <= ex1_bfloat;
     vfdsu_ex2_div           <= vfdsu_ex2_div;
     vfdsu_ex2_sqrt          <= vfdsu_ex2_sqrt;
   end

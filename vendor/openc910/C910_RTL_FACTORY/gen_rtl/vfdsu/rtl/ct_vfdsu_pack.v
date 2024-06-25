@@ -39,6 +39,8 @@ module ct_vfdsu_pack(
   vfdsu_ex4_result_zero,
   vfdsu_ex4_rslt_denorm,
   vfdsu_ex4_single,
+  vfdsu_ex4_half,
+  vfdsu_ex4_bfloat,
   vfdsu_ex4_uf
 );
 
@@ -65,6 +67,8 @@ input           vfdsu_ex4_result_sign;
 input           vfdsu_ex4_result_zero;        
 input           vfdsu_ex4_rslt_denorm;        
 input           vfdsu_ex4_single;             
+input           vfdsu_ex4_half;
+input           vfdsu_ex4_bfloat;
 input           vfdsu_ex4_uf;                 
 output  [4 :0]  ex4_out_expt;                 
 output  [63:0]  ex4_out_result;               
@@ -73,6 +77,7 @@ output  [63:0]  ex4_out_result;
 reg     [51:0]  ex4_denorm_frac;              
 reg     [51:0]  ex4_frac_52;                  
 reg     [51:0]  ex4_half_denorm_frac;         
+reg     [51:0]  ex4_bfloat_denorm_frac;
 reg     [63:0]  ex4_out_result;               
 reg     [51:0]  ex4_single_denorm_frac;       
 reg     [12:0]  expnt_add_op1;                
@@ -95,6 +100,11 @@ wire    [63:0]  ex4_half_rst0;
 wire    [63:0]  ex4_half_rst_inf;             
 wire    [63:0]  ex4_half_rst_norm;            
 wire    [63:0]  ex4_half_rst_qnan;            
+wire    [63:0]  ex4_bfloat_lfn;
+wire    [63:0]  ex4_bfloat_rst0;
+wire    [63:0]  ex4_bfloat_rst_inf;
+wire    [63:0]  ex4_bfloat_rst_norm;
+wire    [63:0]  ex4_bfloat_rst_qnan;
 wire            ex4_of_plus;                  
 wire    [4 :0]  ex4_out_expt;                 
 wire            ex4_result_inf;               
@@ -134,6 +144,8 @@ wire            vfdsu_ex4_result_sign;
 wire            vfdsu_ex4_result_zero;        
 wire            vfdsu_ex4_rslt_denorm;        
 wire            vfdsu_ex4_single;             
+wire            vfdsu_ex4_half;
+wire            vfdsu_ex4_bfloat;
 wire            vfdsu_ex4_uf;                 
 
 
@@ -277,6 +289,23 @@ endcase
 // &CombEnd; @147
 end
 
+always @( vfdsu_ex4_expnt_rst[12:0]
+       or ex4_frac[54:1]
+       or vfdsu_ex4_denorm_to_tiny_frac)
+begin
+case(vfdsu_ex4_expnt_rst[12:0])
+  13'h1:   ex4_bfloat_denorm_frac[51:0] = {      ex4_frac[52:1]}; //-1022 1
+  13'h0:   ex4_bfloat_denorm_frac[51:0] = {      ex4_frac[53:2]}; //-1023 0
+  13'h1fff:ex4_bfloat_denorm_frac[51:0] = {      ex4_frac[54:3]}; //-1024 -1
+  13'h1ffe:ex4_bfloat_denorm_frac[51:0] = {1'b0, ex4_frac[54:4]}; //-1025 -2
+  13'h1ffd:ex4_bfloat_denorm_frac[51:0] = {2'b0, ex4_frac[54:5]}; //-1026 -3
+  13'h1ffc:ex4_bfloat_denorm_frac[51:0] = {3'b0, ex4_frac[54:6]}; //-1027 -4
+  13'h1ffb:ex4_bfloat_denorm_frac[51:0] = {4'b0, ex4_frac[54:7]}; //-1028 -5
+  13'h1ffa:ex4_bfloat_denorm_frac[51:0] = {5'b0, ex4_frac[54:8]}; //-1029 -6
+  default :ex4_bfloat_denorm_frac[51:0] = vfdsu_ex4_denorm_to_tiny_frac ?{7'b1,45'b0} : 52'b0; //-1045
+endcase
+end
+
 //here when denormal number round to add1, it will become normal number
 assign ex4_denorm_potnt_norm    = (vfdsu_ex4_potnt_norm[1] && ex4_frac[53]) || 
                                   (vfdsu_ex4_potnt_norm[0] && ex4_frac[54]) ;
@@ -286,9 +315,11 @@ assign ex4_rslt_denorm          = !vfdsu_ex4_result_qnan
 assign ex4_denorm_result[63:0]  = vfdsu_ex4_double ? 
                                   {vfdsu_ex4_result_sign,11'h0,ex4_denorm_frac[51:0]} :
                                   vfdsu_ex4_single ? {32'hffffffff,vfdsu_ex4_result_sign,
-                                        8'h0,ex4_single_denorm_frac[51:29]}  : {
-                                        48'hffffffffffff,vfdsu_ex4_result_sign,5'h0,
-                                        ex4_half_denorm_frac[51:42]};
+                                        8'h0,ex4_single_denorm_frac[51:29]}  :
+                                  vfdsu_ex4_half ? {48'hffffffffffff,vfdsu_ex4_result_sign,5'h0,
+                                        ex4_half_denorm_frac[51:42]}
+                                                 : {48'hffffffffffff,vfdsu_ex4_result_sign,8'h0,
+                                        ex4_bfloat_denorm_frac[51:45]};
 
                                
 
@@ -299,6 +330,15 @@ assign ex4_half_rst_norm[63:0] = {48'hffffffffffff,vfdsu_ex4_result_sign,
                                   ex4_expnt_rst[4:0],
                                   ex4_frac_52[51:42]};
 assign ex4_half_rst0[63:0] = {48'hffffffffffff,vfdsu_ex4_result_sign,15'h0};                                
+
+assign ex4_bfloat_lfn[63:0]      = {48'hffffffffffff,vfdsu_ex4_result_sign,8'hfe,{7{1'b1}}};
+assign ex4_bfloat_rst_qnan[63:0] = {48'hffffffffffff,vfdsu_ex4_qnan_sign, 8'hff,1'b1, vfdsu_ex4_qnan_f[5:0]};
+assign ex4_bfloat_rst_inf[63:0]  = {48'hffffffffffff,vfdsu_ex4_result_sign,8'hff,7'b0};
+assign ex4_bfloat_rst_norm[63:0] = {48'hffffffffffff,vfdsu_ex4_result_sign,
+                                  ex4_expnt_rst[7:0],
+                                  ex4_frac_52[51:45]};
+assign ex4_bfloat_rst0[63:0] = {48'hffffffffffff,vfdsu_ex4_result_sign,15'h0};
+
 //ex4 overflow/underflow plus                                 
 assign ex4_rst_nor = vfdsu_ex4_result_nor;                    
 assign ex4_of_plus = vfdsu_ex4_potnt_of  && 
@@ -345,21 +385,23 @@ assign ex4_sing_rst_norm[63:0] = {32'hffffffff,vfdsu_ex4_result_sign,
                                   ex4_expnt_rst[7:0],
                                   ex4_frac_52[51:29]};
 assign ex4_rst_lfn[63:0]       = (vfdsu_ex4_double) ? ex4_doub_lfn[63:0] :
-                                  vfdsu_ex4_single  ? ex4_sing_lfn[63:0] : ex4_half_lfn[63:0];
+                                  vfdsu_ex4_single  ? ex4_sing_lfn[63:0] :
+                                  vfdsu_ex4_half    ? ex4_half_lfn[63:0] : ex4_bfloat_lfn[63:0];
 
 assign ex4_rst0[63:0]          = (vfdsu_ex4_double) ? ex4_doub_rst0[63:0] :
-                                  vfdsu_ex4_single  ? ex4_sing_rst0[63:0] : ex4_half_rst0[63:0];
+                                  vfdsu_ex4_single  ? ex4_sing_rst0[63:0] :
+                                  vfdsu_ex4_half    ? ex4_half_rst0[63:0] : ex4_bfloat_rst0[63:0];
 
 assign ex4_rst_qnan[63:0]      = (vfdsu_ex4_double) ? ex4_doub_rst_qnan[63:0] :
-                                  vfdsu_ex4_single  ? ex4_sing_rst_qnan[63:0] 
-                                                    : ex4_half_rst_qnan[63:0];
+                                  vfdsu_ex4_single  ? ex4_sing_rst_qnan[63:0] :
+                                  vfdsu_ex4_half    ? ex4_half_rst_qnan[63:0] : ex4_bfloat_rst_qnan[63:0];
 
 assign ex4_rst_norm[63:0]      = (vfdsu_ex4_double) ? ex4_doub_rst_norm[63:0] :
-                                  vfdsu_ex4_single  ? ex4_sing_rst_norm[63:0]
-                                                    : ex4_half_rst_norm[63:0];
+                                  vfdsu_ex4_single  ? ex4_sing_rst_norm[63:0] :
+                                  vfdsu_ex4_half    ? ex4_half_rst_norm[63:0] : ex4_bfloat_rst_norm[63:0];
 assign ex4_rst_inf[63:0]       = (vfdsu_ex4_double) ? ex4_doub_rst_inf[63:0] :
-                                  vfdsu_ex4_single  ? ex4_sing_rst_inf[63:0]
-                                                    : ex4_half_rst_inf[63:0];
+                                  vfdsu_ex4_single  ? ex4_sing_rst_inf[63:0] :
+                                  vfdsu_ex4_half    ? ex4_half_rst_inf[63:0] : ex4_bfloat_rst_inf[63:0];
 
       
 assign ex4_cor_uf            = (vfdsu_ex4_uf && !ex4_denorm_potnt_norm || ex4_uf_plus)
