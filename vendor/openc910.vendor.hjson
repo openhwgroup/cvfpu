@@ -10,6 +10,8 @@
     rev: "e0c4ad8ec7f8c70f649d826ebd6c949086453272"
   }
 
+  patch_dir: "patches/openc910"
+
   exclude_from_upstream: [
     "doc",
     "smart_run",
