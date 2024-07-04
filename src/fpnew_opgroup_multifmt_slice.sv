@@ -518,7 +518,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
     assign conv_target_q = '0;
   end
 
-  if ((DivSqrtSel != fpnew_pkg::TH32) && !ExtRegEna) begin
+  if (DivSqrtSel != fpnew_pkg::TH32) begin
     // Synch lanes if there is more than one
     assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready[NUM_DIVSQRT_LANES-1:0] : divsqrt_ready[0];
     assign simd_synch_done = EnableVectors ? &divsqrt_done[NUM_DIVSQRT_LANES-1:0]  : divsqrt_done[0];
