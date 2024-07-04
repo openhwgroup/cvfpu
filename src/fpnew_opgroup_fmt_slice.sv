@@ -51,6 +51,8 @@ module fpnew_opgroup_fmt_slice #(
   // Output handshake
   output logic                              out_valid_o,
   input  logic                              out_ready_i,
+  // External register enable override
+  input  logic [NumPipeRegs-1:0]            reg_ena_i,
   // Indication of valid data in flight
   output logic                              busy_o
 );
@@ -104,6 +106,7 @@ module fpnew_opgroup_fmt_slice #(
     .lane_active_o       ( out_lane_active    ),
     .out_valid_o,
     .out_ready_i,
+    .reg_ena_i,
     .busy_o,
     .reg_enable_o        ( /* Unused */       ),
     .vector_reg_enable_o ( /* Unused */       ),

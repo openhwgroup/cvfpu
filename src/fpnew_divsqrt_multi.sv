@@ -42,6 +42,7 @@ module fpnew_divsqrt_multi #(
   input  logic                        flush_i,
   input logic[NumPipeRegs-1:0]        reg_enable_i,
   input logic                         fsm_start_i,
+  input logic                         fsm_kill_i,
   output logic                        fsm_ready_o
 );
 
@@ -142,20 +143,20 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::status_t unit_status;
 
   div_sqrt_top_mvp i_divsqrt_lei (
-   .Clk_CI           ( clk_i               ),
-   .Rst_RBI          ( rst_ni              ),
-   .Div_start_SI     ( div_valid           ),
-   .Sqrt_start_SI    ( sqrt_valid          ),
-   .Operand_a_DI     ( divsqrt_operands[0] ),
-   .Operand_b_DI     ( divsqrt_operands[1] ),
-   .RM_SI            ( rnd_mode_q          ),
-   .Precision_ctl_SI ( '0                  ),
-   .Format_sel_SI    ( divsqrt_fmt         ),
-   .Kill_SI          ( flush_i             ),
-   .Result_DO        ( raw_unit_result     ),
-   .Fflags_SO        ( unit_status         ),
-   .Ready_SO         ( fsm_ready_o         ),
-   .Done_SO          ( unit_done           )
+   .Clk_CI           ( clk_i                ),
+   .Rst_RBI          ( rst_ni               ),
+   .Div_start_SI     ( div_valid            ),
+   .Sqrt_start_SI    ( sqrt_valid           ),
+   .Operand_a_DI     ( divsqrt_operands[0]  ),
+   .Operand_b_DI     ( divsqrt_operands[1]  ),
+   .RM_SI            ( rnd_mode_q           ),
+   .Precision_ctl_SI ( '0                   ),
+   .Format_sel_SI    ( divsqrt_fmt          ),
+   .Kill_SI          ( flush_i | fsm_kill_i ),
+   .Result_DO        ( raw_unit_result      ),
+   .Fflags_SO        ( unit_status          ),
+   .Ready_SO         ( fsm_ready_o          ),
+   .Done_SO          ( unit_done            )
   );
 
   // Adjust result width and fix FP8

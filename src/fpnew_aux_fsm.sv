@@ -52,8 +52,12 @@ module fpnew_aux_fsm #(
   // Signals for the Lane FSMs
   // Signal to start the FSM, will be asserted for one cycle
   output logic [NumLanes-1:0]                  lane_fsm_start_o,
+  // Signal to abort the current operation for the FSMs, will be asserted for one cycle
+  output logic [NumLanes-1:0]                  lane_fsm_kill_o,
   // Signal that the FSM finished it's operation, should be asserted continuously
   input logic [NumLanes-1:0]                   lane_fsm_ready_i,
+  // External register enable override
+  input  logic [NumPipeRegs-1:0]               reg_ena_i,
   // Indication of valid data in flight
   output logic                                 busy_o
 );
@@ -110,7 +114,7 @@ module fpnew_aux_fsm #(
     `FFLARNC(in_valid[i+1], in_valid[i], in_ready[i], flush_i, 1'b0, clk_i, rst_ni)
 
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = in_ready[i] & in_valid[i];
+    assign reg_ena = (in_ready[i] & in_valid[i]) | reg_ena_i[i];
 
     // Drive external registers with reg enable
     assign reg_enable_o[i] = reg_ena;
@@ -220,19 +224,40 @@ module fpnew_aux_fsm #(
 
   `FF(state_q, state_d, IDLE);
 
+  // Mini FSM for external reg enable. If external reg enable is set:
+  // 1. Kill any ongoing operations
+  // 2. On the next cycle start new operations
+  logic ext_fsm_start_d, ext_fsm_start_q;
+
+  if (NUM_INP_REGS > 0) begin
+    assign ext_fsm_start_d = reg_ena_i[NUM_INP_REGS - 1];
+  end else begin
+    assign ext_fsm_start_d = 1'b0;
+  end
+
+  `FF(ext_fsm_start_q, ext_fsm_start_d, 1'b0);
+
+  // Kill Lanes where a new input is given
+  for (genvar l = 0; l < NumLanes; l++) begin
+    assign lane_fsm_kill_o[l] = ext_fsm_start_d && in_lane_active[NUM_INP_REGS][l];
+  end
+
   // Start Lanes when FSM starts and lane is active
   for (genvar l = 0; l < NumLanes; l++) begin
-    assign lane_fsm_start_o[l] = fsm_start && in_lane_active[NUM_INP_REGS][l];
+    assign lane_fsm_start_o[l] = (fsm_start || ext_fsm_start_q) && in_lane_active[NUM_INP_REGS][l];
   end
 
   // ----------------
   // Data Holding FFs
   // ----------------
 
-  `FFL(        held_tag,         in_tag[NUM_INP_REGS], fsm_start, TagType'('0));
-  `FFL(        held_aux,         in_aux[NUM_INP_REGS], fsm_start, AuxType'('0));
-  `FFL(  held_is_vector,   in_is_vector[NUM_INP_REGS], fsm_start,           '0);
-  `FFL(held_lane_active, in_lane_active[NUM_INP_REGS], fsm_start,           '0);
+  logic hold_reg_enable;
+  assign hold_reg_enable = fsm_start || ext_fsm_start_d;
+
+  `FFL(        held_tag,         in_tag[NUM_INP_REGS], hold_reg_enable, TagType'('0));
+  `FFL(        held_aux,         in_aux[NUM_INP_REGS], hold_reg_enable, AuxType'('0));
+  `FFL(  held_is_vector,   in_is_vector[NUM_INP_REGS], hold_reg_enable,           '0);
+  `FFL(held_lane_active, in_lane_active[NUM_INP_REGS], hold_reg_enable,           '0);
 
   // ---------------
   // Output pipeline
@@ -272,7 +297,7 @@ module fpnew_aux_fsm #(
     `FFLARNC(out_valid[i+1], out_valid[i], out_ready[i], flush_i, 1'b0, clk_i, rst_ni)
 
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = out_ready[i] & out_valid[i];
+    assign reg_ena = (out_ready[i] & out_valid[i]) | reg_ena_i[NUM_INP_REGS + i];;
 
     // Drive external registers with reg enable
     assign reg_enable_o[NUM_INP_REGS + i] = reg_ena;

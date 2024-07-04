@@ -132,6 +132,7 @@ module fpnew_opgroup_block #(
         .tag_o          ( fmt_outputs[fmt].tag     ),
         .out_valid_o    ( fmt_out_valid[fmt]       ),
         .out_ready_i    ( fmt_out_ready[fmt]       ),
+        .reg_ena_i      ( '0                       ),
         .busy_o         ( fmt_busy[fmt]            )
       );
     // If the format wants to use merged ops, tie off the dangling ones not used here
@@ -207,6 +208,7 @@ module fpnew_opgroup_block #(
       .tag_o           ( fmt_outputs[FMT].tag     ),
       .out_valid_o     ( fmt_out_valid[FMT]       ),
       .out_ready_i     ( fmt_out_ready[FMT]       ),
+      .reg_ena_i       ( '0                       ),
       .busy_o          ( fmt_busy[FMT]            )
     );
 

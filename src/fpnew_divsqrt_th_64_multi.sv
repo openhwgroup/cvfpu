@@ -44,6 +44,7 @@ module fpnew_divsqrt_th_64_multi #(
   input  logic                        flush_i,
   input logic[NumPipeRegs-1:0]        reg_enable_i,
   input logic                         fsm_start_i,
+  input logic                         fsm_kill_i,
   output logic                        fsm_ready_o
 );
 
@@ -258,7 +259,7 @@ module fpnew_divsqrt_th_64_multi #(
     .idu_vfpu_rf_pipex_func         ( {3'b0, divsqrt_fmt_q, 11'b0 ,sqrt_op, div_op} ), // Defines format (bits 16,15) and operation (bits 1,0)
     .idu_vfpu_rf_pipex_gateclk_sel  ( func_sel                  ), // 2. Select func
     .pad_yy_icg_scan_en             ( 1'b0                      ), // SE signal for the redundant clock gating module
-    .rtu_yy_xx_flush                ( flush_i                   ), // Flush
+    .rtu_yy_xx_flush                ( flush_i | fsm_kill_i      ), // Flush
     .vfpu_yy_xx_dqnan               ( 1'b0                      ), // Disable qNaN, set to 1 if sNaN is used
     .vfpu_yy_xx_rm                  ( rm_q                      ), // Round mode. redundant if imm0 set to the same
     .pipex_dp_vfdsu_ereg            (                           ), // Don't care, used by C910

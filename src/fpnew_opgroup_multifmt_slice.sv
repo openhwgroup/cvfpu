@@ -58,6 +58,8 @@ module fpnew_opgroup_multifmt_slice #(
   // Output handshake
   output logic                                    out_valid_o,
   input  logic                                    out_ready_i,
+  // External register enable override
+  input  logic [NumPipeRegs-1:0]                  reg_ena_i,
   // Indication of valid data in flight
   output logic                                    busy_o
 );
@@ -152,7 +154,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
   // Signals to transmit reg enable to other modules
   logic [NumPipeRegs-1:0] vector_reg_enable;
 
-  logic [NUM_LANES-1:0] in_lane_active, out_lane_active, lane_fsm_ready, lane_fsm_start;
+  logic [NUM_LANES-1:0] in_lane_active, out_lane_active, lane_fsm_ready, lane_fsm_start, lane_fsm_kill;
   logic [NUM_LANES-1:0][NumPipeRegs-1:0] lane_reg_enabe;
 
   if (OpGroup == fpnew_pkg::DIVSQRT) begin: gen_fsm_aux
@@ -178,11 +180,13 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       .lane_active_o       ( out_lane_active    ),
       .out_valid_o,
       .out_ready_i,
+      .reg_ena_i,
       .busy_o,
       .reg_enable_o        ( /* Unused */       ),
       .vector_reg_enable_o ( vector_reg_enable  ),
       .lane_reg_enable_o   ( lane_reg_enabe     ),
       .lane_fsm_start_o    ( lane_fsm_start     ),
+      .lane_fsm_kill_o     ( lane_fsm_kill      ),
       .lane_fsm_ready_i    ( lane_fsm_ready     )
     );
   end else begin: gen_direct_aux
@@ -207,6 +211,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       .lane_active_o       ( out_lane_active    ),
       .out_valid_o,
       .out_ready_i,
+      .reg_ena_i,
       .busy_o,
       .reg_enable_o        ( /* Unused */       ),
       .vector_reg_enable_o ( vector_reg_enable  ),
@@ -354,6 +359,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .mask_o           ( lane_masks[lane]     ),
             .reg_enable_i     ( lane_reg_enabe[lane] ),
             .fsm_start_i      ( lane_fsm_start[lane] ),
+            .fsm_kill_i       ( lane_fsm_kill[lane]  ),
             .fsm_ready_o      ( lane_fsm_ready[lane] )
           );
         end else begin : gen_pulp_divsqrt
@@ -377,6 +383,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .mask_o           ( lane_masks[lane]     ),
             .reg_enable_i     ( lane_reg_enabe[lane] ),
             .fsm_start_i      ( lane_fsm_start[lane] ),
+            .fsm_kill_i       ( lane_fsm_kill[lane]  ),
             .fsm_ready_o      ( lane_fsm_ready[lane] )
           );
         end

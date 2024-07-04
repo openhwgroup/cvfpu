@@ -47,6 +47,8 @@ module fpnew_aux #(
   output logic [NumPipeRegs-1:0]               reg_enable_o,
   output logic [NumPipeRegs-1:0]               vector_reg_enable_o,
   output logic [NumLanes-1:0][NumPipeRegs-1:0] lane_reg_enable_o,
+  // External register enable override
+  input  logic [NumPipeRegs-1:0]               reg_ena_i,
   // Indication of valid data in flight
   output logic                                 busy_o
 );
@@ -89,7 +91,7 @@ module fpnew_aux #(
     `FFLARNC(valid[i+1], valid[i], ready[i], flush_i, 1'b0, clk_i, rst_ni)
 
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = ready[i] & valid[i];
+    assign reg_ena = (ready[i] & valid[i]) | reg_ena_i[i];
 
     // Drive external registers with reg enable
     assign reg_enable_o[i] = reg_ena;
