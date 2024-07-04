@@ -24,8 +24,7 @@ module fpnew_divsqrt_multi #(
   parameter type                     AuxType     = logic,
   // Do not change
   localparam int unsigned WIDTH       = fpnew_pkg::max_fp_width(FpFmtConfig),
-  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS,
-  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
+  localparam int unsigned NUM_FORMATS = fpnew_pkg::NUM_FP_FORMATS
 ) (
   input  logic                        clk_i,
   input  logic                        rst_ni,
@@ -58,9 +57,7 @@ module fpnew_divsqrt_multi #(
   output logic                        out_valid_o,
   input  logic                        out_ready_i,
   // Indication of valid data in flight
-  output logic                        busy_o,
-  // External register enable override
-  input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
+  output logic                        busy_o
 );
 
   // ----------
@@ -124,7 +121,7 @@ module fpnew_divsqrt_multi #(
     // Valid: enabled by ready signal, synchronous clear with the flush signal
     `FFLARNC(inp_pipe_valid_q[i+1], inp_pipe_valid_q[i], inp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = (inp_pipe_ready[i] & inp_pipe_valid_q[i]) | reg_ena_i[i];
+    assign reg_ena = inp_pipe_ready[i] & inp_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
@@ -362,7 +359,7 @@ module fpnew_divsqrt_multi #(
     // Valid: enabled by ready signal, synchronous clear with the flush signal
     `FFLARNC(out_pipe_valid_q[i+1], out_pipe_valid_q[i], out_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
     // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = (out_pipe_ready[i] & out_pipe_valid_q[i]) | reg_ena_i[NUM_INP_REGS + i];
+    assign reg_ena = out_pipe_ready[i] & out_pipe_valid_q[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(out_pipe_result_q[i+1], out_pipe_result_q[i], reg_ena, '0)
     `FFL(out_pipe_status_q[i+1], out_pipe_status_q[i], reg_ena, '0)

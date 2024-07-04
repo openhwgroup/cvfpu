@@ -25,14 +25,12 @@ module fpnew_opgroup_multifmt_slice #(
   parameter fpnew_pkg::divsqrt_unit_t DivSqrtSel    = fpnew_pkg::THMULTI,
   parameter int unsigned              NumPipeRegs   = 0,
   parameter fpnew_pkg::pipe_config_t  PipeConfig    = fpnew_pkg::BEFORE,
-  parameter logic                     ExtRegEna     = 1'b0,
   parameter type                      TagType       = logic,
   // Do not change
   localparam int unsigned NUM_OPERANDS = fpnew_pkg::num_operands(OpGroup),
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS,
   localparam int unsigned NUM_SIMD_LANES = fpnew_pkg::max_num_lanes(Width, FpFmtConfig, EnableVectors),
-  localparam type         MaskType     = logic [NUM_SIMD_LANES-1:0],
-  localparam int unsigned ExtRegEnaWidth = NumPipeRegs == 0 ? 1 : NumPipeRegs
+  localparam type         MaskType     = logic [NUM_SIMD_LANES-1:0]
 ) (
   input logic                                     clk_i,
   input logic                                     rst_ni,
@@ -61,9 +59,7 @@ module fpnew_opgroup_multifmt_slice #(
   output logic                                    out_valid_o,
   input  logic                                    out_ready_i,
   // Indication of valid data in flight
-  output logic                                    busy_o,
-  // External register enable override
-  input  logic [ExtRegEnaWidth-1:0]               reg_ena_i
+  output logic                                    busy_o
 );
 
   if ((OpGroup == fpnew_pkg::DIVSQRT)) begin
@@ -247,16 +243,15 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
           .in_valid_i      ( in_valid                                        ),
           .in_ready_o      ( lane_in_ready[lane]                             ),
           .flush_i,
-          .result_o        ( op_result                                       ),
-          .status_o        ( op_status                                       ),
-          .extension_bit_o ( lane_ext_bit[lane]                              ),
-          .tag_o           ( lane_tags[lane]                                 ),
-          .mask_o          ( lane_masks[lane]                                ),
-          .aux_o           ( lane_aux[lane]                                  ),
-          .out_valid_o     ( out_valid                                       ),
-          .out_ready_i     ( out_ready                                       ),
-          .busy_o          ( lane_busy[lane]                                 ),
-          .reg_ena_i
+          .result_o        ( op_result           ),
+          .status_o        ( op_status           ),
+          .extension_bit_o ( lane_ext_bit[lane]  ),
+          .tag_o           ( lane_tags[lane]     ),
+          .mask_o          ( lane_masks[lane]    ),
+          .aux_o           ( lane_aux[lane]      ),
+          .out_valid_o     ( out_valid           ),
+          .out_ready_i     ( out_ready           ),
+          .busy_o          ( lane_busy[lane]     )
         );
 
       end else if (OpGroup == fpnew_pkg::DIVSQRT) begin : lane_instance
@@ -288,8 +283,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .aux_o           ( lane_aux[lane]      ),
             .out_valid_o     ( out_valid           ),
             .out_ready_i     ( out_ready           ),
-            .busy_o          ( lane_busy[lane]     ),
-            .reg_ena_i
+            .busy_o          ( lane_busy[lane]     )
           );
         end else if(DivSqrtSel == fpnew_pkg::THMULTI) begin : gen_thmulti_c910_divsqrt
           fpnew_divsqrt_th_64_multi #(
@@ -362,8 +356,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .aux_o            ( lane_aux[lane]      ),
             .out_valid_o      ( out_valid           ),
             .out_ready_i      ( out_ready           ),
-            .busy_o           ( lane_busy[lane]     ),
-            .reg_ena_i
+            .busy_o           ( lane_busy[lane]     )
           );
         end
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
@@ -401,8 +394,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
           .aux_o           ( lane_aux[lane]      ),
           .out_valid_o     ( out_valid           ),
           .out_ready_i     ( out_ready           ),
-          .busy_o          ( lane_busy[lane]     ),
-          .reg_ena_i
+          .busy_o          ( lane_busy[lane]     )
         );
       end // ADD OTHER OPTIONS HERE
 
@@ -411,8 +403,8 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       assign lane_out_valid[lane] = out_valid & ((lane == 0) | result_is_vector);
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = (lane_out_valid[lane] | ExtRegEna) ? op_result : '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = (lane_out_valid[lane] | ExtRegEna) ? op_status : '0;
+      assign local_result      = lane_out_valid[lane] ? op_result : '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = lane_out_valid[lane] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin : inactive_lane
@@ -509,7 +501,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       // Valid: enabled by ready signal, synchronous clear with the flush signal
       `FFLARNC(byp_pipe_valid_q[i+1], byp_pipe_valid_q[i], byp_pipe_ready[i], flush_i, 1'b0, clk_i, rst_ni)
       // Enable register if pipleine ready and a valid data item is present
-      assign reg_ena = (byp_pipe_ready[i] & byp_pipe_valid_q[i]) | reg_ena_i[i];
+      assign reg_ena = byp_pipe_ready[i] & byp_pipe_valid_q[i];
       // Generate the pipeline registers within the stages, use enable-registers
       `FFL(byp_pipe_target_q[i+1],  byp_pipe_target_q[i],  reg_ena, '0)
       `FFL(byp_pipe_aux_q[i+1],     byp_pipe_aux_q[i],     reg_ena, '0)
