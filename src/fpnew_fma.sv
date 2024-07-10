@@ -370,17 +370,22 @@ module fpnew_fma #(
   // ------
   // Adder
   // ------
-  logic [3*PRECISION_BITS+4:0] sum_raw;   // added one bit for the carry
-  logic                        sum_carry; // observe carry bit from sum for sign fixing
-  logic [3*PRECISION_BITS+3:0] sum;       // discard carry as sum won't overflow
+  logic [3*PRECISION_BITS+4:0] sum_pos, sum_neg; // added one bit for the carry
+  logic                        sum_carry;        // observe carry bit from positive sum for sign fixing
+  logic [3*PRECISION_BITS+3:0] sum;              // discard carry as sum won't overflow
   logic                        final_sign;
 
   //Mantissa adder (ab+c). In normal addition, it cannot overflow.
-  assign sum_raw = product_shifted + addend_shifted + inject_carry_in;
-  assign sum_carry = sum_raw[3*PRECISION_BITS+4];
+  assign sum_pos = product_shifted + addend_shifted + inject_carry_in;
+  assign sum_carry = sum_pos[3*PRECISION_BITS+4];
+
+  // Parallel adder for negative sum (only used for effective subtractions).
+  // Note: inject_carry_in is used to complete the negation of the addend in the positive sum but
+  // for the negative sum the addend is not negated, so no carry needs to be injected.
+  assign sum_neg = addend_after_shift - product_shifted;
 
   // Complement negative sum (can only happen in subtraction -> overflows for positive results)
-  assign sum        = (effective_subtraction && ~sum_carry) ? -sum_raw : sum_raw;
+  assign sum        = (effective_subtraction && ~sum_carry) ? sum_neg : sum_pos;
 
   // In case of a mispredicted subtraction result, do a sign flip
   assign final_sign = (effective_subtraction && (sum_carry == tentative_sign))
