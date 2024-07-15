@@ -763,7 +763,7 @@ case(vfdsu_ex3_bfloat_expnt_rst[8:0])
   9'h17a:begin qt_result_bfloat_denorm_for_round[10:0] = {total_qt_rt_58[56:46]}; //-93 -6
                 bfloat_denorm_lst_frac =  1'b0;
           end//-1022 1
-  default:  begin qt_result_bfloat_denorm_for_round[10:0] = '0;
+  default:  begin qt_result_bfloat_denorm_for_round[10:0] = 11'b0;
                  bfloat_denorm_lst_frac = 1'b0;
             end//-1022 1
 endcase
