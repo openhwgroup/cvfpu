@@ -144,10 +144,6 @@ module fpnew_divsqrt_th_64_multi #(
 
   logic div_valid, sqrt_valid;  // input signalling with unit
 
-  // FSM states
-  typedef enum logic [1:0] {IDLE, BUSY, HOLD} fsm_state_e;
-  fsm_state_e state_q, state_d;
-
   // Valids are gated by the FSM ready. Invalid input ops run a sqrt to not lose illegal instr.
   assign div_valid   = (op_q == fpnew_pkg::DIV) & fsm_start_i;
   assign sqrt_valid  = (op_q != fpnew_pkg::DIV) & fsm_start_i;
