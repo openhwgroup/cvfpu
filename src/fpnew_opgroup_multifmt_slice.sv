@@ -107,7 +107,6 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
   logic                result_fmt_is_int, result_is_cpk;
   logic [1:0]          result_vec_op; // info for vectorial results (for packing)
 
-  logic simd_synch_rdy, simd_synch_done;
 
   // -----------
   // Input Side
@@ -152,70 +151,57 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
   // Generate Aux Chain
   // ---------------
   // Signals to transmit reg enable to other modules
-  logic [NumPipeRegs-1:0] vector_reg_enable;
+  logic [NumPipeRegs-1:0] reg_enable;
 
-  logic [NUM_LANES-1:0] in_lane_active, out_lane_active, lane_fsm_ready, lane_fsm_start, lane_fsm_kill;
-  logic [NUM_LANES-1:0][NumPipeRegs-1:0] lane_reg_enabe;
+  logic fsm_start, fsm_ready, fsm_kill;
+  logic [NUM_LANES-1:0] lane_fsm_ready;
+  assign fsm_ready = &lane_fsm_ready;
 
   if (OpGroup == fpnew_pkg::DIVSQRT) begin: gen_fsm_aux
     fpnew_aux_fsm #(
       .NumPipeRegs( NumPipeRegs          ),
       .PipeConfig ( PipeConfig           ),
       .TagType    ( TagType              ),
-      .AuxType    ( logic [AUX_BITS-1:0] ),
-      .NumLanes   ( NUM_LANES            )
+      .AuxType    ( logic [AUX_BITS-1:0] )
     ) i_aux_fsm (
       .clk_i,
       .rst_ni,
       .tag_i,
-      .aux_i               ( in_aux             ),
-      .is_vector_i         ( vectorial_op       ),
-      .lane_active_i       ( in_lane_active     ),
+      .aux_i          ( in_aux     ),
       .in_valid_i,
       .in_ready_o,
       .flush_i,
       .tag_o,
-      .aux_o               ( out_aux            ),
-      .is_vector_o         ( /* Unused */       ),
-      .lane_active_o       ( out_lane_active    ),
+      .aux_o          ( out_aux    ),
       .out_valid_o,
       .out_ready_i,
       .reg_ena_i,
       .busy_o,
-      .reg_enable_o        ( /* Unused */       ),
-      .vector_reg_enable_o ( vector_reg_enable  ),
-      .lane_reg_enable_o   ( lane_reg_enabe     ),
-      .lane_fsm_start_o    ( lane_fsm_start     ),
-      .lane_fsm_kill_o     ( lane_fsm_kill      ),
-      .lane_fsm_ready_i    ( lane_fsm_ready     )
+      .reg_enable_o   ( reg_enable ),
+      .fsm_start_o    ( fsm_start  ),
+      .fsm_kill_o     ( fsm_kill   ),
+      .fsm_ready_i    ( fsm_ready  )
     );
   end else begin: gen_direct_aux
     fpnew_aux #(
       .NumPipeRegs( NumPipeRegs          ),
       .TagType    ( TagType              ),
-      .AuxType    ( logic [AUX_BITS-1:0] ),
-      .NumLanes   ( NUM_LANES            )
+      .AuxType    ( logic [AUX_BITS-1:0] )
     ) i_aux (
       .clk_i,
       .rst_ni,
       .tag_i,
-      .aux_i               ( in_aux             ),
-      .is_vector_i         ( vectorial_op       ),
-      .lane_active_i       ( in_lane_active     ),
+      .aux_i        ( in_aux     ),
       .in_valid_i,
       .in_ready_o,
       .flush_i,
       .tag_o,
-      .aux_o               ( out_aux            ),
-      .is_vector_o         ( /* Unused */       ),
-      .lane_active_o       ( out_lane_active    ),
+      .aux_o        ( out_aux    ),
       .out_valid_o,
       .out_ready_i,
       .reg_ena_i,
       .busy_o,
-      .reg_enable_o        ( /* Unused */       ),
-      .vector_reg_enable_o ( vector_reg_enable  ),
-      .lane_reg_enable_o   ( lane_reg_enabe     )
+      .reg_enable_o ( reg_enable )
     );
   end
 
@@ -252,12 +238,67 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       logic [LANE_WIDTH-1:0]                   op_result;       // lane-local results
       fpnew_pkg::status_t                      op_status;
 
+
+
+      // Build reg_enable for lane
+      logic [NumPipeRegs-1:0]                lane_reg_enable;
+      logic lane_fsm_start;
+
       // Figure out if lane is active e.g. should be used
-      assign in_lane_active[lane] = (
+      logic in_lane_active, out_lane_active;
+
+      assign in_lane_active = (
         (LANE_FORMATS[src_fmt_i] & ~is_up_cast) | 
         (LANE_FORMATS[dst_fmt_i] &  is_up_cast) | 
         (OpGroup == fpnew_pkg::DIVSQRT)
       ) & ((lane == 0) | vectorial_op);
+
+      if (OpGroup == fpnew_pkg::DIVSQRT) begin: gen_fsm_reg_enable
+        // This must match between this module and modules that use this module as reg enable input!
+        localparam NUM_INP_REGS = (PipeConfig == fpnew_pkg::BEFORE)
+                                  ? NumPipeRegs
+                                  : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                                     ? (NumPipeRegs / 2) // Last to get distributed regs
+                                     : 0); // Always have one reg to use for FSM Input
+        localparam NUM_OUT_REGS = (PipeConfig == fpnew_pkg::AFTER || PipeConfig == fpnew_pkg::INSIDE)
+                                  ? NumPipeRegs
+                                  : (PipeConfig == fpnew_pkg::DISTRIBUTED
+                                     ? ((NumPipeRegs + 1) / 2) // First to get distributed regs
+                                     : 0); // no regs here otherwise
+
+
+        logic [0:NUM_INP_REGS]                inp_pipe_lane_active;
+        logic [0:NUM_OUT_REGS]                out_pipe_lane_active;
+
+        assign inp_pipe_lane_active[0] = in_lane_active;
+
+        for (genvar i = 0; i < NUM_INP_REGS; i++) begin : gen_in_pipe_enable
+          `FFL(inp_pipe_lane_active[i+1], inp_pipe_lane_active[i], reg_enable[i], '0 )
+          assign lane_reg_enable[i] = inp_pipe_lane_active[i] & reg_enable[i];
+        end
+
+        assign lane_fsm_start = fsm_start & inp_pipe_lane_active[NUM_INP_REGS];
+        `FFL(out_pipe_lane_active[0], inp_pipe_lane_active[NUM_INP_REGS], fsm_start, '0 )
+
+        for (genvar i = 0; i < NUM_OUT_REGS; i++) begin : gen_out_pipe_enable
+          `FFL(out_pipe_lane_active[i+1], out_pipe_lane_active[i], reg_enable[i], '0 )
+          assign lane_reg_enable[NUM_INP_REGS + i] = out_pipe_lane_active[i] & reg_enable[i];
+        end
+
+        assign out_lane_active = out_pipe_lane_active[NUM_OUT_REGS];
+
+      end else begin: gen_direct_reg_enable
+        logic [0:NumPipeRegs]                pipe_lane_active;
+
+        assign pipe_lane_active[0] = in_lane_active;
+
+        for (genvar i = 0; i < NumPipeRegs; i++) begin : gen_enable
+          `FFL(pipe_lane_active[i+1], pipe_lane_active[i], reg_enable[i], '0 )
+          assign lane_reg_enable[i] = pipe_lane_active[i] & reg_enable[i];
+        end 
+
+        assign out_lane_active = pipe_lane_active[NumPipeRegs];
+      end
 
       // Slice out the operands for this lane, upper bits are ignored in the unit
       always_comb begin : prepare_input
@@ -298,7 +339,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
         ) i_fpnew_fma_multi (
           .clk_i,
           .rst_ni,
-          .operands_i      ( local_operands                                  ),
+          .operands_i      ( local_operands     ),
           .is_boxed_i,
           .rnd_mode_i,
           .op_i,
@@ -306,12 +347,12 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
           .src_fmt_i,
           .src2_fmt_i      ( op_i == fpnew_pkg::ADDS ? src_fmt_i : dst_fmt_i ),
           .dst_fmt_i,
-          .mask_i          ( simd_mask_i[lane]    ),
-          .result_o        ( op_result            ),
-          .status_o        ( op_status            ),
-          .extension_bit_o ( lane_ext_bit[lane]   ),
-          .mask_o          ( lane_masks[lane]     ),
-          .reg_enable_i    ( lane_reg_enabe[lane] )
+          .mask_i          ( simd_mask_i[lane]  ),
+          .result_o        ( op_result          ),
+          .status_o        ( op_status          ),
+          .extension_bit_o ( lane_ext_bit[lane] ),
+          .mask_o          ( lane_masks[lane]   ),
+          .reg_enable_i    ( lane_reg_enable    )
         );
       end else if (OpGroup == fpnew_pkg::NONCOMP) begin : lane_instance
 
@@ -334,8 +375,8 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .status_o         ( op_status            ),
             .extension_bit_o  ( lane_ext_bit[lane]   ),
             .mask_o           ( lane_masks[lane]     ),
-            .reg_enable_i     ( lane_reg_enabe[lane] ),
-            .fsm_start_i      ( lane_fsm_start[lane] ),
+            .reg_enable_i     ( lane_reg_enable      ),
+            .fsm_start_i      ( lane_fsm_start       ),
             .fsm_ready_o      ( lane_fsm_ready[lane] )
           );
         end else if(DivSqrtSel == fpnew_pkg::THMULTI) begin : gen_thmulti_c910_divsqrt
@@ -357,9 +398,9 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .status_o         ( op_status            ),
             .extension_bit_o  ( lane_ext_bit[lane]   ),
             .mask_o           ( lane_masks[lane]     ),
-            .reg_enable_i     ( lane_reg_enabe[lane] ),
-            .fsm_start_i      ( lane_fsm_start[lane] ),
-            .fsm_kill_i       ( lane_fsm_kill[lane]  ),
+            .reg_enable_i     ( lane_reg_enable      ),
+            .fsm_start_i      ( lane_fsm_start       ),
+            .fsm_kill_i       ( fsm_kill             ),
             .fsm_ready_o      ( lane_fsm_ready[lane] )
           );
         end else begin : gen_pulp_divsqrt
@@ -381,9 +422,9 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
             .status_o         ( op_status            ),
             .extension_bit_o  ( lane_ext_bit[lane]   ),
             .mask_o           ( lane_masks[lane]     ),
-            .reg_enable_i     ( lane_reg_enabe[lane] ),
-            .fsm_start_i      ( lane_fsm_start[lane] ),
-            .fsm_kill_i       ( lane_fsm_kill[lane]  ),
+            .reg_enable_i     ( lane_reg_enable      ),
+            .fsm_start_i      ( lane_fsm_start       ),
+            .fsm_kill_i       ( fsm_kill             ),
             .fsm_ready_o      ( lane_fsm_ready[lane] )
           );
         end
@@ -404,12 +445,12 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
           .src_fmt_i,
           .dst_fmt_i,
           .int_fmt_i,
-          .mask_i          ( simd_mask_i[lane]    ),
-          .result_o        ( op_result            ),
-          .status_o        ( op_status            ),
-          .extension_bit_o ( lane_ext_bit[lane]   ),
-          .mask_o          ( lane_masks[lane]     ),
-          .reg_enable_i    ( lane_reg_enabe[lane] )
+          .mask_i          ( simd_mask_i[lane]  ),
+          .result_o        ( op_result          ),
+          .status_o        ( op_status          ),
+          .extension_bit_o ( lane_ext_bit[lane] ),
+          .mask_o          ( lane_masks[lane]   ),
+          .reg_enable_i    ( lane_reg_enable    )
         );
       end // ADD OTHER OPTIONS HERE
 
@@ -419,8 +460,8 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       end
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = out_lane_active[lane] ? op_result: '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = out_lane_active[lane] ? op_status : '0;
+      assign local_result      = out_lane_active ? op_result: '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = out_lane_active ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin : inactive_lane
@@ -428,7 +469,6 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       assign lane_ext_bit[lane]   = 1'b1; // NaN-box unused lane
       assign local_result         = {(LANE_WIDTH){lane_ext_bit[0]}}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
-      assign in_lane_active[lane] = 1'b0; // Lane does not exist, it can never be active
       assign lane_fsm_ready[lane] = 1'b1; // Lane does not exist, it is always ready just in case erronous data gets to the FSM in this slot
     end
 
@@ -503,7 +543,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
         // Internal register enable for this stage
         logic reg_ena;
         // Enable register is set externally
-        assign reg_ena = vector_reg_enable[i];
+        assign reg_ena = reg_enable[i];
       // Generate the pipeline registers within the stages, use enable-registers
       `FFL(byp_pipe_target_q[i+1],  byp_pipe_target_q[i],  reg_ena, '0)
       `FFL(byp_pipe_aux_q[i+1],     byp_pipe_aux_q[i],     reg_ena, '0)

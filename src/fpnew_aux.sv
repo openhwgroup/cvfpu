@@ -21,16 +21,13 @@
 module fpnew_aux #(
   parameter int unsigned             NumPipeRegs = 0,
   parameter type                     TagType     = logic,
-  parameter type                     AuxType     = logic,
-  parameter int unsigned             NumLanes    = 1
+  parameter type                     AuxType     = logic
 ) (
   input logic                                  clk_i,
   input logic                                  rst_ni,
   // Input signals
   input TagType                                tag_i,
   input AuxType                                aux_i,
-  input logic                                  is_vector_i,
-  input logic [NumLanes-1:0]                   lane_active_i,        
   // Input Handshake
   input  logic                                 in_valid_i,
   output logic                                 in_ready_o,
@@ -38,15 +35,11 @@ module fpnew_aux #(
   // Output signals
   output TagType                               tag_o,
   output AuxType                               aux_o,
-  output logic                                 is_vector_o,
-  output logic [NumLanes-1:0]                  lane_active_o,        
   // Output handshake
   output logic                                 out_valid_o,
   input  logic                                 out_ready_i,
   // Register Enable for Lanes
   output logic [NumPipeRegs-1:0]               reg_enable_o,
-  output logic [NumPipeRegs-1:0]               vector_reg_enable_o,
-  output logic [NumLanes-1:0][NumPipeRegs-1:0] lane_reg_enable_o,
   // External register enable override
   input  logic [NumPipeRegs-1:0]               reg_ena_i,
   // Indication of valid data in flight
@@ -60,8 +53,6 @@ module fpnew_aux #(
   // Input pipeline signals, index i holds signal after i register stages
   TagType                [0:NumPipeRegs]                 tag;
   AuxType                [0:NumPipeRegs]                 aux;
-  logic                  [0:NumPipeRegs]                 is_vector;
-  logic                  [0:NumPipeRegs][NumLanes-1:0]   lane_active;
   logic                  [0:NumPipeRegs]                 valid;
 
   // Ready signal is combinatorial for all stages
@@ -70,9 +61,7 @@ module fpnew_aux #(
   // First element of pipeline is taken from inputs
   assign tag        [0] = tag_i;
   assign aux        [0] = aux_i;
-  assign is_vector  [0] = is_vector_i;
   assign valid      [0] = in_valid_i;
-  assign lane_active[0] = lane_active_i;
 
   // Propagate pipeline ready signal to upstream circuitry
   assign in_ready_o = ready[0];
@@ -90,23 +79,12 @@ module fpnew_aux #(
     // Valid: enabled by ready signal, synchronous clear with the flush signal
     `FFLARNC(valid[i+1], valid[i], ready[i], flush_i, 1'b0, clk_i, rst_ni)
 
-    // Enable register if pipleine ready and a valid data item is present
-    assign reg_ena = (ready[i] & valid[i]) | reg_ena_i[i];
-
-    // Drive external registers with reg enable
-    assign reg_enable_o[i] = reg_ena;
-
-    // Drive external vector registers with reg enable if operation is a vector
-    assign vector_reg_enable_o[i] = reg_ena & is_vector[i];
-    for (genvar l = 0; l < NumLanes; l++) begin
-      assign lane_reg_enable_o[l][i] = reg_ena & lane_active[i][l];
-    end
+    // Enable register if pipeline ready and a valid data item is present
+    assign reg_enable_o[i] = ready[i] & valid[i] | reg_ena_i[i];
 
     // Generate the pipeline registers within the stages, use enable-registers
-    `FFL(        tag[i+1],         tag[i], reg_ena, TagType'('0))
-    `FFL(        aux[i+1],         aux[i], reg_ena, AuxType'('0))
-    `FFL(  is_vector[i+1],   is_vector[i], reg_ena, '0          )
-    `FFL(lane_active[i+1], lane_active[i], reg_ena, '0          )
+    `FFL(        tag[i+1],         tag[i], reg_enable_o[i], TagType'('0))
+    `FFL(        aux[i+1],         aux[i], reg_enable_o[i], AuxType'('0))
   end
 
   // Ready travels backwards from output side, driven by downstream circuitry
@@ -115,9 +93,7 @@ module fpnew_aux #(
   // Assign module outputs
   assign tag_o           = tag        [NumPipeRegs];
   assign aux_o           = aux        [NumPipeRegs];
-  assign is_vector_o     = is_vector  [NumPipeRegs];
   assign out_valid_o     = valid      [NumPipeRegs];
-  assign lane_active_o   = lane_active[NumPipeRegs];
 
   // Assign output Flags: Busy if any element inside the pipe is valid
   assign busy_o          = |valid;

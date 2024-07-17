@@ -13,6 +13,8 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+`include "common_cells/registers.svh"
+
 module fpnew_opgroup_fmt_slice #(
   parameter fpnew_pkg::opgroup_e     OpGroup       = fpnew_pkg::ADDMUL,
   parameter fpnew_pkg::fp_format_e   FpFormat      = fpnew_pkg::fp_format_e'(0),
@@ -59,8 +61,9 @@ module fpnew_opgroup_fmt_slice #(
 
   localparam int unsigned FP_WIDTH  = fpnew_pkg::fp_width(FpFormat);
   localparam int unsigned SIMD_WIDTH = unsigned'(Width/NUM_LANES);
+  localparam int unsigned AUX_BITS = 2;
 
-  logic                 vectorial_op, cmp_op;
+  logic           [AUX_BITS-1:0] aux_in, aux_out;
 
   logic [NUM_LANES*FP_WIDTH-1:0] slice_result;
   logic [Width-1:0]              slice_regular_result, slice_class_result, slice_vec_class_result;
@@ -71,46 +74,38 @@ module fpnew_opgroup_fmt_slice #(
   logic                  [NUM_LANES-1:0] lane_masks;
   logic                  [NUM_LANES-1:0] lane_is_class; // only the first one is actually used
 
-  logic result_is_vector, result_is_class, result_is_cmp;
+  logic result_is_class;
 
   // -----------
   // Input Side
   // -----------
-  assign vectorial_op = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
+  assign aux_in[0] = vectorial_op_i & EnableVectors; // only do vectorial stuff if enabled
+  assign aux_in[1] = (op_i == fpnew_pkg::CMP);
 
   // ---------------
   // Generate Aux Chain
   // ---------------
-  // Signals to transmit reg enable to other modules
-  logic [NUM_LANES-1:0] in_lane_active, out_lane_active;
-  logic [NUM_LANES-1:0][NumPipeRegs-1:0] lane_reg_enable;
+  logic [NumPipeRegs-1:0] reg_enable;
 
   fpnew_aux #(
     .NumPipeRegs( NumPipeRegs          ),
     .TagType    ( TagType              ),
-    .AuxType    ( logic                ),
-    .NumLanes   ( NUM_LANES            )
+    .AuxType    ( logic [AUX_BITS-1:0] )
   ) i_aux (
     .clk_i,
     .rst_ni,
     .tag_i,
-    .aux_i               ( cmp_op             ),
-    .is_vector_i         ( vectorial_op       ),
-    .lane_active_i       ( in_lane_active     ),
+    .aux_i        ( aux_in     ),
     .in_valid_i,
     .in_ready_o,
     .flush_i,
     .tag_o,
-    .aux_o               ( result_is_cmp      ),
-    .is_vector_o         ( result_is_vector   ),
-    .lane_active_o       ( out_lane_active    ),
+    .aux_o        ( aux_out    ),
     .out_valid_o,
     .out_ready_i,
     .reg_ena_i,
     .busy_o,
-    .reg_enable_o        ( /* Unused */       ),
-    .vector_reg_enable_o ( /* Unused */       ),
-    .lane_reg_enable_o   ( lane_reg_enable    )
+    .reg_enable_o ( reg_enable )
   );
 
   // ---------------
@@ -127,7 +122,16 @@ module fpnew_opgroup_fmt_slice #(
       logic [FP_WIDTH-1:0]                   op_result;      // lane-local results
       fpnew_pkg::status_t                    op_status;
 
-      assign in_lane_active[lane] = (lane == 0) | vectorial_op; // upper lanes only for vectors
+      // Build reg_enable for lane
+      logic [NumPipeRegs-1:0] lane_reg_enable;
+      logic [0:NumPipeRegs] lane_active;
+
+      assign lane_active[0] = (lane == 0) | aux_in[0]; // upper lanes only for vectors
+
+      for (genvar i = 0; i < NumPipeRegs; i++) begin : gen_enable
+        `FFL(lane_active[i+1], lane_active[i], reg_enable[i], '0 )
+        assign lane_reg_enable[i] = lane_active[i] & reg_enable[i];
+      end
 
       // Slice out the operands for this lane
       always_comb begin : prepare_input
@@ -155,7 +159,7 @@ module fpnew_opgroup_fmt_slice #(
           .status_o        ( op_status                    ),
           .extension_bit_o ( lane_ext_bit[lane]           ),
           .mask_o          ( lane_masks[lane]             ),
-          .reg_enable_i    ( lane_reg_enable[lane]        )
+          .reg_enable_i    ( lane_reg_enable              )
         );
         assign lane_is_class[lane]   = 1'b0;
         assign lane_class_mask[lane] = fpnew_pkg::NEGINF;
@@ -179,20 +183,19 @@ module fpnew_opgroup_fmt_slice #(
           .class_mask_o    ( lane_class_mask[lane]        ),
           .is_class_o      ( lane_is_class[lane]          ),
           .mask_o          ( lane_masks[lane]             ),
-          .reg_enable_i    ( lane_reg_enable[lane]        )
+          .reg_enable_i    ( lane_reg_enable              )
         );
       end // ADD OTHER OPTIONS HERE
 
       // Properly NaN-box or sign-extend the slice result if not in use
-      assign local_result      = out_lane_active[lane] ? op_result : '{default: lane_ext_bit[0]};
-      assign lane_status[lane] = out_lane_active[lane] ? op_status : '0;
+      assign local_result      = lane_active[NumPipeRegs] ? op_result : '{default: lane_ext_bit[0]};
+      assign lane_status[lane] = lane_active[NumPipeRegs] ? op_status : '0;
 
     // Otherwise generate constant sign-extension
     end else begin
       assign local_result         = '{default: lane_ext_bit[0]}; // sign-extend/nan box
       assign lane_status[lane]    = '0;
       assign lane_is_class[lane]  = 1'b0;
-      assign in_lane_active[lane] = 1'b0; // Lane does not exist, it can never be active
     end
 
     // Insert lane result into slice result
@@ -243,7 +246,7 @@ module fpnew_opgroup_fmt_slice #(
 
   // localparam logic [Width-1:0] CLASS_VEC_MASK = 2**CLASS_VEC_BITS - 1;
 
-  assign slice_class_result = result_is_vector ? slice_vec_class_result : lane_class_mask[0];
+  assign slice_class_result = aux_out[0] ? slice_vec_class_result : lane_class_mask[0];
 
   // Select the proper result
   assign result_o = result_is_class ? slice_class_result : slice_regular_result;
