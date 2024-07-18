@@ -27,6 +27,7 @@ module ct_vfdsu_prepare(
   ex1_single,
   ex1_half,
   ex1_bfloat,
+  ex1_fp8,
   ex1_sqrt,
   ex1_src0,
   ex1_src1,
@@ -52,6 +53,7 @@ module ct_vfdsu_prepare(
   vfdsu_ex2_single,
   vfdsu_ex2_half,
   vfdsu_ex2_bfloat,
+  vfdsu_ex2_fp8,
   vfdsu_ex2_sqrt,
   vfdsu_ex2_srt_skip,
   vfpu_yy_xx_dqnan,
@@ -69,6 +71,7 @@ input           ex1_scalar;
 input           ex1_single;               
 input           ex1_half;
 input           ex1_bfloat;
+input           ex1_fp8;
 input           ex1_sqrt;                 
 input   [63:0]  ex1_src0;                 
 input   [63:0]  ex1_src1;                 
@@ -98,6 +101,7 @@ output  [2 :0]  vfdsu_ex2_rm;
 output          vfdsu_ex2_single;         
 output          vfdsu_ex2_half;
 output          vfdsu_ex2_bfloat;
+output          vfdsu_ex2_fp8;
 output          vfdsu_ex2_sqrt;           
 output          vfdsu_ex2_srt_skip;       
 
@@ -125,6 +129,7 @@ reg     [2 :0]  vfdsu_ex2_rm;
 reg             vfdsu_ex2_single;         
 reg             vfdsu_ex2_half;
 reg             vfdsu_ex2_bfloat;
+reg             vfdsu_ex2_fp8;
 reg             vfdsu_ex2_sqrt;           
 reg             vfdsu_ex2_srt_skip;       
 
@@ -177,6 +182,18 @@ wire            ex1_bfloat_expnt0_zero;
 wire            ex1_bfloat_expnt1_zero;
 wire            ex1_bfloat_frac0_all0;
 wire            ex1_bfloat_frac1_all0;
+wire            ex1_fp8_expnt0_max;
+wire            ex1_fp8_expnt1_max;
+wire            ex1_fp8_expnt0_zero;
+wire            ex1_fp8_expnt1_zero;
+wire            ex1_fp8_frac0_all0;
+wire            ex1_fp8_frac1_all0;
+wire            ex1_fp8alt_expnt0_max;
+wire            ex1_fp8alt_expnt1_max;
+wire            ex1_fp8alt_expnt0_zero;
+wire            ex1_fp8alt_expnt1_zero;
+wire            ex1_fp8alt_frac0_all0;
+wire            ex1_fp8alt_frac1_all0;
 wire            ex1_nv;                   
 wire            ex1_op0_cnan;             
 wire    [51:0]  ex1_op0_f;                
@@ -234,6 +251,7 @@ wire            ex1_sing_frac1_all0;
 wire            ex1_single;               
 wire            ex1_half;
 wire            ex1_bfloat;
+wire            ex1_fp8;
 wire            ex1_sqrt;                 
 wire            ex1_sqrt_expnt_odd;       
 wire            ex1_sqrt_expnt_result_odd; 
@@ -265,10 +283,12 @@ assign ex1_oper1[63:0]             = ex1_src1[63:0];
 //Sign bit prepare
 assign ex1_op0_sign                =  ex1_double ? ex1_oper0[63] :
                                       ex1_single ? ex1_oper0[31] :
-                                      ex1_half   ? ex1_oper0[15] : ex1_oper0[15];
+                                      ex1_half   ? ex1_oper0[15] :
+                                      ex1_bfloat ? ex1_oper0[15] : ex1_oper0[7];
 assign ex1_op1_sign                =  ex1_double ? ex1_oper1[63] :
                                       ex1_single ? ex1_oper1[31] :
-                                      ex1_half   ? ex1_oper1[15] : ex1_oper1[15];
+                                      ex1_half   ? ex1_oper1[15] :
+                                      ex1_bfloat ? ex1_oper1[15] : ex1_oper1[7];
 assign div_sign                    = ex1_op0_sign ^ ex1_op1_sign;
 assign sqrt_sign                   = ex1_op0_sign;
 assign ex1_result_sign             = (ex1_div)
@@ -283,12 +303,20 @@ assign ex1_half_expnt0_max         = &ex1_oper0[14:10];
 assign ex1_half_expnt1_max         = &ex1_oper1[14:10];
 assign ex1_bfloat_expnt0_max       = &ex1_oper0[14:7];
 assign ex1_bfloat_expnt1_max       = &ex1_oper1[14:7];
+assign ex1_fp8_expnt0_max          = &ex1_oper0[6:2];
+assign ex1_fp8_expnt1_max          = &ex1_oper1[6:2];
+assign ex1_fp8alt_expnt0_max       = &ex1_oper0[6:3];
+assign ex1_fp8alt_expnt1_max       = &ex1_oper1[6:3];
 assign ex1_expnt0_max              = ex1_double ? ex1_doub_expnt0_max :
                                      ex1_single ? ex1_sing_expnt0_max :
-                                     ex1_half   ? ex1_half_expnt0_max : ex1_bfloat_expnt0_max;
+                                     ex1_half   ? ex1_half_expnt0_max :
+                                     ex1_bfloat ? ex1_bfloat_expnt0_max :
+                                     ex1_fp8    ? ex1_fp8_expnt0_max : ex1_fp8alt_expnt0_max;
 assign ex1_expnt1_max              = ex1_double ? ex1_doub_expnt1_max :
                                      ex1_single ? ex1_sing_expnt1_max :
-                                     ex1_half   ? ex1_half_expnt1_max : ex1_bfloat_expnt1_max;
+                                     ex1_half   ? ex1_half_expnt1_max :
+                                     ex1_bfloat ? ex1_bfloat_expnt1_max :
+                                     ex1_fp8    ? ex1_fp8_expnt1_max : ex1_fp8alt_expnt1_max;
              
 //exponent zero
 assign ex1_doub_expnt0_zero        = ~|ex1_oper0[62:52];
@@ -299,12 +327,20 @@ assign ex1_half_expnt0_zero        = ~|ex1_oper0[14:10];
 assign ex1_half_expnt1_zero        = ~|ex1_oper1[14:10];
 assign ex1_bfloat_expnt0_zero      = ~|ex1_oper0[14:7];
 assign ex1_bfloat_expnt1_zero      = ~|ex1_oper1[14:7];
+assign ex1_fp8_expnt0_zero         = ~|ex1_oper0[6:2];
+assign ex1_fp8_expnt1_zero         = ~|ex1_oper1[6:2];
+assign ex1_fp8alt_expnt0_zero      = ~|ex1_oper0[6:3];
+assign ex1_fp8alt_expnt1_zero      = ~|ex1_oper1[6:3];
 assign ex1_expnt0_zero             = ex1_double ? ex1_doub_expnt0_zero :
                                      ex1_single ? ex1_sing_expnt0_zero :
-                                     ex1_half   ? ex1_half_expnt0_zero : ex1_bfloat_expnt0_zero;
+                                     ex1_half   ? ex1_half_expnt0_zero :
+                                     ex1_bfloat ? ex1_bfloat_expnt0_zero :
+                                     ex1_fp8    ? ex1_fp8_expnt0_zero : ex1_fp8alt_expnt0_zero;
 assign ex1_expnt1_zero             = ex1_double ? ex1_doub_expnt1_zero :
                                      ex1_single ? ex1_sing_expnt1_zero :
-                                     ex1_half   ? ex1_half_expnt1_zero : ex1_bfloat_expnt1_zero;
+                                     ex1_half   ? ex1_half_expnt1_zero :
+                                     ex1_bfloat ? ex1_bfloat_expnt1_zero :
+                                     ex1_fp8    ? ex1_fp8_expnt1_zero : ex1_fp8alt_expnt1_zero;
 
 //fraction zero
 assign ex1_doub_frac0_all0         = ~|ex1_oper0[51:0];
@@ -315,20 +351,36 @@ assign ex1_half_frac0_all0         = ~|ex1_oper0[9:0];
 assign ex1_half_frac1_all0         = ~|ex1_oper1[9:0];
 assign ex1_bfloat_frac0_all0       = ~|ex1_oper0[6:0];
 assign ex1_bfloat_frac1_all0       = ~|ex1_oper1[6:0];
+assign ex1_fp8_frac0_all0          = ~|ex1_oper0[1:0];
+assign ex1_fp8_frac1_all0          = ~|ex1_oper1[1:0];
+assign ex1_fp8alt_frac0_all0          = ~|ex1_oper0[2:0];
+assign ex1_fp8alt_frac1_all0          = ~|ex1_oper1[2:0];
 assign ex1_frac0_all0              = ex1_double ? ex1_doub_frac0_all0 :
                                      ex1_single ? ex1_sing_frac0_all0 :
-                                     ex1_half ?   ex1_half_frac0_all0 : ex1_bfloat_frac0_all0;
+                                     ex1_half ?   ex1_half_frac0_all0 :
+                                     ex1_bfloat ? ex1_bfloat_frac0_all0 :
+                                     ex1_fp8    ? ex1_fp8_frac0_all0  : ex1_fp8alt_frac0_all0;
 assign ex1_frac1_all0              = ex1_double ? ex1_doub_frac1_all0 :
                                      ex1_single ? ex1_sing_frac1_all0 :
-                                     ex1_half ?   ex1_half_frac1_all0 : ex1_bfloat_frac1_all0;
+                                     ex1_half ?   ex1_half_frac1_all0 :
+                                     ex1_bfloat ? ex1_bfloat_frac1_all0 :
+                                     ex1_fp8    ? ex1_fp8_frac1_all0  : ex1_fp8alt_frac1_all0;
 assign ex1_frac0_msb               = ex1_double ? ex1_oper0[51] :
                                      ex1_single ? ex1_oper0[22] :
-                                     ex1_half   ? ex1_oper0[9]  : ex1_oper0[6];
+                                     ex1_half   ? ex1_oper0[9]  :
+                                     ex1_bfloat ? ex1_oper0[6]  :
+                                     ex1_fp8    ? ex1_oper0[1]  : ex1_oper0[2];
 assign ex1_frac1_msb               = ex1_double ? ex1_oper1[51] :
                                      ex1_single ? ex1_oper1[22] :
-                                     ex1_half   ? ex1_oper1[9]  : ex1_oper1[6];
-assign ex1_oper0_high_all1         = ex1_single ? &ex1_oper0[63:32] : &ex1_oper0[63:16]; 
-assign ex1_oper1_high_all1         = ex1_single ? &ex1_oper1[63:32] : &ex1_oper1[63:16];
+                                     ex1_half   ? ex1_oper1[9]  :
+                                     ex1_bfloat ? ex1_oper1[6]  :
+                                     ex1_fp8    ? ex1_oper1[1]  : ex1_oper1[2];
+assign ex1_oper0_high_all1         = ex1_single ? &ex1_oper0[63:32] :
+                                     ex1_half   ? &ex1_oper0[63:16] :
+                                     ex1_bfloat ? &ex1_oper0[63:16] : &ex1_oper0[63:8];
+assign ex1_oper1_high_all1         = ex1_single ? &ex1_oper1[63:32] :
+                                     ex1_half   ? &ex1_oper1[63:16] :
+                                     ex1_bfloat ? &ex1_oper1[63:16] : &ex1_oper1[63:8];
  
 
 //infinity number
@@ -418,29 +470,35 @@ ct_vfdsu_ff1  x_frac1_expnt (
 // &Connect(.fanc_shift_num(ex1_oper1_id_frac[51:0])); @158
 assign ex1_oper0_frac[51:0] = ex1_double ? ex1_oper0[51:0] :
                                            ex1_single ? {ex1_oper0[22:0],29'b0} :
-                                           ex1_half   ? {ex1_oper0[9:0],42'b0}
-                                                      : {ex1_oper0[6:0],45'b0};
+                                           ex1_half   ? {ex1_oper0[9:0],42'b0}  :
+                                           ex1_bfloat ? {ex1_oper0[6:0],45'b0}  :
+                                           ex1_fp8    ? {ex1_oper0[1:0],50'b0}  : {ex1_oper0[2:0],49'b0};
 assign ex1_oper1_frac[51:0] = ex1_double ? ex1_oper1[51:0] :
                                            ex1_single ? {ex1_oper1[22:0],29'b0} :
-                                           ex1_half   ? {ex1_oper1[9:0],42'b0}
-                                                      : {ex1_oper1[6:0],45'b0};
+                                           ex1_half   ? {ex1_oper1[9:0],42'b0}  :
+                                           ex1_bfloat ? {ex1_oper1[6:0],45'b0}  :
+                                           ex1_fp8    ? {ex1_oper1[1:0],50'b0}  : {ex1_oper1[2:0],49'b0};
 //=====================exponent add=========================
 //exponent number 0
 assign ex1_div_op0_expnt[12:0]     = ex1_double ? {2'b0,ex1_oper0[62:52]} : 
                                                   ex1_single ? {5'b0,ex1_oper0[30:23]} :
-                                                  ex1_half   ? {8'b0,ex1_oper0[14:10]}
-                                                             : {5'b0,ex1_oper0[14:7]};
+                                                  ex1_half   ? {8'b0,ex1_oper0[14:10]} :
+                                                  ex1_bfloat ? {5'b0,ex1_oper0[14:7]}  :
+                                                  ex1_fp8    ? {8'b0,ex1_oper0[6:2]} : {9'b0,ex1_oper0[6:3]};
 assign ex1_expnt_adder_op0[12:0]   = ex1_op0_id_nor ? ex1_oper0_id_expnt[12:0]
                                                     : ex1_div_op0_expnt[12:0];
 //exponent number 1
 assign ex1_div_op1_expnt[12:0]  = ex1_double ? {2'b0,ex1_oper1[62:52]} :
                                                ex1_single ? {5'b0,ex1_oper1[30:23]} :
-                                               ex1_half   ? {8'b0,ex1_oper1[14:10]}
-                                                          : {5'b0,ex1_oper1[14:7]};
+                                               ex1_half   ? {8'b0,ex1_oper1[14:10]} :
+                                               ex1_bfloat ? {5'b0,ex1_oper1[14:7]}  :
+                                               ex1_fp8    ? {8'b0,ex1_oper1[6:2]} : {9'b0,ex1_oper1[6:3]};
 assign ex1_sqrt_op1_expnt[12:0] = ex1_double ? {3'b0,{10{1'b1}}} : //'d1023
                                                ex1_single ? {6'b0,{7{1'b1}}} ://'d127
-                                               ex1_half   ? {9'b0,{4{1'b1}}}  //'d15
-                                                          : {6'b0,{7{1'b1}}}; //'d127
+                                               ex1_half   ? {9'b0,{4{1'b1}}} ://'d15
+                                               ex1_bfloat ? {6'b0,{7{1'b1}}} ://'d127
+                                               ex1_fp8    ? {9'b0,{4{1'b1}}}  //'d15
+                                                          : {10'b0,{3{1'b1}}};//'d7
   
 // &CombBeg;  @180
 always @( ex1_oper1_id_expnt[12:0]
@@ -610,12 +668,16 @@ assign ex1_div_srt_op1[52:0]     =  ex1_div_nor_srt_op1[52:0];
 //ex1_div_nor_srt_op0
 assign ex1_div_noid_nor_srt_op0[52:0] = ex1_double ? {1'b1,ex1_oper0[51:0]} :
                                                      ex1_single ? {1'b1,ex1_oper0[22:0],29'b0} :
-                                                     ex1_half   ? {1'b1,ex1_oper0[9:0],42'b0}
-                                                                : {1'b1,ex1_oper0[6:0],45'b0};
+                                                     ex1_half   ? {1'b1,ex1_oper0[9:0],42'b0}  :
+                                                     ex1_bfloat ? {1'b1,ex1_oper0[6:0],45'b0}  :
+                                                     ex1_fp8    ? {1'b1,ex1_oper0[1:0],50'b0}
+                                                                : {1'b1,ex1_oper0[2:0],49'b0};
 assign ex1_div_noid_nor_srt_op1[52:0] = ex1_double ? {1'b1,ex1_oper1[51:0]} :
                                                      ex1_single ? {1'b1,ex1_oper1[22:0],29'b0} :
-                                                     ex1_half   ? {1'b1,ex1_oper1[9:0],42'b0}
-                                                                : {1'b1,ex1_oper1[6:0],45'b0};
+                                                     ex1_half   ? {1'b1,ex1_oper1[9:0],42'b0}  :
+                                                     ex1_bfloat ? {1'b1,ex1_oper1[6:0],45'b0}  :
+                                                     ex1_fp8    ? {1'b1,ex1_oper1[1:0],50'b0}
+                                                                : {1'b1,ex1_oper1[2:0],49'b0};
 assign ex1_div_nor_srt_op0[52:0] = ex1_op0_id_nor ? {ex1_oper0_id_frac[51:0],1'b0} 
                                                   : ex1_div_noid_nor_srt_op0[52:0];
 //ex1_div_nor_srt_op1
@@ -743,6 +805,7 @@ begin
     vfdsu_ex2_single          <=  1'b0;
     vfdsu_ex2_half            <=  1'b0;
     vfdsu_ex2_bfloat          <=  1'b0;
+    vfdsu_ex2_fp8             <=  1'b0;
   end
   else if(ex1_pipedown)
   begin
@@ -767,6 +830,7 @@ begin
     vfdsu_ex2_single          <= ex1_single;
     vfdsu_ex2_half            <= ex1_half;
     vfdsu_ex2_bfloat          <= ex1_bfloat;
+    vfdsu_ex2_fp8             <= ex1_fp8;
   end
   else
   begin
@@ -791,6 +855,7 @@ begin
     vfdsu_ex2_single          <= vfdsu_ex2_single;
     vfdsu_ex2_half            <= vfdsu_ex2_half;
     vfdsu_ex2_bfloat          <= vfdsu_ex2_bfloat;
+    vfdsu_ex2_fp8             <= vfdsu_ex2_fp8;
   end
 end
 
