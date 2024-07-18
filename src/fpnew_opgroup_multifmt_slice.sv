@@ -70,16 +70,12 @@ module fpnew_opgroup_multifmt_slice #(
     if ((DivSqrtSel == fpnew_pkg::TH32) && !((FpFmtConfig[0] == 1) && (FpFmtConfig[1:NUM_FORMATS-1] == '0))) begin
       $fatal(1, "T-Head-based DivSqrt unit supported only in FP32-only configurations. \
 Set DivSqrtSel = THMULTI or DivSqrtSel = PULP to use a multi-format divider");
-    end else if ((DivSqrtSel == fpnew_pkg::THMULTI) && (FpFmtConfig[3] == 1'b1 || FpFmtConfig[5] == 1'b1)) begin
-      $warning("The DivSqrt unit of C910 (instantiated by DivSqrtSel = THMULTI) does not support \
-FP8, FP8alt. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8, FP8alt.");
     end
   end
 
   localparam int unsigned MAX_FP_WIDTH   = fpnew_pkg::max_fp_width(FpFmtConfig);
   localparam int unsigned MAX_INT_WIDTH  = fpnew_pkg::max_int_width(IntFmtConfig);
   localparam int unsigned NUM_LANES = fpnew_pkg::max_num_lanes(Width, FpFmtConfig, 1'b1);
-  localparam int unsigned NUM_DIVSQRT_LANES = fpnew_pkg::num_divsqrt_lanes(Width, FpFmtConfig, 1'b1, DivSqrtSel);
   localparam int unsigned NUM_INT_FORMATS = fpnew_pkg::NUM_INT_FORMATS;
   // We will send the format information along with the data
   localparam int unsigned FMT_BITS =
@@ -183,7 +179,7 @@ FP8, FP8alt. Please use the PULP DivSqrt unit when in need of div/sqrt operation
     logic [LANE_WIDTH-1:0] local_result; // lane-local results
 
     // Generate instances only if needed, lane 0 always generated
-    if ((lane == 0) || (EnableVectors & (!(OpGroup == fpnew_pkg::DIVSQRT && (lane >= NUM_DIVSQRT_LANES))))) begin : active_lane
+    if ((lane == 0) || EnableVectors) begin : active_lane
       logic in_valid, out_valid, out_ready; // lane-local handshake
 
       logic [NUM_OPERANDS-1:0][LANE_WIDTH-1:0] local_operands;  // lane-local oprands
@@ -292,42 +288,80 @@ FP8, FP8alt. Please use the PULP DivSqrt unit when in need of div/sqrt operation
             .reg_ena_i
           );
         end else if(DivSqrtSel == fpnew_pkg::THMULTI) begin : gen_thmulti_c910_divsqrt
-          fpnew_divsqrt_th_64_multi #(
-            .FpFmtConfig ( LANE_FORMATS         ),
-            .NumPipeRegs ( NumPipeRegs          ),
-            .PipeConfig  ( PipeConfig           ),
-            .TagType     ( TagType              ),
-            .AuxType     ( logic [AUX_BITS-1:0] )
-          ) i_fpnew_divsqrt_th_64_c910 (
-           .clk_i,
-            .rst_ni,
-            .operands_i       ( local_operands[1:0] ), // 2 operands
-            .is_boxed_i       ( is_boxed_2op        ), // 2 operands
-            .rnd_mode_i,
-            .op_i,
-            .dst_fmt_i,
-            .tag_i,
-            .mask_i           ( simd_mask_i[lane]   ),
-            .aux_i            ( aux_data            ),
-            .vectorial_op_i   ( vectorial_op        ), // synchronize only vectorial operations
-            .in_valid_i       ( in_valid            ),
-            .in_ready_o       ( lane_in_ready[lane] ),
-            .divsqrt_done_o   ( divsqrt_done[lane]  ),
-            .simd_synch_done_i( simd_synch_done     ),
-            .divsqrt_ready_o  ( divsqrt_ready[lane] ),
-            .simd_synch_rdy_i ( simd_synch_rdy      ),
-            .flush_i,
-            .result_o         ( op_result           ),
-            .status_o         ( op_status           ),
-            .extension_bit_o  ( lane_ext_bit[lane]  ),
-            .tag_o            ( lane_tags[lane]     ),
-            .mask_o           ( lane_masks[lane]    ),
-            .aux_o            ( lane_aux[lane]      ),
-            .out_valid_o      ( out_valid           ),
-            .out_ready_i      ( out_ready           ),
-            .busy_o           ( lane_busy[lane]     ),
-            .reg_ena_i
-          );
+          if (LANE_WIDTH != 8) begin
+            fpnew_divsqrt_th_64_multi #(
+              .FpFmtConfig ( LANE_FORMATS         ),
+              .NumPipeRegs ( NumPipeRegs          ),
+              .PipeConfig  ( PipeConfig           ),
+              .TagType     ( TagType              ),
+              .AuxType     ( logic [AUX_BITS-1:0] )
+            ) i_fpnew_divsqrt_th_64_c910 (
+             .clk_i,
+              .rst_ni,
+              .operands_i       ( local_operands[1:0] ), // 2 operands
+              .is_boxed_i       ( is_boxed_2op        ), // 2 operands
+              .rnd_mode_i,
+              .op_i,
+              .dst_fmt_i,
+              .tag_i,
+              .mask_i           ( simd_mask_i[lane]   ),
+              .aux_i            ( aux_data            ),
+              .vectorial_op_i   ( vectorial_op        ), // synchronize only vectorial operations
+              .in_valid_i       ( in_valid            ),
+              .in_ready_o       ( lane_in_ready[lane] ),
+              .divsqrt_done_o   ( divsqrt_done[lane]  ),
+              .simd_synch_done_i( simd_synch_done     ),
+              .divsqrt_ready_o  ( divsqrt_ready[lane] ),
+              .simd_synch_rdy_i ( simd_synch_rdy      ),
+              .flush_i,
+              .result_o         ( op_result           ),
+              .status_o         ( op_status           ),
+              .extension_bit_o  ( lane_ext_bit[lane]  ),
+              .tag_o            ( lane_tags[lane]     ),
+              .mask_o           ( lane_masks[lane]    ),
+              .aux_o            ( lane_aux[lane]      ),
+              .out_valid_o      ( out_valid           ),
+              .out_ready_i      ( out_ready           ),
+              .busy_o           ( lane_busy[lane]     ),
+              .reg_ena_i
+            );
+          end else begin
+            fpnew_divsqrt_8_multi_lut #(
+              .NumPipeRegs ( NumPipeRegs          ),
+              .PipeConfig  ( PipeConfig           ),
+              .TagType     ( TagType              ),
+              .AuxType     ( logic [AUX_BITS-1:0] )
+            ) i_fpnew_divsqrt_8_lut (
+             .clk_i,
+              .rst_ni,
+              .operands_i       ( local_operands[1:0] ), // 2 operands
+              .is_boxed_i       ( is_boxed_2op        ), // 2 operands
+              .rnd_mode_i,
+              .op_i,
+              .dst_fmt_i,
+              .tag_i,
+              .mask_i           ( simd_mask_i[lane]   ),
+              .aux_i            ( aux_data            ),
+              .vectorial_op_i   ( vectorial_op        ), // synchronize only vectorial operations
+              .in_valid_i       ( in_valid            ),
+              .in_ready_o       ( lane_in_ready[lane] ),
+              .divsqrt_done_o   ( divsqrt_done[lane]  ),
+              .simd_synch_done_i( simd_synch_done     ),
+              .divsqrt_ready_o  ( divsqrt_ready[lane] ),
+              .simd_synch_rdy_i ( simd_synch_rdy      ),
+              .flush_i,
+              .result_o         ( op_result           ),
+              .status_o         ( op_status           ),
+              .extension_bit_o  ( lane_ext_bit[lane]  ),
+              .tag_o            ( lane_tags[lane]     ),
+              .mask_o           ( lane_masks[lane]    ),
+              .aux_o            ( lane_aux[lane]      ),
+              .out_valid_o      ( out_valid           ),
+              .out_ready_i      ( out_ready           ),
+              .busy_o           ( lane_busy[lane]     ),
+              .reg_ena_i
+            );
+          end
         end else begin : gen_pulp_divsqrt
           fpnew_divsqrt_multi #(
             .FpFmtConfig ( LANE_FORMATS         ),
@@ -528,8 +562,8 @@ FP8, FP8alt. Please use the PULP DivSqrt unit when in need of div/sqrt operation
 
   if ((DivSqrtSel != fpnew_pkg::TH32) && !ExtRegEna) begin
     // Synch lanes if there is more than one
-    assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready[NUM_DIVSQRT_LANES-1:0] : divsqrt_ready[0];
-    assign simd_synch_done = EnableVectors ? &divsqrt_done[NUM_DIVSQRT_LANES-1:0]  : divsqrt_done[0];
+    assign simd_synch_rdy  = EnableVectors ? &divsqrt_ready[NUM_LANES-1:0] : divsqrt_ready[0];
+    assign simd_synch_done = EnableVectors ? &divsqrt_done[NUM_LANES-1:0]  : divsqrt_done[0];
   end else begin
     // Unused (TH32 divider only supported for scalar FP32 divsqrt)
     assign simd_synch_rdy  = '0;
