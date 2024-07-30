@@ -383,9 +383,10 @@ module fpnew_fma_multi #(
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents are biased to dst fmt.
-  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal}) // 0 as subnorm
-                                   - signed'(fpnew_pkg::bias(src2_fmt_q))
-                                   + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
+  assign exponent_addend = info_c.is_zero ? 1 // in case the addend is zero, set minimum exp
+                           : signed'(exponent_c + $signed({1'b0, ~info_c.is_normal}) // 0 as subnorm
+                                     - signed'(fpnew_pkg::bias(src2_fmt_q))
+                                     + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
   // Biased product exponent is the sum of encoded exponents minus the bias.
   assign exponent_product = (info_a.is_zero || info_b.is_zero) // in case the product is zero, set minimum exp.
                             ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q))
