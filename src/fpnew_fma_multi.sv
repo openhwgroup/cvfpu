@@ -383,9 +383,10 @@ module fpnew_fma_multi #(
 
   // Calculate internal exponents from encoded values. Real exponents are (ex = Ex - bias + 1 - nx)
   // with Ex the encoded exponent and nx the implicit bit. Internal exponents are biased to dst fmt.
-  assign exponent_addend = signed'(exponent_c + $signed({1'b0, ~info_c.is_normal}) // 0 as subnorm
-                                   - signed'(fpnew_pkg::bias(src2_fmt_q))
-                                   + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
+  assign exponent_addend = info_c.is_zero ? 1 // in case the addend is zero, set minimum exp
+                           : signed'(exponent_c + $signed({1'b0, ~info_c.is_normal}) // 0 as subnorm
+                                     - signed'(fpnew_pkg::bias(src2_fmt_q))
+                                     + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
   // Biased product exponent is the sum of encoded exponents minus the bias.
   assign exponent_product = (info_a.is_zero || info_b.is_zero) // in case the product is zero, set minimum exp.
                             ? 2 - signed'(fpnew_pkg::bias(dst_fmt_q))
@@ -395,8 +396,6 @@ module fpnew_fma_multi #(
                                       + signed'(fpnew_pkg::bias(dst_fmt_q))); // rebias for dst fmt
   // Exponent difference is the addend exponent minus the product exponent
   assign exponent_difference = exponent_addend - exponent_product;
-  // The tentative exponent will be the larger of the product or addend exponent
-  assign tentative_exponent = (exponent_difference > 0) ? exponent_addend : exponent_product;
 
   // Shift amount for addend based on exponents (unsigned as only right shifts)
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt;
@@ -412,6 +411,43 @@ module fpnew_fma_multi #(
     else
       addend_shamt = 0;
   end
+
+  // LZC for addend normalization
+  logic        [$clog2(SUPER_MAN_BITS)-1:0] addend_lzc_count;
+  logic        [$clog2(SUPER_MAN_BITS)  :0] addend_lzc_count_sgn;
+  logic        [SHIFT_AMOUNT_WIDTH    -1:0] addend_normalize_shamt;
+
+  // Leading zero counter for addend normalization
+  lzc #(
+    .WIDTH ( SUPER_MAN_BITS ),
+    .MODE  ( 1              ) // MODE = 1 counts leading zeroes
+  ) i_addend_lzc (
+    .in_i    ( operand_c.mantissa ),
+    .cnt_o   ( addend_lzc_count   ),
+    .empty_o (                    )
+  );
+
+  assign addend_lzc_count_sgn = signed'({1'b0, addend_lzc_count});
+
+  // Determine addend normalization shift amount (used for sum shifting in addend-ancored case)
+  always_comb begin
+    // normal or zero addend
+    if (info_c.is_normal || info_c.is_zero) begin
+      addend_normalize_shamt = 0;
+    // subnormal and will still be subnormal in destination format (no positive rebias added to exponent)
+    end else if (exponent_addend <= 1) begin
+      addend_normalize_shamt = 0;
+    // subnormal and will likely be normal in destination format in addend-anchored case
+    end else if (addend_lzc_count_sgn + 1 < exponent_addend) begin
+      addend_normalize_shamt = addend_lzc_count + 1;
+    // subnormal and will still be subnormal in destination format (insufficient positive rebias added to exponent)
+    end else begin
+      addend_normalize_shamt = exponent_addend - 1;
+    end
+  end
+
+  // The tentative exponent will be the larger of the product or addend exponent
+  assign tentative_exponent = (exponent_difference > 0) ? exponent_addend - addend_normalize_shamt : exponent_product;
 
   // ------------------
   // Product data path
@@ -527,7 +563,7 @@ module fpnew_fma_multi #(
   assign mid_pipe_exp_prod_q[0]    = exponent_product;
   assign mid_pipe_exp_diff_q[0]    = exponent_difference;
   assign mid_pipe_tent_exp_q[0]    = tentative_exponent;
-  assign mid_pipe_add_shamt_q[0]   = addend_shamt;
+  assign mid_pipe_add_shamt_q[0]   = addend_shamt + addend_normalize_shamt;
   assign mid_pipe_sticky_q[0]      = sticky_before_add;
   assign mid_pipe_sum_q[0]         = sum;
   assign mid_pipe_final_sign_q[0]  = final_sign;
