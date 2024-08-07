@@ -134,10 +134,11 @@ Enumeration of type `logic [2:0]` holding the supported FP formats.
 | `FP16`     | IEEE binary16 | 16 bit | 5         | 10        |
 | `FP8`      | binary8       | 8 bit  | 5         | 2         |
 | `FP16ALT`  | binary16alt   | 16 bit | 8         | 7         |
+| `FP8ALT`   | binary8alt    | 8 bit  | 4         | 3         |
 
 The following global parameters associated with FP formats are set in `fpnew_pkg`:
 ```SystemVerilog
-localparam int unsigned NUM_FP_FORMATS = 5;
+localparam int unsigned NUM_FP_FORMATS = 6;
 localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 ```
 
