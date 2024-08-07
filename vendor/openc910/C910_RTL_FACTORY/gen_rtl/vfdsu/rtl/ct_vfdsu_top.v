@@ -101,6 +101,7 @@ wire            ex1_scalar;
 wire            ex1_single;                   
 wire            ex1_half;
 wire            ex1_bfloat;
+wire            ex1_fp8;
 wire            ex1_sqrt;                     
 wire    [63:0]  ex1_src0;                     
 wire    [63:0]  ex1_src1;                     
@@ -132,6 +133,7 @@ wire            vfdsu_ex2_double;
 wire            vfdsu_ex2_single;             
 wire            vfdsu_ex2_half;
 wire            vfdsu_ex2_bfloat;
+wire            vfdsu_ex2_fp8;
 wire            vfdsu_ifu_debug_ex2_wait;     
 wire            vfdsu_ifu_debug_idle;         
 wire            vfdsu_ifu_debug_pipe_busy;    
@@ -276,6 +278,7 @@ ct_vfdsu_double  x_ct_vfdsu_double (
   .ex1_single          (ex1_single         ),
   .ex1_half            (ex1_half           ),
   .ex1_bfloat          (ex1_bfloat         ),
+  .ex1_fp8             (ex1_fp8            ),
   .ex1_sqrt            (ex1_sqrt           ),
   .ex1_src0            (ex1_src0           ),
   .ex1_src1            (ex1_src1           ),
@@ -314,6 +317,7 @@ ct_vfdsu_scalar_dp  x_ct_vfdsu_scalar_dp (
   .ex1_single                    (ex1_single                   ),
   .ex1_half                      (ex1_half                     ),
   .ex1_bfloat                    (ex1_bfloat                   ),
+  .ex1_fp8                       (ex1_fp8                      ),
   .ex1_sqrt                      (ex1_sqrt                     ),
   .ex1_src0                      (ex1_src0                     ),
   .ex1_src1                      (ex1_src1                     ),
@@ -335,7 +339,8 @@ ct_vfdsu_scalar_dp  x_ct_vfdsu_scalar_dp (
   .vfdsu_ex2_double              (vfdsu_ex2_double             ),
   .vfdsu_ex2_single              (vfdsu_ex2_single             ),
   .vfdsu_ex2_half                (vfdsu_ex2_half               ),
-  .vfdsu_ex2_bfloat              (vfdsu_ex2_bfloat             )
+  .vfdsu_ex2_bfloat              (vfdsu_ex2_bfloat             ),
+  .vfdsu_ex2_fp8                 (vfdsu_ex2_fp8                )
 );
 
 
