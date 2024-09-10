@@ -403,7 +403,18 @@ package fpnew_pkg;
 
   // Returns the maximum number of lanes in the FPU according to width, format config and vectors
   function automatic int unsigned max_num_lanes(int unsigned width, fmt_logic_t cfg, logic vec);
-    return vec ? width / min_fp_width(cfg) : 1; // if no vectors, only one lane
+    if (vec) begin
+      automatic int unsigned res = max_fp_width(cfg);
+      for (int unsigned i = 0; i < NUM_FP_FORMATS; i++) begin
+        if (cfg[i]) begin
+          automatic int unsigned format_width = FP_ENCODINGS[i].exp_bits + FP_ENCODINGS[i].man_bits + 1;
+          res = unsigned'(minimum(res, format_width));
+        end
+      end
+      return width / res;
+    end else begin
+      return 1; // if no vectors, only one lane
+    end
   endfunction
 
     // Returns the maximum number of lanes in the FPU according to width, format config and vectors
