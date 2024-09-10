@@ -417,7 +417,7 @@ package fpnew_pkg;
     end
   endfunction
 
-    // Returns the maximum number of lanes in the FPU according to width, format config and vectors
+  // Returns the maximum number of lanes in the FPU according to width, format config and vectors
   function automatic int unsigned num_divsqrt_lanes(int unsigned width, fmt_logic_t cfg, logic vec, divsqrt_unit_t DivSqrtSel);
     automatic fmt_logic_t cfg_tmp;
     cfg_tmp = (DivSqrtSel == THMULTI) ? cfg & 5'b11101 : cfg;
