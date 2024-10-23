@@ -459,9 +459,12 @@ module fpnew_cast_multi #(
       end
     // Handle FP over-/underflows
     end else begin
-      // Overflow or infinities (for proper rounding)
-      if ((destination_exp_q >= signed'(2**fpnew_pkg::exp_bits(dst_fmt_q2))-1) ||
-          (~src_is_int_q && info_q.is_inf)) begin
+      // Infinities
+      if (~src_is_int_q && info_q.is_inf) begin
+        final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q2)-1); // largest exponent
+        preshift_mant   = '0;
+      // Overflow (for proper rounding)
+      end else if (destination_exp_q >= signed'(2**fpnew_pkg::exp_bits(dst_fmt_q2))-1) begin
         final_exp       = unsigned'(2**fpnew_pkg::exp_bits(dst_fmt_q2)-2); // largest normal value
         preshift_mant   = '1;                           // largest normal value and RS bits set
         of_before_round = 1'b1;
