@@ -171,9 +171,9 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
     // Cast-specific parameters
     localparam fpnew_pkg::fmt_logic_t CONV_FORMATS =
         fpnew_pkg::get_conv_lane_formats(Width, FpFmtConfig, LANE);
-    localparam fpnew_pkg::ifmt_logic_t CONV_INT_FORMATS =
-        fpnew_pkg::get_conv_lane_int_formats(Width, FpFmtConfig, IntFmtConfig, LANE);
-    localparam int unsigned CONV_WIDTH = fpnew_pkg::max_fp_width(CONV_FORMATS);
+    localparam fpnew_pkg::ifmt_logic_t CONV_INT_FORMATS = IntFmtConfig;
+    localparam int unsigned CONV_WIDTH = 
+        fpnew_pkg::maximum(fpnew_pkg::max_fp_width(CONV_FORMATS), fpnew_pkg::max_int_width(CONV_INT_FORMATS));
 
     // Lane parameters from Opgroup
     localparam fpnew_pkg::fmt_logic_t LANE_FORMATS = (OpGroup == fpnew_pkg::CONV)
@@ -451,7 +451,7 @@ FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8
       for (genvar ifmt = 0; ifmt < NUM_INT_FORMATS; ifmt++) begin : pack_int_result
         // Set up some constants
         localparam int unsigned INT_WIDTH = fpnew_pkg::int_width(fpnew_pkg::int_format_e'(ifmt));
-        if (ACTIVE_INT_FORMATS[ifmt]) begin
+        if (CONV_INT_FORMATS[ifmt]) begin
           assign ifmt_slice_result[ifmt][(LANE+1)*INT_WIDTH-1:LANE*INT_WIDTH] =
             local_result[INT_WIDTH-1:0];
         end else if ((LANE+1)*INT_WIDTH <= Width) begin
