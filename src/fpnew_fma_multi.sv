@@ -651,16 +651,15 @@ module fpnew_fma_multi #(
   // --------------
   logic        [LOWER_SUM_WIDTH-1:0]  sum_lower;              // lower 2p+3 bits of sum are searched
   logic        [LZC_RESULT_WIDTH-1:0] leading_zero_count;     // the number of leading zeroes
-  logic        [LZC_RESULT_WIDTH-1:0] norm_lza_count;         // leading zeroes from LZA without offest
-  logic        [LZC_RESULT_WIDTH-1:0] corrected_lza_count;    // leading zeroes corrected after LZA error
   logic signed [LZC_RESULT_WIDTH:0]   leading_zero_count_sgn; // signed leading-zero count
   logic                               sum_lower_zero;         // in case only zeroes found
+  logic        [LOWER_SUM_WIDTH:0]    least_leading_0_onehot; // onehot encoded least leading 0
+  logic                               lza_overpredict;        // LZA over-predicted actual LZC by 1
 
   logic        [SHIFT_AMOUNT_WIDTH-1:0] norm_shamt; // Normalization shift amount
   logic signed [EXP_WIDTH-1:0]          normalized_exponent;
 
   logic [3*PRECISION_BITS+4:0] sum_shifted;       // result after first normalization shift
-  logic [3*PRECISION_BITS+5:0] lza_pre_shift;
   logic [PRECISION_BITS:0]     final_mantissa;    // final mantissa before rounding with round bit
   logic [2*PRECISION_BITS+2:0] sum_sticky_bits;   // remaining 2p+3 sticky bits after normalization
   logic                        sticky_after_norm; // sticky bit after normalization
@@ -671,13 +670,14 @@ module fpnew_fma_multi #(
 
   assign sum_lower_zero = sum_lower == '0;
 
-  // If the lower sum is all zeros, the LZC is also zero.
-  assign norm_lza_count = sum_lower_zero ? '0 : lza_count_q;
+  // A carry might have propagated into the least leading 0 bit (the lowest 0 bits just before the
+  // first 1 bit) predicted by the LZA.
+  // Note: This is a mux that only looks at `sum_q[LOWER_SUM_WIDTH:0]`.
+  assign least_leading_0_onehot = {1'b1, {LOWER_SUM_WIDTH{1'b0}}} >> lza_count_q;
+  assign lza_overpredict        = |(sum_q[LOWER_SUM_WIDTH:0] & least_leading_0_onehot);
 
-  assign lza_pre_shift       = sum_q << (PRECISION_BITS + 2 + norm_lza_count);
-  assign corrected_lza_count = lza_pre_shift[3*PRECISION_BITS+5] ? norm_lza_count - 1: norm_lza_count;
-
-  assign leading_zero_count     = corrected_lza_count[LZC_RESULT_WIDTH-1:0];
+  // Get actual LZC by correcting LZA in case of over-prediction
+  assign leading_zero_count     = lza_overpredict ? lza_count_q - 1 : lza_count_q;
   assign leading_zero_count_sgn = signed'({1'b0, leading_zero_count});
 
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
@@ -685,15 +685,20 @@ module fpnew_fma_multi #(
     // Product-anchored case or cancellations require LZC
     if ((exponent_difference_q <= 0) || (effective_subtraction_q && (exponent_difference_q <= 2))) begin
       // Normal result (biased exponent > 0 and not a zero)
-      if ((exponent_product_q - leading_zero_count_sgn + 1 >= 0) && !sum_lower_zero) begin
+      if ((exponent_product_q - signed'({1'b0, lza_count_q}) + 1 >= 0) && !sum_lower_zero) begin
         // Undo initial product shift, remove the counted zeroes
-        norm_shamt          = PRECISION_BITS + 1 + norm_lza_count;
-        normalized_exponent = exponent_product_q - signed'({1'b0, norm_lza_count}) + 2; // account for shift
+        norm_shamt          = PRECISION_BITS + 1 + lza_count_q;
+        normalized_exponent = exponent_product_q - signed'({1'b0, lza_count_q}) + 2; // account for shift
       // Subnormal result
       end else begin
         // Cap the shift distance to align mantissa with minimum exponent
         norm_shamt          = unsigned'(signed'(PRECISION_BITS + 2 + exponent_product_q));
         normalized_exponent = 0; // subnormals encoded as 0
+        // Fix exponent in case of a normal number accidentally being classified as subnormal due
+        // to LZA over-prediction (LZA could be 1 larger than actual LZC)
+        if ((exponent_product_q - leading_zero_count_sgn + 1 >= 0) && !sum_lower_zero) begin
+          normalized_exponent = 1;
+        end
       end
     // Addend-anchored case
     end else begin
