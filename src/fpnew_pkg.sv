@@ -265,6 +265,14 @@ package fpnew_pkg;
     IntFmtMask:    4'b0110
   };
 
+  localparam fpu_features_t FP16 = '{
+    Width:         16,
+    EnableVectors: 1'b0,
+    EnableNanBox:  1'b1,
+    FpFmtMask:     5'b00100,
+    IntFmtMask:    4'b0000
+  };
+
 
   // FPU configuraion: implementation
   typedef struct packed {
@@ -289,6 +297,15 @@ package fpnew_pkg;
                   '{default: PARALLEL}, // NONCOMP
                   '{default: MERGED}},  // CONV
     PipeConfig: BEFORE
+  };
+
+  localparam fpu_implementation_t FP16_ = '{
+    PipeRegs:   '{default: 2},
+    UnitTypes:  '{'{default: MERGED}, // ADDMUL
+                  '{default: DISABLED}, // DIVSQRT
+                  '{default: DISABLED}, // NONCOMP
+                  '{default: DISABLED}},  // CONV
+    PipeConfig: DISTRIBUTED
   };
 
   // -----------------------
