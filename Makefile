@@ -1,5 +1,5 @@
 MODULE = fpnew_top
-SV_SRC = vsrc/*.sv vsrc/**/*.sv 
+SV_SRC = src/*.sv src/**/*.sv 
 TB_CPP = csrc/*.cpp            
 
 .PHONY: sim
