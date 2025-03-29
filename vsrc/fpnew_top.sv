@@ -15,8 +15,8 @@
 
 module fpnew_top #(
   // FPU configuration
-  parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::RV64D_Xsflt,
-  parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::DEFAULT_NOREGS,
+  parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::FP16,
+  parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::FP16_MUL,
   // DivSqrtSel chooses among PULP, TH32, or THMULTI (see documentation and fpnew_pkg.sv for further details)
   parameter fpnew_pkg::divsqrt_unit_t       DivSqrtSel     = fpnew_pkg::THMULTI,
   parameter type                            TagType        = logic,

@@ -299,7 +299,7 @@ package fpnew_pkg;
     PipeConfig: BEFORE
   };
 
-  localparam fpu_implementation_t FP16_ = '{
+  localparam fpu_implementation_t FP16_MUL = '{
     PipeRegs:   '{default: 2},
     UnitTypes:  '{'{default: MERGED}, // ADDMUL
                   '{default: DISABLED}, // DIVSQRT

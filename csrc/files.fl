@@ -1,0 +1,6 @@
++incdir+../src
+../src/fpnew_pkg.sv
+../src/fpnew_top.sv
+../src/fpnew_fma_multi.sv
+../src/fpnew_rounding.sv
+../src/fpnew_opgroup_block.sv
