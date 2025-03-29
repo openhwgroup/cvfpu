@@ -18,6 +18,8 @@
 
 `include "common_cells/registers.svh"
 
+
+
 module fpnew_divsqrt_th_32 #(
   // FP32-only DivSqrt
   // FPU configuration
@@ -59,7 +61,8 @@ module fpnew_divsqrt_th_32 #(
   // External register enable override
   input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
 );
-
+  import fpnew_pkg::*;
+  
   // ----------
   // Constants
   // ----------

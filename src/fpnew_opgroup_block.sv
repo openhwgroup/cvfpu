@@ -13,6 +13,8 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+
+
 module fpnew_opgroup_block #(
   parameter fpnew_pkg::opgroup_e        OpGroup       = fpnew_pkg::ADDMUL,
   // FPU configuration
@@ -61,7 +63,7 @@ module fpnew_opgroup_block #(
   // Indication of valid data in flight
   output logic                                    busy_o
 );
-
+  import fpnew_pkg::*;
   // ----------------
   // Type Definition
   // ----------------

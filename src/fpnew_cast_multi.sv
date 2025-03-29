@@ -63,6 +63,7 @@ module fpnew_cast_multi #(
   input  logic [ExtRegEnaWidth-1:0] reg_ena_i
 );
 
+  import fpnew_pkg::*;
   // ----------
   // Constants
   // ----------

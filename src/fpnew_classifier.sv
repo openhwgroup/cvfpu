@@ -23,7 +23,8 @@ module fpnew_classifier #(
   input  logic                [NumOperands-1:0]            is_boxed_i,
   output fpnew_pkg::fp_info_t [NumOperands-1:0]            info_o
 );
-
+  import fpnew_pkg::*;
+  
   localparam int unsigned EXP_BITS = fpnew_pkg::exp_bits(FpFormat);
   localparam int unsigned MAN_BITS = fpnew_pkg::man_bits(FpFormat);
 

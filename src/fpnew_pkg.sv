@@ -44,7 +44,7 @@ package fpnew_pkg;
     FP8     = 'd3,
     FP16ALT = 'd4
     // add new formats here
-  } fp_format_e;
+  } fp_format_e /*verilator public*/;
 
   // Encodings for supported FP formats
   localparam fp_encoding_t [0:NUM_FP_FORMATS-1] FP_ENCODINGS  = '{
@@ -82,7 +82,7 @@ package fpnew_pkg;
     INT32,
     INT64
     // add new formats here
-  } int_format_e;
+  } int_format_e /*verilator public*/;
 
   // Returns the width of an INT format by index
   function automatic int unsigned int_width(int_format_e ifmt);
@@ -112,7 +112,7 @@ package fpnew_pkg;
   // Each FP operation belongs to an operation group
   typedef enum logic [1:0] {
     ADDMUL, DIVSQRT, NONCOMP, CONV
-  } opgroup_e;
+  } opgroup_e /*verilator public*/;
 
   localparam int unsigned OP_BITS = 4;
 
@@ -122,7 +122,7 @@ package fpnew_pkg;
     SGNJ, MINMAX, CMP, CLASSIFY, // NONCOMP operation group
     F2F, F2I, I2F, CPKAB, CPKCD, // CONV operation group
     ADDS                         // ADDMUL operation group (ADDS is added here to preserve bit encoding of operations)
-  } operation_e;
+  } operation_e /*verilator public*/;
 
   // -------------
   // DIVSQRT UNIT
@@ -145,7 +145,7 @@ package fpnew_pkg;
     RMM = 3'b100,
     ROD = 3'b101,  // This mode is not defined in RISC-V FP-SPEC
     DYN = 3'b111
-  } roundmode_e;
+  } roundmode_e /*verilator public*/;
 
   // Status flags
   typedef struct packed {
@@ -180,7 +180,7 @@ package fpnew_pkg;
     POSINF     = 10'b00_1000_0000,
     SNAN       = 10'b01_0000_0000,
     QNAN       = 10'b10_0000_0000
-  } classmask_e;
+  } classmask_e /*verilator public*/;
 
   // ------------------
   // FPU configuration
@@ -265,7 +265,7 @@ package fpnew_pkg;
     IntFmtMask:    4'b0110
   };
 
-  localparam fpu_features_t FP16 = '{
+  localparam fpu_features_t FP16_FEATURE = '{
     Width:         16,
     EnableVectors: 1'b0,
     EnableNanBox:  1'b1,

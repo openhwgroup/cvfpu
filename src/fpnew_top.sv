@@ -13,9 +13,11 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+
+
 module fpnew_top #(
   // FPU configuration
-  parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::FP16,
+  parameter fpnew_pkg::fpu_features_t       Features       = fpnew_pkg::FP16_FEATURE,
   parameter fpnew_pkg::fpu_implementation_t Implementation = fpnew_pkg::FP16_MUL,
   // DivSqrtSel chooses among PULP, TH32, or THMULTI (see documentation and fpnew_pkg.sv for further details)
   parameter fpnew_pkg::divsqrt_unit_t       DivSqrtSel     = fpnew_pkg::THMULTI,
@@ -55,7 +57,7 @@ module fpnew_top #(
   // Indication of valid data in flight
   output logic                              busy_o
 );
-
+  import fpnew_pkg::*;
   localparam int unsigned NUM_OPGROUPS = fpnew_pkg::NUM_OPGROUPS;
   localparam int unsigned NUM_FORMATS  = fpnew_pkg::NUM_FP_FORMATS;
 

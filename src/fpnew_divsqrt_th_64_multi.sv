@@ -17,6 +17,8 @@
 
 `include "common_cells/registers.svh"
 
+
+
 module fpnew_divsqrt_th_64_multi #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig  = '1,
   // FPU configuration
@@ -64,7 +66,8 @@ module fpnew_divsqrt_th_64_multi #(
   // External register enable override
   input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
 );
-
+  import fpnew_pkg::*;
+  
   // ----------
   // Constants
   // ----------

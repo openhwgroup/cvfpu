@@ -13,6 +13,8 @@
 
 // Author: Stefan Mach <smach@iis.ee.ethz.ch>
 
+
+
 module fpnew_rounding #(
   parameter int unsigned AbsWidth=2 // Width of the abolute value, without sign bit
 ) (
@@ -29,7 +31,7 @@ module fpnew_rounding #(
   // Output classification
   output logic                 exact_zero_o             // output is an exact zero
 );
-
+  import fpnew_pkg::*;
   logic round_up; // Rounding decision
 
   // Take the rounding decision according to RISC-V spec

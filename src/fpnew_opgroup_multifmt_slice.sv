@@ -15,6 +15,8 @@
 
 `include "common_cells/registers.svh"
 
+
+
 module fpnew_opgroup_multifmt_slice #(
   parameter fpnew_pkg::opgroup_e      OpGroup       = fpnew_pkg::CONV,
   parameter int unsigned              Width         = 64,
@@ -65,7 +67,7 @@ module fpnew_opgroup_multifmt_slice #(
   // External register enable override
   input  logic [ExtRegEnaWidth-1:0]               reg_ena_i
 );
-
+  import fpnew_pkg::*;
   if ((OpGroup == fpnew_pkg::DIVSQRT)) begin
     if ((DivSqrtSel == fpnew_pkg::TH32) && !((FpFmtConfig[0] == 1) && (FpFmtConfig[1:NUM_FORMATS-1] == '0))) begin
       $fatal(1, "T-Head-based DivSqrt unit supported only in FP32-only configurations. \

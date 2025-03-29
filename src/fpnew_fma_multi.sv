@@ -15,6 +15,8 @@
 
 `include "common_cells/registers.svh"
 
+
+
 module fpnew_fma_multi #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig = '1,
   parameter int unsigned             NumPipeRegs = 0,
@@ -59,7 +61,7 @@ module fpnew_fma_multi #(
   // External register enable override
   input  logic [ExtRegEnaWidth-1:0]   reg_ena_i
 );
-
+  import fpnew_pkg::*;
   // ----------
   // Constants
   // ----------

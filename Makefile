@@ -1,6 +1,9 @@
 MODULE = fpnew_top
-SV_SRC = src/*.sv src/**/*.sv 
-TB_CPP = csrc/*.cpp            
+SV_SRC = src/common_cells/src/cf_math_pkg.sv src/common_cells/src/lzc.sv src/common_cells/src/rr_arb_tree.sv src/fpnew_pkg.sv $(filter-out src/fpnew_pkg.sv,src/*.sv)
+CC_SRC = csrc/*.cpp         
+SV_DIR = ./src/common_cells/include
+
+# src/fpnew_pkg.sv $(filter-out src/fpnew_pkg.sv,src/*.sv)
 
 .PHONY: sim
 sim: waveform.vcd
@@ -25,12 +28,13 @@ waveform.vcd: ./obj_dir/V$(MODULE)
 	@echo "\n### 构建仿真程序 ###"
 	$(MAKE) -C obj_dir -f V$(MODULE).mk
 
-.stamp.verilate: $(SV_SRC) $(TB_CPP)
+.stamp.verilate: $(SV_SRC) $(CC_SRC)
 	@echo "\n### 生成Verilator代码 ###"
-	verilator -Wall --trace -cc \
+	verilator -Wno-fatal --trace -cc \
 		$(SV_SRC) \
-		--exe $(TB_CPP) \
-		--top-module $(MODULE) \
+		--exe $(CC_SRC) \
+		-I$(SV_DIR) \
+		--top-module fpnew_top
 	@touch $@
 
 .PHONY: clean
