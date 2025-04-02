@@ -18,8 +18,6 @@
 
 `include "common_cells/registers.svh"
 
-
-
 module fpnew_divsqrt_th_32 #(
   // FP32-only DivSqrt
   // FPU configuration

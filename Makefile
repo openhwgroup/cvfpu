@@ -14,11 +14,11 @@ vld: .stamp.verilate
 
 .PHONY: wave
 wave: waveform.vcd
-	gtkwave $< &
+	sudo gtkwave $<
 
 .PHONY: lint
 lint:
-	verilator --lint-only $(SV_SRC)
+	verilator --lint-only $(SV_SRC) -I$(SV_DIR)
 
 waveform.vcd: ./obj_dir/V$(MODULE)
 	@echo "\n### 开始仿真 ###"
@@ -30,11 +30,11 @@ waveform.vcd: ./obj_dir/V$(MODULE)
 
 .stamp.verilate: $(SV_SRC) $(CC_SRC)
 	@echo "\n### 生成Verilator代码 ###"
-	verilator -Wno-fatal --trace -cc \
+	verilator -Wno-fatal --trace --x-assign unique --x-initial unique -cc \
 		$(SV_SRC) \
 		--exe $(CC_SRC) \
 		-I$(SV_DIR) \
-		--top-module fpnew_top
+		--top-module fpnew_top 
 	@touch $@
 
 .PHONY: clean
@@ -43,3 +43,8 @@ clean:
 	rm -rf ./obj_dir
 	rm -rf waveform.vcd
 	rm -rf *.log *.vcd
+
+
+# --public-flat-rw \
+# --trace-structs \
+# --trace-depth 5 \

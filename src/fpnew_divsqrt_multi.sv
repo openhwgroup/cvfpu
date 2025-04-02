@@ -15,8 +15,6 @@
 
 `include "common_cells/registers.svh"
 
-
-
 module fpnew_divsqrt_multi #(
   parameter fpnew_pkg::fmt_logic_t   FpFmtConfig  = '1,
   // FPU configuration
