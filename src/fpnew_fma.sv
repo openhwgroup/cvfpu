@@ -245,7 +245,7 @@ module fpnew_fma #(
   end
 
   // ---------------------
-  // Input classification
+  // Input classification //输入特殊情况分类
   // ---------------------
   logic any_operand_inf;
   logic any_operand_nan;
@@ -263,7 +263,7 @@ module fpnew_fma #(
   assign tentative_sign = operand_a.sign ^ operand_b.sign;
 
   // ----------------------
-  // Special case handling
+  // Special case handling 特殊情况处理
   // ----------------------
   fp_t                special_result;
   fpnew_pkg::status_t special_status;
@@ -471,22 +471,27 @@ module fpnew_fma #(
   logic [0:NUM_MID_REGS+1] mid_pipe_ready;
 
   // Input stage: First element of pipeline is taken from upstream logic
-  assign mid_pipe_eff_sub_q_w     = effective_subtraction;
-  assign mid_pipe_exp_prod_q_w    = exponent_product;
-  assign mid_pipe_exp_diff_q_w    = exponent_difference;
-  assign mid_pipe_tent_exp_q_w    = tentative_exponent;
-  assign mid_pipe_add_shamt_q_w   = addend_shamt;
-  assign mid_pipe_sticky_q_w      = sticky_before_add;
-  assign mid_pipe_sum_q_w         = sum;
-  assign mid_pipe_final_sign_q_w  = final_sign;
-  assign mid_pipe_rnd_mode_q_w    = inp_pipe_rnd_mode_q[NUM_INP_REGS];
-  assign mid_pipe_res_is_spec_q_w = result_is_special;
-  assign mid_pipe_spec_res_q_w    = special_result;
-  assign mid_pipe_spec_stat_q_w   = special_status;
-  assign mid_pipe_tag_q_w         = inp_pipe_tag_q[NUM_INP_REGS];
-  assign mid_pipe_mask_q_w        = inp_pipe_mask_q[NUM_INP_REGS];
-  assign mid_pipe_aux_q_w         = inp_pipe_aux_q[NUM_INP_REGS];
-  assign mid_pipe_valid_q_w       = inp_pipe_valid_q[NUM_INP_REGS];
+  // 基本运算控制信号
+  assign mid_pipe_eff_sub_q_w     = effective_subtraction;  // 有效减法标志（AB-C运算）
+  assign mid_pipe_exp_prod_q_w    = exponent_product;       // 乘积项的指数值
+  assign mid_pipe_exp_diff_q_w    = exponent_difference;    // 加数与乘积的指数差
+  assign mid_pipe_tent_exp_q_w    = tentative_exponent;     // 暂定结果指数（max(乘积指数,加数指数)）
+  // 移位相关参数
+  assign mid_pipe_add_shamt_q_w   = addend_shamt;           // 加数右移量（用于对齐尾数）
+  assign mid_pipe_sticky_q_w      = sticky_before_add;      // 移位丢失的粘滞位
+  // 加法器输出结果
+  assign mid_pipe_sum_q_w         = sum;                    // 尾数求和结果（3p+4位）
+  assign mid_pipe_final_sign_q_w  = final_sign;             // 最终符号位
+  // 特殊结果处理
+  assign mid_pipe_rnd_mode_q_w    = inp_pipe_rnd_mode_q[NUM_INP_REGS]; // 舍入模式（继承输入流水线）
+  assign mid_pipe_res_is_spec_q_w = result_is_special;                 // 特殊结果标识（NaN/inf/zero）
+  assign mid_pipe_spec_res_q_w    = special_result;                    // 特殊结果值（qNaN/inf）
+  assign mid_pipe_spec_stat_q_w   = special_status;                    // 特殊结果状态（异常标志）
+  // 操作元数据
+  assign mid_pipe_tag_q_w         = inp_pipe_tag_q[NUM_INP_REGS];      // 操作标签（多操作追踪）
+  assign mid_pipe_mask_q_w        = inp_pipe_mask_q[NUM_INP_REGS];     // 操作掩码（SIMD控制）
+  assign mid_pipe_aux_q_w         = inp_pipe_aux_q[NUM_INP_REGS];      // 辅助数据（异常处理）
+  assign mid_pipe_valid_q_w       = inp_pipe_valid_q[NUM_INP_REGS];    // 数据有效标志
   // Input stage: Propagate pipeline ready signal to input pipe
   assign inp_pipe_ready[NUM_INP_REGS+1] = mid_pipe_ready[0];
 
