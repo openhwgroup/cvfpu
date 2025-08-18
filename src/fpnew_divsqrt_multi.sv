@@ -293,7 +293,11 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::status_t unit_status, held_status_q;
   logic               hold_en;
 
-  logic Kill_SI_pulp = (flush_i === 1'b1) || (reg_ena_i[NUM_INP_REGS-1] === 1'b1); //Guarded against X  
+  `ifndef SYNTHESIS
+     assign Kill_SI_pulp = (flush_i === 1'b1) || (reg_ena_i[NUM_INP_REGS-1] === 1'b1);
+  `else
+    assign Kill_SI_pulp = flush_i || reg_ena_i[NUM_INP_REGS-1];
+  `endif
 
   div_sqrt_top_mvp i_divsqrt_lei (
    .Clk_CI           ( clk_i                               ),
