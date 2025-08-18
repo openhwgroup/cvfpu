@@ -305,7 +305,7 @@ module fpnew_divsqrt_multi #(
    .RM_SI            ( rnd_mode_q                          ),
    .Precision_ctl_SI ( '0                                  ),
    .Format_sel_SI    ( divsqrt_fmt                         ),
-   .Kill_SI          ( Kill_SI_pulp			   ),
+   .Kill_SI          ( Kill_SI_pulp                        ),
    .Result_DO        ( unit_result                         ),
    .Fflags_SO        ( unit_status                         ),
    .Ready_SO         ( unit_ready                          ),
