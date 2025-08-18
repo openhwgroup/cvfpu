@@ -293,6 +293,8 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::status_t unit_status, held_status_q;
   logic               hold_en;
 
+  logic Kill_SI_pulp = (flush_i === 1'b1) || (reg_ena_i[NUM_INP_REGS-1] === 1'b1); //Guarded against X  
+
   div_sqrt_top_mvp i_divsqrt_lei (
    .Clk_CI           ( clk_i                               ),
    .Rst_RBI          ( rst_ni                              ),
@@ -303,7 +305,7 @@ module fpnew_divsqrt_multi #(
    .RM_SI            ( rnd_mode_q                          ),
    .Precision_ctl_SI ( '0                                  ),
    .Format_sel_SI    ( divsqrt_fmt                         ),
-   .Kill_SI          ( flush_i | reg_ena_i[NUM_INP_REGS-1] ),
+   .Kill_SI          ( Kill_SI_pulp			   ),
    .Result_DO        ( unit_result                         ),
    .Fflags_SO        ( unit_status                         ),
    .Ready_SO         ( unit_ready                          ),
