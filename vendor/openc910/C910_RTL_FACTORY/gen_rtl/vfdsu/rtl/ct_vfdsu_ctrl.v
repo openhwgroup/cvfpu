@@ -257,8 +257,9 @@ end
 //For Single, initial is 5'b01110('d14), calculate 15 round
 assign srt_cnt_ini[4:0] = (ex1_double) ? 5'b01101 :
                           (ex1_single) ? 5'b00110 :
-                          (ex1_half)   ? 5'b00011
-                                       : 5'b00010;
+                          (ex1_half)   ? 5'b00011 :
+                          (ex1_bfloat) ? 5'b00010
+                                       : 5'b00001;
 
 //vfdsu ex2 pipedown signal
 assign ex2_pipedown = srt_last_round && div_st_ex2;
@@ -291,8 +292,9 @@ assign srt_secd_round  = ex2_srt_secd_round;
 assign ex2_srt_secd_round_pre  = srt_sm_on && srt_secd_round_pre;
 assign srt_secd_round_pre      = vfdsu_ex2_double ? srt_cnt[4:0]==5'b01101 : 
                                  vfdsu_ex2_single ? srt_cnt[4:0]==5'b00110 :
-                                 vfdsu_ex2_half   ? srt_cnt[4:0]==5'b00011
-                                                  : srt_cnt[4:0]==5'b00010;
+                                 vfdsu_ex2_half   ? srt_cnt[4:0]==5'b00011 :
+                                 vfdsu_ex2_bfloat ? srt_cnt[4:0]==5'b00010
+                                                  : srt_cnt[4:0]==5'b00001;
 
 //==========================================================
 //              EX3 Stage Control Signal

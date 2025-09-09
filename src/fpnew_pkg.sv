@@ -25,6 +25,7 @@ package fpnew_pkg;
   // | FP16       | IEEE binary16    | 16 bit | 5        | 10
   // | FP8        | binary8          |  8 bit | 5        | 2
   // | FP16ALT    | binary16alt      | 16 bit | 8        | 7
+  // | FP8ALT     | binary8alt       |  8 bit | 4        | 3
   // *NOTE:* Add new formats only at the end of the enumeration for backwards compatibilty!
 
   // Encoding for a format
@@ -33,7 +34,7 @@ package fpnew_pkg;
     int unsigned man_bits;
   } fp_encoding_t;
 
-  localparam int unsigned NUM_FP_FORMATS = 5; // change me to add formats
+  localparam int unsigned NUM_FP_FORMATS = 6; // change me to add formats
   localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 
   // FP formats
@@ -42,7 +43,8 @@ package fpnew_pkg;
     FP64    = 'd1,
     FP16    = 'd2,
     FP8     = 'd3,
-    FP16ALT = 'd4
+    FP16ALT = 'd4,
+    FP8ALT  = 'd5
     // add new formats here
   } fp_format_e;
 
@@ -52,14 +54,15 @@ package fpnew_pkg;
     '{11, 52}, // IEEE binary64 (double)
     '{5,  10}, // IEEE binary16 (half)
     '{5,  2},  // custom binary8
-    '{8,  7}   // custom binary16alt
+    '{8,  7},  // custom binary16alt
+    '{4,  3}   // custom binary8alt
     // add new formats here
   };
 
   typedef logic [0:NUM_FP_FORMATS-1]       fmt_logic_t;    // Logic indexed by FP format (for masks)
   typedef logic [0:NUM_FP_FORMATS-1][31:0] fmt_unsigned_t; // Unsigned indexed by FP format
 
-  localparam fmt_logic_t CPK_FORMATS = 5'b11000; // FP32 and FP64 can provide CPK only
+  localparam fmt_logic_t CPK_FORMATS = 6'b110000; // FP32 and FP64 can provide CPK only
 
   // ---------
   // INT TYPES
@@ -130,7 +133,7 @@ package fpnew_pkg;
   typedef enum logic[1:0] {
     PULP,    // "PULP" instantiates the PULP DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8 and SIMD operations
     TH32,    // "TH32" instantiates the E906 DivSqrt unit supports only FP32 (no SIMD support)
-    THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16, FP16ALT and SIMD operations
+    THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8, FP8ALT and SIMD operations
   } divsqrt_unit_t;
 
   // -------------------
@@ -221,7 +224,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b0,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11000,
+    FpFmtMask:     6'b110000,
     IntFmtMask:    4'b0011
   };
 
@@ -229,7 +232,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11000,
+    FpFmtMask:     6'b110000,
     IntFmtMask:    4'b0010
   };
 
@@ -237,7 +240,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b0,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10000,
+    FpFmtMask:     6'b100000,
     IntFmtMask:    4'b0010
   };
 
@@ -245,7 +248,7 @@ package fpnew_pkg;
     Width:         64,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b11111,
+    FpFmtMask:     6'b111111,
     IntFmtMask:    4'b1111
   };
 
@@ -253,7 +256,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10111,
+    FpFmtMask:     6'b101111,
     IntFmtMask:    4'b1110
   };
 
@@ -261,7 +264,7 @@ package fpnew_pkg;
     Width:         32,
     EnableVectors: 1'b1,
     EnableNanBox:  1'b1,
-    FpFmtMask:     5'b10001,
+    FpFmtMask:     6'b100010,
     IntFmtMask:    4'b0110
   };
 
@@ -404,13 +407,6 @@ package fpnew_pkg;
   // Returns the maximum number of lanes in the FPU according to width, format config and vectors
   function automatic int unsigned max_num_lanes(int unsigned width, fmt_logic_t cfg, logic vec);
     return vec ? width / min_fp_width(cfg) : 1; // if no vectors, only one lane
-  endfunction
-
-    // Returns the maximum number of lanes in the FPU according to width, format config and vectors
-  function automatic int unsigned num_divsqrt_lanes(int unsigned width, fmt_logic_t cfg, logic vec, divsqrt_unit_t DivSqrtSel);
-    automatic fmt_logic_t cfg_tmp;
-    cfg_tmp = (DivSqrtSel == THMULTI) ? cfg & 5'b11101 : cfg;
-    return vec ? width / min_fp_width(cfg_tmp) : 1; // if no vectors, only one lane
   endfunction
 
   // Returns a mask of active FP formats that are present in lane lane_no of a multiformat slice

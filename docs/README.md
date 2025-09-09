@@ -134,10 +134,11 @@ Enumeration of type `logic [2:0]` holding the supported FP formats.
 | `FP16`     | IEEE binary16 | 16 bit | 5         | 10        |
 | `FP8`      | binary8       | 8 bit  | 5         | 2         |
 | `FP16ALT`  | binary16alt   | 16 bit | 8         | 7         |
+| `FP8ALT`   | binary8alt    | 8 bit  | 4         | 3         |
 
 The following global parameters associated with FP formats are set in `fpnew_pkg`:
 ```SystemVerilog
-localparam int unsigned NUM_FP_FORMATS = 5;
+localparam int unsigned NUM_FP_FORMATS = 6;
 localparam int unsigned FP_FORMAT_BITS = $clog2(NUM_FP_FORMATS);
 ```
 
@@ -359,7 +360,7 @@ It is of type `divsqrt_unit_t`, which is defined as:
 typedef enum logic[1:0] {
   PULP,    // "PULP" instantiates the PULP DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8 and SIMD operations
   TH32,    // "TH32" instantiates the E906 DivSqrt unit supports only FP32 (no SIMD support)
-  THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16, FP16ALT and SIMD operations
+  THMULTI  // "THMULTI" instantiates the C910 DivSqrt unit supports FP64, FP32, FP16, FP16ALT, FP8, and FP8ALT and SIMD operations
 } divsqrt_unit_t;
 ```
 

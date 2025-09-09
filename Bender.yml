@@ -37,6 +37,11 @@ sources:
   - vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt_radix16_with_sqrt.v
   - vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt.v
   - vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_top.v
+  - src/fpnew_lut_div8.sv
+  - src/fpnew_lut_div8alt.sv
+  - src/fpnew_lut_sqrt8.sv
+  - src/fpnew_lut_sqrt8alt.sv
+  - src/fpnew_divsqrt_8_multi_lut.sv
   - src/fpnew_divsqrt_th_32.sv
   - src/fpnew_divsqrt_th_64_multi.sv
   - src/fpnew_divsqrt_multi.sv

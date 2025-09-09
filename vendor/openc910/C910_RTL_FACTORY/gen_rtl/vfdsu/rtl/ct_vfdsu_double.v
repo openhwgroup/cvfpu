@@ -26,6 +26,7 @@ module ct_vfdsu_double(
   ex1_single,
   ex1_half,
   ex1_bfloat,
+  ex1_fp8,
   ex1_sqrt,
   ex1_src0,
   ex1_src1,
@@ -56,6 +57,7 @@ input           ex1_scalar;
 input           ex1_single;                           
 input           ex1_half;
 input           ex1_bfloat;
+input           ex1_fp8;
 input           ex1_sqrt;                             
 input   [63:0]  ex1_src0;                             
 input   [63:0]  ex1_src1;                             
@@ -89,6 +91,7 @@ wire            ex1_scalar;
 wire            ex1_single;                           
 wire            ex1_half;
 wire            ex1_bfloat;
+wire            ex1_fp8;
 wire            ex1_sqrt;                             
 wire    [63:0]  ex1_src0;                             
 wire    [63:0]  ex1_src1;                             
@@ -124,6 +127,7 @@ wire    [2 :0]  vfdsu_ex2_rm;
 wire            vfdsu_ex2_single;                     
 wire            vfdsu_ex2_half;
 wire            vfdsu_ex2_bfloat;
+wire            vfdsu_ex2_fp8;
 wire            vfdsu_ex2_sqrt;                       
 wire            vfdsu_ex2_srt_skip;                   
 wire    [12:0]  vfdsu_ex3_doub_expnt_rst;             
@@ -131,6 +135,8 @@ wire            vfdsu_ex3_double;
 wire            vfdsu_ex3_dz;                         
 wire    [12:0]  vfdsu_ex3_half_expnt_rst;             
 wire    [12:0]  vfdsu_ex3_bfloat_expnt_rst;
+wire    [12:0]  vfdsu_ex3_fp8_expnt_rst;
+wire    [12:0]  vfdsu_ex3_fp8alt_expnt_rst;
 wire            vfdsu_ex3_id_srt_skip;                
 wire            vfdsu_ex3_nv;                         
 wire            vfdsu_ex3_of;                         
@@ -152,6 +158,7 @@ wire    [8 :0]  vfdsu_ex3_sing_expnt_rst;
 wire            vfdsu_ex3_single;                     
 wire            vfdsu_ex3_half;
 wire            vfdsu_ex3_bfloat;
+wire            vfdsu_ex3_fp8;
 wire            vfdsu_ex3_uf;                         
 wire            vfdsu_ex4_denorm_to_tiny_frac;        
 wire            vfdsu_ex4_double;                     
@@ -177,6 +184,7 @@ wire            vfdsu_ex4_rslt_denorm;
 wire            vfdsu_ex4_single;                     
 wire            vfdsu_ex4_half;
 wire            vfdsu_ex4_bfloat;
+wire            vfdsu_ex4_fp8;
 wire            vfdsu_ex4_uf;                         
 wire            vfpu_yy_xx_dqnan;                     
 wire    [2 :0]  vfpu_yy_xx_rm;                        
@@ -196,6 +204,7 @@ ct_vfdsu_prepare  x_ct_vfdsu_prepare (
   .ex1_single            (ex1_single           ),
   .ex1_half              (ex1_half             ),
   .ex1_bfloat            (ex1_bfloat           ),
+  .ex1_fp8               (ex1_fp8              ),
   .ex1_sqrt              (ex1_sqrt             ),
   .ex1_src0              (ex1_src0             ),
   .ex1_src1              (ex1_src1             ),
@@ -221,6 +230,7 @@ ct_vfdsu_prepare  x_ct_vfdsu_prepare (
   .vfdsu_ex2_single      (vfdsu_ex2_single     ),
   .vfdsu_ex2_half        (vfdsu_ex2_half       ),
   .vfdsu_ex2_bfloat      (vfdsu_ex2_bfloat     ),
+  .vfdsu_ex2_fp8         (vfdsu_ex2_fp8        ),
   .vfdsu_ex2_sqrt        (vfdsu_ex2_sqrt       ),
   .vfdsu_ex2_srt_skip    (vfdsu_ex2_srt_skip   ),
   .vfpu_yy_xx_dqnan      (vfpu_yy_xx_dqnan     ),
@@ -265,6 +275,7 @@ ct_vfdsu_srt  x_ct_vfdsu_srt (
   .vfdsu_ex2_single                      (vfdsu_ex2_single                     ),
   .vfdsu_ex2_half                        (vfdsu_ex2_half                       ),
   .vfdsu_ex2_bfloat                      (vfdsu_ex2_bfloat                     ),
+  .vfdsu_ex2_fp8                         (vfdsu_ex2_fp8                        ),
   .vfdsu_ex2_sqrt                        (vfdsu_ex2_sqrt                       ),
   .vfdsu_ex2_srt_skip                    (vfdsu_ex2_srt_skip                   ),
   .vfdsu_ex3_doub_expnt_rst              (vfdsu_ex3_doub_expnt_rst             ),
@@ -272,6 +283,8 @@ ct_vfdsu_srt  x_ct_vfdsu_srt (
   .vfdsu_ex3_dz                          (vfdsu_ex3_dz                         ),
   .vfdsu_ex3_half_expnt_rst              (vfdsu_ex3_half_expnt_rst             ),
   .vfdsu_ex3_bfloat_expnt_rst            (vfdsu_ex3_bfloat_expnt_rst           ),
+  .vfdsu_ex3_fp8_expnt_rst               (vfdsu_ex3_fp8_expnt_rst              ),
+  .vfdsu_ex3_fp8alt_expnt_rst            (vfdsu_ex3_fp8alt_expnt_rst           ),
   .vfdsu_ex3_id_srt_skip                 (vfdsu_ex3_id_srt_skip                ),
   .vfdsu_ex3_nv                          (vfdsu_ex3_nv                         ),
   .vfdsu_ex3_of                          (vfdsu_ex3_of                         ),
@@ -293,6 +306,7 @@ ct_vfdsu_srt  x_ct_vfdsu_srt (
   .vfdsu_ex3_single                      (vfdsu_ex3_single                     ),
   .vfdsu_ex3_half                        (vfdsu_ex3_half                       ),
   .vfdsu_ex3_bfloat                      (vfdsu_ex3_bfloat                     ),
+  .vfdsu_ex3_fp8                         (vfdsu_ex3_fp8                        ),
   .vfdsu_ex3_uf                          (vfdsu_ex3_uf                         )
 );
 
@@ -311,6 +325,8 @@ ct_vfdsu_round  x_ct_vfdsu_round (
   .vfdsu_ex3_dz                          (vfdsu_ex3_dz                         ),
   .vfdsu_ex3_half_expnt_rst              (vfdsu_ex3_half_expnt_rst             ),
   .vfdsu_ex3_bfloat_expnt_rst            (vfdsu_ex3_bfloat_expnt_rst           ),
+  .vfdsu_ex3_fp8_expnt_rst               (vfdsu_ex3_fp8_expnt_rst              ),
+  .vfdsu_ex3_fp8alt_expnt_rst            (vfdsu_ex3_fp8alt_expnt_rst           ),
   .vfdsu_ex3_id_srt_skip                 (vfdsu_ex3_id_srt_skip                ),
   .vfdsu_ex3_nv                          (vfdsu_ex3_nv                         ),
   .vfdsu_ex3_of                          (vfdsu_ex3_of                         ),
@@ -332,6 +348,7 @@ ct_vfdsu_round  x_ct_vfdsu_round (
   .vfdsu_ex3_single                      (vfdsu_ex3_single                     ),
   .vfdsu_ex3_half                        (vfdsu_ex3_half                       ),
   .vfdsu_ex3_bfloat                      (vfdsu_ex3_bfloat                     ),
+  .vfdsu_ex3_fp8                         (vfdsu_ex3_fp8                        ),
   .vfdsu_ex3_uf                          (vfdsu_ex3_uf                         ),
   .vfdsu_ex4_denorm_to_tiny_frac         (vfdsu_ex4_denorm_to_tiny_frac        ),
   .vfdsu_ex4_double                      (vfdsu_ex4_double                     ),
@@ -357,6 +374,7 @@ ct_vfdsu_round  x_ct_vfdsu_round (
   .vfdsu_ex4_single                      (vfdsu_ex4_single                     ),
   .vfdsu_ex4_half                        (vfdsu_ex4_half                       ),
   .vfdsu_ex4_bfloat                      (vfdsu_ex4_bfloat                     ),
+  .vfdsu_ex4_fp8                         (vfdsu_ex4_fp8                        ),
   .vfdsu_ex4_uf                          (vfdsu_ex4_uf                         )
 );
 
@@ -388,6 +406,7 @@ ct_vfdsu_pack  x_ct_vfdsu_pack (
   .vfdsu_ex4_single              (vfdsu_ex4_single             ),
   .vfdsu_ex4_half                (vfdsu_ex4_half               ),
   .vfdsu_ex4_bfloat              (vfdsu_ex4_bfloat             ),
+  .vfdsu_ex4_fp8                 (vfdsu_ex4_fp8                ),
   .vfdsu_ex4_uf                  (vfdsu_ex4_uf                 )
 );
 

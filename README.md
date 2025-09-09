@@ -38,8 +38,8 @@ E.g.: Support for double-precision (64bit) operations and two simultaneous singl
 
 It is also possible to generate only a subset of operations if e.g. divisions are not needed.
 
-<sup>1</sup>Some compliance issues with IEEE 754-2008 are currently known to exist for the PULP DivSqrt unit (Rounding mismatches have been reported in GitHub issues. This can lead to results being off by 1ulp, and the inexact flag not being properly raised in these cases as well)<br>
-<sup>2</sup>Two DivSqrt units are supported: the multi-format PULP DivSqrt unit and a 32-bit unit integrated from the T-Head OpenE906. The `PulpDivsqrt` parameter can be set to 1 or 0 to select the former or the latter unit, respectively.<br>
+<sup>2</sup>Three DivSqrt units are supported: a multi-format 64-bit unit integrated from the T-Head OpenC910, the multi-format PULP DivSqrt unit, a 32-bit unit integrated from the T-Head OpenE906. The `DivSqrtSel` parameter can be set to `THMULTI`, `PULP`, `TH32`. `THMULTI` (the default) supports SIMD operations and leverages the unit integrated from the T-Head OpenC910 extended for FP16ALT, FP8, and FP8ALT support (thus supporting FP64, FP32, FP16, FP16ALT, FP8, and FP8ALT). `PULP` supports SIMD operations and selects the multi-format PULP DivSqrt unit (supporting FP64, FP32, FP16, FP16ALT, and FP8). `TH32` selects the 32-bit unit from OpenE906 supporting only FP32.<br>
+<sup>1</sup>Some compliance issues with IEEE 754-2008 are currently known to exist for the PULP DivSqrt unit (Rounding mismatches have been reported in GitHub issues. This can lead to results being off by 1ulp, and the inexact flag not being properly raised in these cases as well).<br>
 <sup>3</sup>Implementing IEEE 754-201x `minimumNumber` and `maximumNumber`, respectively
 
 ### Rounding modes
