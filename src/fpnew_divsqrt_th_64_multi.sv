@@ -94,6 +94,7 @@ module fpnew_divsqrt_th_64_multi #(
 
   // Input pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_INP_REGS][1:0][WIDTH-1:0]       inp_pipe_operands_q;
+  logic                  [0:NUM_INP_REGS][NUM_FORMATS-1:0][1:0] inp_pipe_is_boxed_q;
   fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q /*verilator split_var */;
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
@@ -107,6 +108,7 @@ module fpnew_divsqrt_th_64_multi #(
 
   // Input stage: First element of pipeline is taken from inputs
   assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_is_boxed_q[0] = is_boxed_i;
   assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
@@ -131,6 +133,7 @@ module fpnew_divsqrt_th_64_multi #(
     assign reg_ena = (inp_pipe_ready[i] & inp_pipe_valid_q[i]) | reg_ena_i[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_is_boxed_q[i+1], inp_pipe_is_boxed_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
@@ -160,6 +163,54 @@ module fpnew_divsqrt_th_64_multi #(
   // Input processing
   // -----------------
   logic [3:0] divsqrt_fmt;
+  logic [1:0][63:0] operands_after_nanbox;
+
+  // NaN-boxing check for operands
+  // For each format, check if operands are properly NaN-boxed
+  // If not, replace with canonical NaN
+  always_comb begin : nanbox_check
+    operands_after_nanbox = operands_q;
+    
+    // Check operand 0
+    if (!inp_pipe_is_boxed_q[NUM_INP_REGS][dst_fmt_q][0]) begin
+      // Replace with canonical NaN for the target format
+      unique case (dst_fmt_q)
+        fpnew_pkg::FP32: begin
+          operands_after_nanbox[0] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+        end
+        fpnew_pkg::FP64: begin
+          operands_after_nanbox[0] = 64'h7ff8000000000000; // canonical qNaN for FP64
+        end
+        fpnew_pkg::FP16: begin
+          operands_after_nanbox[0] = 64'hffffffffffff7e00; // canonical qNaN for FP16 (NaN-boxed)
+        end
+        fpnew_pkg::FP16ALT: begin
+          operands_after_nanbox[0] = 64'hffffffffffff7fc0; // canonical qNaN for FP16ALT/bfloat16 (NaN-boxed)
+        end
+        default: ;
+      endcase
+    end
+    
+    // Check operand 1
+    if (!inp_pipe_is_boxed_q[NUM_INP_REGS][dst_fmt_q][1]) begin
+      // Replace with canonical NaN for the target format
+      unique case (dst_fmt_q)
+        fpnew_pkg::FP32: begin
+          operands_after_nanbox[1] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+        end
+        fpnew_pkg::FP64: begin
+          operands_after_nanbox[1] = 64'h7ff8000000000000; // canonical qNaN for FP64
+        end
+        fpnew_pkg::FP16: begin
+          operands_after_nanbox[1] = 64'hffffffffffff7e00; // canonical qNaN for FP16 (NaN-boxed)
+        end
+        fpnew_pkg::FP16ALT: begin
+          operands_after_nanbox[1] = 64'hffffffffffff7fc0; // canonical qNaN for FP16ALT/bfloat16 (NaN-boxed)
+        end
+        default: ;
+      endcase
+    end
+  end
 
   // Translate fpnew formats into divsqrt formats
   if(WIDTH == 64) begin : translate_fmt_64_bits
@@ -328,8 +379,8 @@ module fpnew_divsqrt_th_64_multi #(
   `FFL(rm_q, rnd_mode_q, op_starting, fpnew_pkg::RNE)
   `FFL(divsqrt_fmt_q, divsqrt_fmt, op_starting, '0)
   `FFL(divsqrt_op_q, op_q, op_starting, fpnew_pkg::DIV)
-  `FFL(srcf0_q, operands_q[0], op_starting, '0)
-  `FFL(srcf1_q, operands_q[1], op_starting, '0)
+  `FFL(srcf0_q, operands_after_nanbox[0], op_starting, '0)
+  `FFL(srcf1_q, operands_after_nanbox[1], op_starting, '0)
 
   // NaN-box inputs with max WIDTH
   if(WIDTH == 64) begin : gen_fmt_64_bits

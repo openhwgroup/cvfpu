@@ -84,14 +84,16 @@ module fpnew_divsqrt_multi #(
   // Input pipeline
   // ---------------
   // Selected pipeline output signals as non-arrays
-  logic [1:0][WIDTH-1:0] operands_q;
-  fpnew_pkg::roundmode_e rnd_mode_q;
-  fpnew_pkg::operation_e op_q;
-  fpnew_pkg::fp_format_e dst_fmt_q;
-  logic                  in_valid_q;
+  logic [1:0][WIDTH-1:0]             operands_q;
+  logic [NUM_FORMATS-1:0][1:0]       is_boxed_q;
+  fpnew_pkg::roundmode_e             rnd_mode_q;
+  fpnew_pkg::operation_e             op_q;
+  fpnew_pkg::fp_format_e             dst_fmt_q;
+  logic                              in_valid_q;
 
   // Input pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_INP_REGS][1:0][WIDTH-1:0]       inp_pipe_operands_q;
+  logic                  [0:NUM_INP_REGS][NUM_FORMATS-1:0][1:0] inp_pipe_is_boxed_q;
   fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q;
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   fpnew_pkg::fp_format_e [0:NUM_INP_REGS]                       inp_pipe_dst_fmt_q;
@@ -105,6 +107,7 @@ module fpnew_divsqrt_multi #(
 
   // Input stage: First element of pipeline is taken from inputs
   assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_is_boxed_q[0] = is_boxed_i;
   assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_dst_fmt_q[0]  = dst_fmt_i;
@@ -129,6 +132,7 @@ module fpnew_divsqrt_multi #(
     assign reg_ena = (inp_pipe_ready[i] & inp_pipe_valid_q[i]) | reg_ena_i[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_is_boxed_q[i+1], inp_pipe_is_boxed_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_dst_fmt_q[i+1],  inp_pipe_dst_fmt_q[i],  reg_ena, fpnew_pkg::fp_format_e'(0))
@@ -139,6 +143,7 @@ module fpnew_divsqrt_multi #(
   end
   // Output stage: assign selected pipe outputs to signals for later use
   assign operands_q = inp_pipe_operands_q[NUM_INP_REGS];
+  assign is_boxed_q = inp_pipe_is_boxed_q[NUM_INP_REGS];
   assign rnd_mode_q = inp_pipe_rnd_mode_q[NUM_INP_REGS];
   assign op_q       = inp_pipe_op_q[NUM_INP_REGS];
   assign dst_fmt_q  = inp_pipe_dst_fmt_q[NUM_INP_REGS];
@@ -152,7 +157,61 @@ module fpnew_divsqrt_multi #(
   // -----------------
   logic [1:0]       divsqrt_fmt;
   logic [1:0][63:0] divsqrt_operands; // those are fixed to 64bit
+  logic [1:0][63:0] operands_after_nanbox; // operands after NaN-boxing check
   logic             input_is_fp8;
+
+  // NaN-boxing check for operands
+  // For each format, check if operands are properly NaN-boxed
+  // If not, replace with canonical NaN
+  always_comb begin : nanbox_check
+    operands_after_nanbox = operands_q;
+    
+    // Check operand 0
+    if (!is_boxed_q[dst_fmt_q][0]) begin
+      // Replace with canonical NaN for the target format
+      unique case (dst_fmt_q)
+        fpnew_pkg::FP32: begin
+          operands_after_nanbox[0] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+        end
+        fpnew_pkg::FP64: begin
+          operands_after_nanbox[0] = 64'h7ff8000000000000; // canonical qNaN for FP64
+        end
+        fpnew_pkg::FP16: begin
+          operands_after_nanbox[0] = 64'hffffffffffff7e00; // canonical qNaN for FP16 (NaN-boxed)
+        end
+        fpnew_pkg::FP16ALT: begin
+          operands_after_nanbox[0] = 64'hffffffffffff7fc0; // canonical qNaN for FP16ALT/bfloat16 (NaN-boxed)
+        end
+        fpnew_pkg::FP8: begin
+          operands_after_nanbox[0] = 64'hffffffffffffff7c; // canonical qNaN for FP8 (NaN-boxed)
+        end
+        default: ;
+      endcase
+    end
+    
+    // Check operand 1
+    if (!is_boxed_q[dst_fmt_q][1]) begin
+      // Replace with canonical NaN for the target format
+      unique case (dst_fmt_q)
+        fpnew_pkg::FP32: begin
+          operands_after_nanbox[1] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+        end
+        fpnew_pkg::FP64: begin
+          operands_after_nanbox[1] = 64'h7ff8000000000000; // canonical qNaN for FP64
+        end
+        fpnew_pkg::FP16: begin
+          operands_after_nanbox[1] = 64'hffffffffffff7e00; // canonical qNaN for FP16 (NaN-boxed)
+        end
+        fpnew_pkg::FP16ALT: begin
+          operands_after_nanbox[1] = 64'hffffffffffff7fc0; // canonical qNaN for FP16ALT/bfloat16 (NaN-boxed)
+        end
+        fpnew_pkg::FP8: begin
+          operands_after_nanbox[1] = 64'hffffffffffffff7c; // canonical qNaN for FP8 (NaN-boxed)
+        end
+        default: ;
+      endcase
+    end
+  end
 
   // Translate fpnew formats into divsqrt formats
   always_comb begin : translate_fmt
@@ -168,8 +227,9 @@ module fpnew_divsqrt_multi #(
     input_is_fp8 = FpFmtConfig[fpnew_pkg::FP8] & (dst_fmt_q == fpnew_pkg::FP8);
 
     // If FP8 is supported, map it to an FP16 value
-    divsqrt_operands[0] = input_is_fp8 ? operands_q[0] << 8 : operands_q[0];
-    divsqrt_operands[1] = input_is_fp8 ? operands_q[1] << 8 : operands_q[1];
+    // Use NaN-boxed operands instead of raw operands
+    divsqrt_operands[0] = input_is_fp8 ? operands_after_nanbox[0] << 8 : operands_after_nanbox[0];
+    divsqrt_operands[1] = input_is_fp8 ? operands_after_nanbox[1] << 8 : operands_after_nanbox[1];
   end
 
   // ------------

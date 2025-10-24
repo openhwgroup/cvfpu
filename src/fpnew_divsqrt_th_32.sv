@@ -88,6 +88,7 @@ module fpnew_divsqrt_th_32 #(
 
   // Input pipeline signals, index i holds signal after i register stages
   logic                  [0:NUM_INP_REGS][1:0][WIDTH-1:0]       inp_pipe_operands_q;
+  logic                  [0:NUM_INP_REGS][NUM_FORMATS-1:0][1:0] inp_pipe_is_boxed_q;
   fpnew_pkg::roundmode_e [0:NUM_INP_REGS]                       inp_pipe_rnd_mode_q;
   fpnew_pkg::operation_e [0:NUM_INP_REGS]                       inp_pipe_op_q;
   TagType                [0:NUM_INP_REGS]                       inp_pipe_tag_q;
@@ -99,6 +100,7 @@ module fpnew_divsqrt_th_32 #(
 
   // Input stage: First element of pipeline is taken from inputs
   assign inp_pipe_operands_q[0] = operands_i;
+  assign inp_pipe_is_boxed_q[0] = is_boxed_i;
   assign inp_pipe_rnd_mode_q[0] = rnd_mode_i;
   assign inp_pipe_op_q[0]       = op_i;
   assign inp_pipe_tag_q[0]      = tag_i;
@@ -121,6 +123,7 @@ module fpnew_divsqrt_th_32 #(
     assign reg_ena = (inp_pipe_ready[i] & inp_pipe_valid_q[i]) | reg_ena_i[i];
     // Generate the pipeline registers within the stages, use enable-registers
     `FFL(inp_pipe_operands_q[i+1], inp_pipe_operands_q[i], reg_ena, '0)
+    `FFL(inp_pipe_is_boxed_q[i+1], inp_pipe_is_boxed_q[i], reg_ena, '0)
     `FFL(inp_pipe_rnd_mode_q[i+1], inp_pipe_rnd_mode_q[i], reg_ena, fpnew_pkg::RNE)
     `FFL(inp_pipe_op_q[i+1],       inp_pipe_op_q[i],       reg_ena, fpnew_pkg::FMADD)
     `FFL(inp_pipe_tag_q[i+1],      inp_pipe_tag_q[i],      reg_ena, TagType'('0))
@@ -132,6 +135,28 @@ module fpnew_divsqrt_th_32 #(
   assign rnd_mode_q = inp_pipe_rnd_mode_q[NUM_INP_REGS];
   assign op_q       = inp_pipe_op_q[NUM_INP_REGS];
   assign in_valid_q = inp_pipe_valid_q[NUM_INP_REGS];
+
+  // -----------------
+  // Input processing
+  // -----------------
+  logic [1:0][WIDTH-1:0] divsqrt_operands;
+
+  // NaN-boxing check for operands
+  // For FP32, check if operands are properly NaN-boxed
+  // If not, replace with canonical NaN
+  always_comb begin : nanbox_check
+    divsqrt_operands = operands_q;
+    
+    // Check operand 0 - FP32 is format 0 in NUM_FORMATS
+    if (!inp_pipe_is_boxed_q[NUM_INP_REGS][fpnew_pkg::FP32][0]) begin
+      divsqrt_operands[0] = 32'h7fc00000; // canonical qNaN for FP32
+    end
+    
+    // Check operand 1
+    if (!inp_pipe_is_boxed_q[NUM_INP_REGS][fpnew_pkg::FP32][1]) begin
+      divsqrt_operands[1] = 32'h7fc00000; // canonical qNaN for FP32
+    end
+  end
 
   // ------------
   // Control FSM
@@ -352,8 +377,8 @@ module fpnew_divsqrt_th_32 #(
    .idu_fpu_ex1_dst_freg          ( 5'h0f                     ),  // register index to write back (not used)
    .idu_fpu_ex1_eu_sel            ( idu_fpu_ex1_eu_sel        ),  // time to select operands
    .idu_fpu_ex1_func              ( {8'b0, div_op | div_op_q, sqrt_op | sqrt_op_q} ),
-   .idu_fpu_ex1_srcf0             ( operands_q[0][31:0]       ),  // the first operand
-   .idu_fpu_ex1_srcf1             ( operands_q[1][31:0]       ),  // the second operand
+   .idu_fpu_ex1_srcf0             ( divsqrt_operands[0][31:0] ),  // the first operand (NaN-boxing checked)
+   .idu_fpu_ex1_srcf1             ( divsqrt_operands[1][31:0] ),  // the second operand (NaN-boxing checked)
    .pad_yy_icg_scan_en            ( 1'b0                      ),  // input of core_top, set to 1'b0 from the beginning to end
    .rtu_xx_ex1_cancel             ( 1'b0                      ),
    .rtu_xx_ex2_cancel             ( 1'b0                      ),
@@ -386,8 +411,8 @@ module fpnew_divsqrt_th_32 #(
     .idu_fpu_ex1_func            ( {8'b0, div_op, sqrt_op}    ),
     .idu_fpu_ex1_gateclk_vld     ( fdsu_fpu_ex1_cmplt         ),
     .idu_fpu_ex1_rm              ( rnd_mode_q                 ),
-    .idu_fpu_ex1_srcf0           ( operands_q[0][31:0]        ),
-    .idu_fpu_ex1_srcf1           ( operands_q[1][31:0]        ),
+    .idu_fpu_ex1_srcf0           ( divsqrt_operands[0][31:0]  ),  // NaN-boxing checked
+    .idu_fpu_ex1_srcf1           ( divsqrt_operands[1][31:0]  ),  // NaN-boxing checked
     .idu_fpu_ex1_srcf2           ( '0                         ),
     .pad_yy_icg_scan_en          ( 1'b0                       )
   );
