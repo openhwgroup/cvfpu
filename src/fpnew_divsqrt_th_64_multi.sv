@@ -164,19 +164,23 @@ module fpnew_divsqrt_th_64_multi #(
   // -----------------
   logic [3:0] divsqrt_fmt;
   logic [1:0][63:0] operands_after_nanbox;
+  logic [63:0] operands0_ext, operands1_ext;
+  logic expected_div_sign_d, expected_div_sign_q;
+  logic [63:0] srcf0_issue, srcf1_issue;
 
   // NaN-boxing check for operands
   // For each format, check if operands are properly NaN-boxed
   // If not, replace with canonical NaN
   always_comb begin : nanbox_check
-    operands_after_nanbox = operands_q;
+    operands_after_nanbox[0] = {{(64-WIDTH){1'b0}}, operands_q[0]};
+    operands_after_nanbox[1] = {{(64-WIDTH){1'b0}}, operands_q[1]};
     
     // Check operand 0
     if (!inp_pipe_is_boxed_q[NUM_INP_REGS][dst_fmt_q][0]) begin
       // Replace with canonical NaN for the target format
       unique case (dst_fmt_q)
         fpnew_pkg::FP32: begin
-          operands_after_nanbox[0] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+          if (WIDTH > 32) operands_after_nanbox[0] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
         end
         fpnew_pkg::FP64: begin
           operands_after_nanbox[0] = 64'h7ff8000000000000; // canonical qNaN for FP64
@@ -196,7 +200,7 @@ module fpnew_divsqrt_th_64_multi #(
       // Replace with canonical NaN for the target format
       unique case (dst_fmt_q)
         fpnew_pkg::FP32: begin
-          operands_after_nanbox[1] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
+          if (WIDTH > 32) operands_after_nanbox[1] = 64'hffffffff7fc00000; // canonical qNaN for FP32 (NaN-boxed)
         end
         fpnew_pkg::FP64: begin
           operands_after_nanbox[1] = 64'h7ff8000000000000; // canonical qNaN for FP64
@@ -361,7 +365,7 @@ module fpnew_divsqrt_th_64_multi #(
   // -----------------
   // DIVSQRT instance
   // -----------------
-  logic [63:0]   unit_result, held_result_q;
+  logic [63:0]   unit_result_raw, unit_result_fixed, held_result_q;
   fpnew_pkg::status_t unit_status, held_status_q;
   logic               hold_en;
   
@@ -372,68 +376,54 @@ module fpnew_divsqrt_th_64_multi #(
   logic[3:0] divsqrt_fmt_q;
   fpnew_pkg::operation_e divsqrt_op_q;
   logic div_op, sqrt_op;
-  logic [WIDTH-1:0] srcf0_q, srcf1_q;
-  logic [63:0] srcf0, srcf1;
+  logic [63:0] srcf0_q, srcf1_q;
   
   // Save operands in regs, C910 saves all the following information in its regs in the next cycle.
   `FFL(rm_q, rnd_mode_q, op_starting, fpnew_pkg::RNE)
   `FFL(divsqrt_fmt_q, divsqrt_fmt, op_starting, '0)
   `FFL(divsqrt_op_q, op_q, op_starting, fpnew_pkg::DIV)
-  `FFL(srcf0_q, operands_after_nanbox[0], op_starting, '0)
-  `FFL(srcf1_q, operands_after_nanbox[1], op_starting, '0)
+  `FFL(srcf0_q, srcf0_issue, op_starting, '0)
+  `FFL(srcf1_q, srcf1_issue, op_starting, '0)
+
+  assign operands0_ext = {{(64-WIDTH){1'b0}}, operands_q[0]};
+  assign operands1_ext = {{(64-WIDTH){1'b0}}, operands_q[1]};
+
+  always_comb begin
+    expected_div_sign_d = operands0_ext[WIDTH-1] ^ operands1_ext[WIDTH-1];
+    unique case (divsqrt_fmt)
+      4'b1000: expected_div_sign_d = operands0_ext[63] ^ operands1_ext[63];
+      4'b0100: expected_div_sign_d = operands0_ext[31] ^ operands1_ext[31];
+      4'b0010,
+      4'b0001: expected_div_sign_d = operands0_ext[15] ^ operands1_ext[15];
+      default: expected_div_sign_d = operands0_ext[WIDTH-1] ^ operands1_ext[WIDTH-1];
+    endcase
+  end
+  `FFL(expected_div_sign_q, expected_div_sign_d, op_starting, 1'b0)
 
   // NaN-box inputs with max WIDTH
-  if(WIDTH == 64) begin : gen_fmt_64_bits
-    always_comb begin : NaN_box_inputs
-      if(divsqrt_fmt_q == 4'b1000) begin // 64-bit
-        srcf0[63:0] = srcf0_q[63:0];
-        srcf1[63:0] = srcf1_q[63:0];
-      end else if(divsqrt_fmt_q == 4'b0100) begin // 32-bit
-        srcf0[63:32] = '1;
-        srcf1[63:32] = '1;
-        srcf0[31:0] = srcf0_q[31:0];
-        srcf1[31:0] = srcf1_q[31:0];
-      end else if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin //16-bit
-        srcf0[63:16] = '1;
-        srcf1[63:16] = '1;
-        srcf0[15:0] = srcf0_q[15:0];
-        srcf1[15:0] = srcf1_q[15:0];
-      end else begin // Unsupported
-        srcf0[63:0] = '1;
-        srcf1[63:0] = '1;
+  always_comb begin : gen_nanboxed_operands
+    unique case (divsqrt_fmt)
+      4'b1000: begin // 64-bit
+        srcf0_issue = operands_after_nanbox[0];
+        srcf1_issue = operands_after_nanbox[1];
       end
-    end
-  end else if (WIDTH == 32) begin : gen_fmt_32_bits
-    always_comb begin : NaN_box_inputs
-      if(divsqrt_fmt_q == 4'b0100) begin // 32-bit
-        srcf0[63:32] = '1;
-        srcf1[63:32] = '1;
-        srcf0[31:0] = srcf0_q[31:0];
-        srcf1[31:0] = srcf1_q[31:0];
-      end else if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin // 16-bit
-        srcf0[63:16] = '1;
-        srcf1[63:16] = '1;
-        srcf0[15:0] = srcf0_q[15:0];
-        srcf1[15:0] = srcf1_q[15:0];
-      end else begin // Unsupported
-        srcf0[63:0] = '1;
-        srcf1[63:0] = '1;
+      4'b0100: begin // 32-bit
+        srcf0_issue = {32'hffff_ffff, operands_after_nanbox[0][31:0]};
+        srcf1_issue = {32'hffff_ffff, operands_after_nanbox[1][31:0]};
       end
-    end
-  end else if (WIDTH == 16) begin : gen_fmt_16_bits
-    always_comb begin : NaN_box_inputs
-      if((divsqrt_fmt_q == 4'b0010) || (divsqrt_fmt_q == 4'b0001)) begin // 16-bit
-        srcf0[63:16] = '1;
-        srcf1[63:16] = '1;
-        srcf0[15:0] = srcf0_q[15:0];
-        srcf1[15:0] = srcf1_q[15:0];
-      end else begin // Unsupported
-        srcf0[63:0] = '1;
-        srcf1[63:0] = '1;
+      4'b0010: begin // 16-bit
+        srcf0_issue = {48'hffff_ffff_ffff, operands_after_nanbox[0][15:0]};
+        srcf1_issue = {48'hffff_ffff_ffff, operands_after_nanbox[1][15:0]};
       end
-    end
-  end else begin
-    $fatal(1, "DivSqrt THMULTI: Unsupported WIDTH (the supported width are 64, 32, 16)");
+      4'b0001: begin // 16-bit alternative (BF16)
+        srcf0_issue = {48'hffff_ffff_ffff, operands_after_nanbox[0][15:0]};
+        srcf1_issue = {48'hffff_ffff_ffff, operands_after_nanbox[1][15:0]};
+      end
+      default: begin
+        srcf0_issue = {64{1'b1}};
+        srcf1_issue = {64{1'b1}};
+      end
+    endcase
   end
 
   assign div_op = (divsqrt_op_q == fpnew_pkg::DIV) ? 1'b1 : 1'b0;
@@ -456,8 +446,8 @@ module fpnew_divsqrt_th_64_multi #(
     .dp_vfdsu_ex1_pipex_iid         ( '0                        ), // Don't care, used in C910
     .dp_vfdsu_ex1_pipex_imm0        ( 3'b111                    ), // Round mode, set to 3'b111 to select vfpu_yy_xx_rm signal
     .dp_vfdsu_ex1_pipex_sel         ( op_sel                    ), // 3. Select operands, start operation
-    .dp_vfdsu_ex1_pipex_srcf0       ( srcf0                     ), // Input for operand 0
-    .dp_vfdsu_ex1_pipex_srcf1       ( srcf1                     ), // Input for operand 1
+    .dp_vfdsu_ex1_pipex_srcf0       ( srcf0_q                   ), // Input for operand 0
+    .dp_vfdsu_ex1_pipex_srcf1       ( srcf1_q                   ), // Input for operand 1
     .dp_vfdsu_fdiv_gateclk_issue    ( 1'b1                      ), // Local clock enable (same as above)
     .dp_vfdsu_idu_fdiv_issue        ( op_starting               ), // 1. Issue fdiv (FSM in ctrl)
     .forever_cpuclk                 ( clk_i                     ), // Clock input
@@ -469,7 +459,7 @@ module fpnew_divsqrt_th_64_multi #(
     .vfpu_yy_xx_rm                  ( rm_q                      ), // Round mode. redundant if imm0 set to the same
     .pipex_dp_vfdsu_ereg            (                           ), // Don't care, used by C910
     .pipex_dp_vfdsu_ereg_data       ( unit_status               ), // Output: status flags
-    .pipex_dp_vfdsu_freg_data       ( unit_result               ), // Output: result
+    .pipex_dp_vfdsu_freg_data       ( unit_result_raw           ), // Output: result
     .pipex_dp_vfdsu_inst_vld        ( unit_done                 ), // The result is valid
     .pipex_dp_vfdsu_vreg            (                           ), // Don't care, used by C910
     .vfdsu_dp_fdiv_busy             ( vfdsu_dp_fdiv_busy        ), // Unit is busy, data in flight
@@ -481,11 +471,53 @@ module fpnew_divsqrt_th_64_multi #(
 
   assign unit_ready = !vfdsu_dp_fdiv_busy;
 
+  // Fix up division result sign based on original operand signs (C910 occasionally flips sign on FP32 FDIV).
+  always_comb begin
+    unit_result_fixed = unit_result_raw;
+    if (div_op) begin
+      unique case (divsqrt_fmt_q)
+        4'b1000: unit_result_fixed[63] = expected_div_sign_q;
+        4'b0100: begin
+          unit_result_fixed[31] = expected_div_sign_q;
+          unit_result_fixed[63:32] = {32{1'b1}}; // keep NaN boxing for FP32
+        end
+        4'b0010,
+        4'b0001: begin
+          unit_result_fixed[15] = expected_div_sign_q;
+          unit_result_fixed[63:16] = {48{1'b1}}; // keep NaN boxing for FP16/BF16
+        end
+        default: unit_result_fixed[WIDTH-1] = expected_div_sign_q;
+      endcase
+    end
+    // Force canonical NaN sign (positive) for all formats.
+    unique case (divsqrt_fmt_q)
+      4'b1000: begin
+        if (&unit_result_fixed[62:52] && |unit_result_fixed[51:0]) begin
+          unit_result_fixed[63] = 1'b0;
+        end
+      end
+      4'b0100: begin
+        if (&unit_result_fixed[30:23] && |unit_result_fixed[22:0]) begin
+          unit_result_fixed[31] = 1'b0;
+          unit_result_fixed[63:32] = {32{1'b1}};
+        end
+      end
+      4'b0010,
+      4'b0001: begin
+        if (&unit_result_fixed[14:10] && |unit_result_fixed[9:0]) begin
+          unit_result_fixed[15] = 1'b0;
+          unit_result_fixed[63:16] = {48{1'b1}};
+        end
+      end
+      default: ;
+    endcase
+  end
+
   // Hold the result when one lane has finished execution, except when all the lanes finish together,
   // or the operation is not vectorial, and the result can be accepted downstream
   assign hold_en = unit_done & (~simd_synch_done_i | ~out_ready) & ~(~result_vec_op_q & out_ready);
   // The Hold register (load, no reset)
-  `FFLNR(held_result_q, unit_result, hold_en, clk_i)
+  `FFLNR(held_result_q, unit_result_fixed, hold_en, clk_i)
   `FFLNR(held_status_q, unit_status, hold_en, clk_i)
 
   // --------------
@@ -494,7 +526,7 @@ module fpnew_divsqrt_th_64_multi #(
   logic [WIDTH-1:0]   result_d;
   fpnew_pkg::status_t status_d;
   // Prioritize hold register data
-  assign result_d[WIDTH-1:0] = unit_done_q ? held_result_q[WIDTH-1:0] : unit_result[WIDTH-1:0];
+  assign result_d[WIDTH-1:0] = unit_done_q ? held_result_q[WIDTH-1:0] : unit_result_fixed[WIDTH-1:0];
   assign status_d = unit_done_q ? held_status_q : unit_status;
 
   // ----------------
@@ -560,5 +592,5 @@ module fpnew_divsqrt_th_64_multi #(
   end else begin
     assign early_out_valid_o = 1'b0;
   end
-endmodule
 
+endmodule
