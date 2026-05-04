@@ -450,8 +450,7 @@ module fpnew_cast_multi #(
       if ((input_exp_q >= signed'(fpnew_pkg::int_width(int_fmt_q2) - 1 + op_mod_q2))    // Exponent larger than max int range,
           && !(!op_mod_q2                                                               // unless cast to signed int
                && input_sign_q                                                          // and input value is larges negative int value
-               && (input_exp_q == signed'(fpnew_pkg::int_width(int_fmt_q2) - 1))
-               && (input_mant_q == {1'b1, {INT_MAN_WIDTH-1{1'b0}}}))) begin
+               && (input_exp_q == signed'(fpnew_pkg::int_width(int_fmt_q2) - 1)))) begin
         denorm_shamt    = '0; // prevent shifting
         of_before_round = 1'b1;
       // underflow
@@ -634,6 +633,14 @@ module fpnew_cast_multi #(
         if (!rounded_sign && input_exp_q == signed'(INT_WIDTH - 2 + op_mod_q2)) begin
           // Check whether the rounded MSB differs from unrounded MSB
           ifmt_of_after_round[ifmt] = ~rounded_int_res[INT_WIDTH-2+op_mod_q2];
+        end
+        // Negative overflow: value at exp=INT_WIDTH-1 rounded more negative than INT_MIN
+        // This can happen with RDN/RNE when fractional bits cause rounding away from zero.
+        // Detect by checking if the negated magnitude overflowed INT_MIN's bit position.
+        if (!op_mod_q2 && rounded_sign && input_exp_q == signed'(INT_WIDTH - 1)) begin
+            ifmt_of_after_round[ifmt] = ~rounded_uint_res[INT_WIDTH-1];
+            // If bit INT_WIDTH-1 is set in the two's complement negative result, it means
+            // -(magnitude) underflowed past INT_MIN = -2^(INT_WIDTH-1)
         end
       end
     end else begin : inactive_format
