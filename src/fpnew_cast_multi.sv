@@ -583,7 +583,9 @@ module fpnew_cast_multi #(
     if (FpFmtConfig[fmt]) begin : active_format
       always_comb begin : post_process
         // detect of / uf
-        fmt_uf_after_round[fmt] = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0; // denormal
+        fmt_uf_after_round[fmt] = (rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0) // denormal
+            || ((pre_round_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '0) && (rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == 1) &&
+               ((round_sticky_bits != 2'b11) || (!destination_mant[NUM_FP_STICKY-1] && ((rnd_mode_q == fpnew_pkg::RNE) || (rnd_mode_q == fpnew_pkg::RMM)))));
         fmt_of_after_round[fmt] = rounded_abs[EXP_BITS+MAN_BITS-1:MAN_BITS] == '1; // inf exp.
 
         // Assemble regular result, nan box short ones. Int zeroes need to be detected`
