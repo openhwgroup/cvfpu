@@ -619,7 +619,7 @@ module fpnew_cast_multi #(
   end
   
   assign rounded_int_res = ifmt_rounded_signed_res[int_fmt_q2];
-  assign rounded_int_res_zero = (rounded_int_res == '0);
+  assign rounded_int_res_zero = (rounded_int_res == '0) && (pre_round_abs == '0);
 
   // Detect integer overflows after rounding (only positives)
   for (genvar ifmt = 0; ifmt < int'(NUM_INT_FORMATS); ifmt++) begin : gen_int_overflow
