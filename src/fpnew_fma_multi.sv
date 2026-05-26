@@ -522,6 +522,23 @@ module fpnew_fma_multi #(
                       ? 1'b1
                       : (effective_subtraction ? 1'b0 : tentative_sign);
 
+  // ------
+  // Leading Zero Anticipator
+  // ------
+  logic [LZC_RESULT_WIDTH-1:0] lza_count;
+
+  fmalza #(
+    .WIDTH ( LOWER_SUM_WIDTH      ),
+    .NF    ( PRECISION_BITS-1     )
+  ) i_fmalza (
+    .A    ( addend_shifted[LOWER_SUM_WIDTH-1:0] ),
+    .Pm   ( product                             ),
+    .Cin  ( inject_carry_in                     ),
+    .sub  ( effective_subtraction               ),
+    .SCnt ( lza_count                           )
+  );
+
+
   // ---------------
   // Internal pipeline
   // ---------------
@@ -533,6 +550,7 @@ module fpnew_fma_multi #(
   logic [SHIFT_AMOUNT_WIDTH-1:0] addend_shamt_q;
   logic                          sticky_before_add_q;
   logic [3*PRECISION_BITS+3:0]   sum_q;
+  logic [LZC_RESULT_WIDTH-1:0]   lza_count_q;
   logic                          final_sign_q;
   fpnew_pkg::fp_format_e         dst_fmt_q2;
   fpnew_pkg::roundmode_e         rnd_mode_q;
@@ -547,6 +565,7 @@ module fpnew_fma_multi #(
   logic                  [0:NUM_MID_REGS][SHIFT_AMOUNT_WIDTH-1:0] mid_pipe_add_shamt_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_sticky_q;
   logic                  [0:NUM_MID_REGS][3*PRECISION_BITS+3:0]   mid_pipe_sum_q;
+  logic                  [0:NUM_MID_REGS][LZC_RESULT_WIDTH-1:0]   mid_pipe_lza_count_q;
   logic                  [0:NUM_MID_REGS]                         mid_pipe_final_sign_q;
   fpnew_pkg::roundmode_e [0:NUM_MID_REGS]                         mid_pipe_rnd_mode_q;
   fpnew_pkg::fp_format_e [0:NUM_MID_REGS]                         mid_pipe_dst_fmt_q;
@@ -568,6 +587,7 @@ module fpnew_fma_multi #(
   assign mid_pipe_add_shamt_q[0]   = addend_shamt + addend_normalize_shamt;
   assign mid_pipe_sticky_q[0]      = sticky_before_add;
   assign mid_pipe_sum_q[0]         = sum;
+  assign mid_pipe_lza_count_q[0]   = lza_count;
   assign mid_pipe_final_sign_q[0]  = final_sign;
   assign mid_pipe_rnd_mode_q[0]    = inp_pipe_rnd_mode_q[NUM_INP_REGS];
   assign mid_pipe_dst_fmt_q[0]     = dst_fmt_q;
@@ -601,6 +621,7 @@ module fpnew_fma_multi #(
     `FFL(mid_pipe_add_shamt_q[i+1],   mid_pipe_add_shamt_q[i],   reg_ena, '0)
     `FFL(mid_pipe_sticky_q[i+1],      mid_pipe_sticky_q[i],      reg_ena, '0)
     `FFL(mid_pipe_sum_q[i+1],         mid_pipe_sum_q[i],         reg_ena, '0)
+    `FFL(mid_pipe_lza_count_q[i+1],   mid_pipe_lza_count_q[i],   reg_ena, '0)
     `FFL(mid_pipe_final_sign_q[i+1],  mid_pipe_final_sign_q[i],  reg_ena, '0)
     `FFL(mid_pipe_rnd_mode_q[i+1],    mid_pipe_rnd_mode_q[i],    reg_ena, fpnew_pkg::RNE)
     `FFL(mid_pipe_dst_fmt_q[i+1],     mid_pipe_dst_fmt_q[i],     reg_ena, fpnew_pkg::fp_format_e'(0))
@@ -619,6 +640,7 @@ module fpnew_fma_multi #(
   assign addend_shamt_q          = mid_pipe_add_shamt_q[NUM_MID_REGS];
   assign sticky_before_add_q     = mid_pipe_sticky_q[NUM_MID_REGS];
   assign sum_q                   = mid_pipe_sum_q[NUM_MID_REGS];
+  assign lza_count_q             = mid_pipe_lza_count_q[NUM_MID_REGS];
   assign final_sign_q            = mid_pipe_final_sign_q[NUM_MID_REGS];
   assign rnd_mode_q              = mid_pipe_rnd_mode_q[NUM_MID_REGS];
   assign dst_fmt_q2              = mid_pipe_dst_fmt_q[NUM_MID_REGS];
@@ -632,7 +654,9 @@ module fpnew_fma_multi #(
   logic        [LOWER_SUM_WIDTH-1:0]  sum_lower;              // lower 2p+3 bits of sum are searched
   logic        [LZC_RESULT_WIDTH-1:0] leading_zero_count;     // the number of leading zeroes
   logic signed [LZC_RESULT_WIDTH:0]   leading_zero_count_sgn; // signed leading-zero count
-  logic                               lzc_zeroes;             // in case only zeroes found
+  logic                               sum_lower_zero;         // in case only zeroes found
+  logic        [LOWER_SUM_WIDTH:0]    least_leading_0_onehot; // onehot encoded least leading 0
+  logic                               lza_overpredict;        // LZA over-predicted actual LZC by 1
 
   logic        [SHIFT_AMOUNT_WIDTH-1:0] norm_shamt; // Normalization shift amount
   logic signed [EXP_WIDTH-1:0]          normalized_exponent;
@@ -646,16 +670,16 @@ module fpnew_fma_multi #(
 
   assign sum_lower = sum_q[LOWER_SUM_WIDTH-1:0];
 
-  // Leading zero counter for cancellations
-  lzc #(
-    .WIDTH ( LOWER_SUM_WIDTH ),
-    .MODE  ( 1               ) // MODE = 1 counts leading zeroes
-  ) i_lzc (
-    .in_i    ( sum_lower          ),
-    .cnt_o   ( leading_zero_count ),
-    .empty_o ( lzc_zeroes         )
-  );
+  assign sum_lower_zero = sum_lower == '0;
 
+  // A carry might have propagated into the least leading 0 bit (the lowest 0 bits just before the
+  // first 1 bit) predicted by the LZA.
+  // Note: This is a mux that only looks at `sum_q[LOWER_SUM_WIDTH:0]`.
+  assign least_leading_0_onehot = {1'b1, {LOWER_SUM_WIDTH{1'b0}}} >> lza_count_q;
+  assign lza_overpredict        = |(sum_q[LOWER_SUM_WIDTH:0] & least_leading_0_onehot);
+
+  // Get actual LZC by correcting LZA in case of over-prediction
+  assign leading_zero_count     = lza_overpredict ? lza_count_q - 1 : lza_count_q;
   assign leading_zero_count_sgn = signed'({1'b0, leading_zero_count});
 
   // Normalization shift amount based on exponents and LZC (unsigned as only left shifts)
@@ -663,15 +687,20 @@ module fpnew_fma_multi #(
     // Product-anchored case or cancellations require LZC
     if ((exponent_difference_q <= 0) || (effective_subtraction_q && (exponent_difference_q <= 2))) begin
       // Normal result (biased exponent > 0 and not a zero)
-      if ((exponent_product_q - leading_zero_count_sgn + 1 >= 0) && !lzc_zeroes) begin
+      if ((exponent_product_q - signed'({1'b0, lza_count_q}) + 1 >= 0) && !sum_lower_zero) begin
         // Undo initial product shift, remove the counted zeroes
-        norm_shamt          = PRECISION_BITS + 2 + leading_zero_count;
-        normalized_exponent = exponent_product_q - leading_zero_count_sgn + 1; // account for shift
+        norm_shamt          = PRECISION_BITS + 1 + lza_count_q;
+        normalized_exponent = exponent_product_q - signed'({1'b0, lza_count_q}) + 2; // account for shift
       // Subnormal result
       end else begin
         // Cap the shift distance to align mantissa with minimum exponent
         norm_shamt          = unsigned'(signed'(PRECISION_BITS + 2 + exponent_product_q));
         normalized_exponent = 0; // subnormals encoded as 0
+        // Fix exponent in case of a normal number accidentally being classified as subnormal due
+        // to LZA over-prediction (LZA could be 1 larger than actual LZC)
+        if ((exponent_product_q - leading_zero_count_sgn + 1 >= 0) && !sum_lower_zero) begin
+          normalized_exponent = 1;
+        end
       end
     // Addend-anchored case
     end else begin

@@ -40,6 +40,7 @@ sources:
   - src/fpnew_divsqrt_th_32.sv
   - src/fpnew_divsqrt_th_64_multi.sv
   - src/fpnew_divsqrt_multi.sv
+  - vendor/cvw/fma/fmalza.sv
   - src/fpnew_fma.sv
   - src/fpnew_fma_multi.sv
   - src/fpnew_noncomp.sv
