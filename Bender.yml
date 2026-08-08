@@ -2,7 +2,7 @@
 # Solderpad Hardware License, Version 0.51, see LICENSE for details.
 # SPDX-License-Identifier: SHL-0.51
 package:
-  name: FPnew
+  name: fpnew
   authors: ["Stefan Mach <smach@iis.ee.ethz.ch>"]
 
 dependencies:
