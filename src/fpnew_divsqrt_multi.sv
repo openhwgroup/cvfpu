@@ -295,6 +295,21 @@ module fpnew_divsqrt_multi #(
   fpnew_pkg::status_t unit_status, held_status_q;
   logic               hold_en;
 
+  // fpnew (RISC-V) rounding-mode encoding differs from the MVP unit's C_RM_* encoding.
+  // RNE/RTZ coincide; RDN/RUP are swapped. RMM/ROD/DYN have no equivalent in the MVP
+  // unit (see the DivSqrtSel=PULP $warning in fpnew_opgroup_multifmt_slice.sv) and are
+  // passed through unmapped, where they fall into div_sqrt_top_mvp's own default case.
+  logic [2:0] divsqrt_rm;
+  always_comb begin
+    case (rnd_mode_q)
+      fpnew_pkg::RNE: divsqrt_rm = 3'd0; // MVP C_RM_NEAREST
+      fpnew_pkg::RTZ: divsqrt_rm = 3'd1; // MVP C_RM_TRUNC
+      fpnew_pkg::RDN: divsqrt_rm = 3'd3; // MVP C_RM_MINUSINF
+      fpnew_pkg::RUP: divsqrt_rm = 3'd2; // MVP C_RM_PLUSINF
+      default:        divsqrt_rm = rnd_mode_q; // RMM/ROD/DYN: not supported by div_sqrt_top_mvp
+    endcase
+  end
+
   div_sqrt_top_mvp i_divsqrt_lei (
    .Clk_CI           ( clk_i                               ),
    .Rst_RBI          ( rst_ni                              ),
@@ -302,7 +317,7 @@ module fpnew_divsqrt_multi #(
    .Sqrt_start_SI    ( sqrt_valid                          ),
    .Operand_a_DI     ( divsqrt_operands[0]                 ),
    .Operand_b_DI     ( divsqrt_operands[1]                 ),
-   .RM_SI            ( rnd_mode_q                          ),
+   .RM_SI            ( divsqrt_rm                          ),
    .Precision_ctl_SI ( '0                                  ),
    .Format_sel_SI    ( divsqrt_fmt                         ),
    .Kill_SI          ( flush_i | reg_ena_i[NUM_INP_REGS-1] ),

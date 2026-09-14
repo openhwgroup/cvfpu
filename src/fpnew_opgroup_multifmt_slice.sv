@@ -75,6 +75,10 @@ Set DivSqrtSel = THMULTI or DivSqrtSel = PULP to use a multi-format divider");
     end else if ((DivSqrtSel == fpnew_pkg::THMULTI) && (FpFmtConfig[3] == 1'b1)) begin
       $warning("The DivSqrt unit of C910 (instantiated by DivSqrtSel = THMULTI) does not support \
 FP8. Please use the PULP DivSqrt unit when in need of div/sqrt operations on FP8.");
+    end else if (DivSqrtSel == fpnew_pkg::PULP) begin
+      $warning("The DivSqrt unit instantiated by DivSqrtSel = PULP (div_sqrt_top_mvp) has no \
+native RMM (round to nearest, ties to max magnitude) rounding mode. It falls back to \
+round-to-nearest-ties-to-even, which only differs from RMM on an exact tie.");
     end
   end
 
